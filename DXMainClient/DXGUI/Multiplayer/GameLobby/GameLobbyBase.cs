@@ -1778,6 +1778,33 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 }
             }
 
+            // Ensure map briefing is written under section [spawnmap.ini] -> Briefing
+            // Prefer Map.SpawnIniBriefing; if empty, try to read Basic:SpawnIniBriefing from the map INI file.
+            try
+            {
+                string briefing = Map?.SpawnIniBriefing;
+
+                if (string.IsNullOrWhiteSpace(briefing) && Map != null)
+                {
+                    try
+                    {
+                        IniFile mapIni = Map.GetMapIni();
+                        briefing = mapIni.GetStringValue("Basic", "SpawnIniBriefing", string.Empty).FromIniString();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log("Could not read SpawnIniBriefing from map INI: " + ex.ToString());
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(briefing))
+                    spawnIni.SetStringValue(ProgramConstants.SPAWNMAP_INI, "Briefing", briefing);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Failed to set spawnmap.ini Briefing in spawn.ini: " + ex.ToString());
+            }
+
             spawnIni.WriteIniFile();
 
             return houseInfos;

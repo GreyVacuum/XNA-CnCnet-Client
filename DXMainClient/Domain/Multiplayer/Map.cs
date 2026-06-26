@@ -99,6 +99,12 @@ namespace DTAClient.Domain.Multiplayer
         public string Briefing { get; private set; }
 
         /// <summary>
+        /// Briefing text to be written into spawn.ini (if configured in MPMaps.ini or custom map INI).
+        /// </summary>
+        [JsonInclude]
+        public string SpawnIniBriefing { get; private set; }
+
+        /// <summary>
         /// The author of the map.
         /// </summary>
         [JsonInclude]
@@ -255,6 +261,10 @@ namespace DTAClient.Domain.Multiplayer
                 Briefing = section.GetStringValue("Briefing", string.Empty)
                     .FromIniString()
                     .L10N($"INI:Maps:{BaseFilePath}:Briefing");
+
+                // Read spawn.ini briefing if present (do not L10N - spawn.ini expects csf tags/raw text)
+                SpawnIniBriefing = section.GetStringValue("SpawnIniBriefing", string.Empty)
+                    .FromIniString();
 
                 CalculateSHA();
 
@@ -482,6 +492,10 @@ namespace DTAClient.Domain.Multiplayer
                 }
 
                 Briefing = basicSection.GetStringValue("Briefing", string.Empty)
+                    .FromIniString();
+
+                // Read spawn.ini briefing if present in custom map INI
+                SpawnIniBriefing = basicSection.GetStringValue("SpawnIniBriefing", string.Empty)
                     .FromIniString();
 
                 CalculateSHA();
