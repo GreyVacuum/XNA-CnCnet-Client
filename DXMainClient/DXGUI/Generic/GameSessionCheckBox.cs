@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 using ClientGUI;
 
@@ -40,8 +41,9 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
 
     public bool AllowChanges { get; set; } = true;
 
-    public bool AffectsSpawnIni => !string.IsNullOrWhiteSpace(spawnIniOption);
-    public bool AffectsMapCode => !string.IsNullOrWhiteSpace(customIniPath);
+    // AffectsSpawnIni now true if any spawn ini option (default or indexed) exists
+    public bool AffectsSpawnIni => !string.IsNullOrWhiteSpace(spawnIniOption) || spawnIniEntries.Count > 0;
+    public bool AffectsMapCode => !string.IsNullOrWhiteSpace(customIniPath) || customIniPaths.Count > 0;
 
     public bool AllowScoring
         => !((mapScoringMode == CheckBoxMapScoringMode.DenyWhenChecked && Checked)
@@ -55,12 +57,30 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
 
     private string customIniPath;
 
+    // 支持按索引配置的 CustomIniPath，如 CustomIniPath0、CustomIniPath1 ...
+    // CustomIniPath0 会覆盖无后缀的 CustomIniPath（兼容）
+    private readonly Dictionary<int, string> customIniPaths = new();
+
     protected bool reversed;
 
     private string enabledSpawnIniValue = "True";
     private string disabledSpawnIniValue = "False";
 
     private bool DefaultChecked { get; set; }
+
+    /// <summary>
+    /// Per-index spawn INI entries. Index 0 mirrors the base (no-suffix) values when present.
+    /// </summary>
+    private readonly Dictionary<int, SpawnIniEntry> spawnIniEntries = new();
+
+    private class SpawnIniEntry
+    {
+        public string Option;
+        public string Project;
+        public string EnabledValue;
+        public string DisabledValue;
+        public bool HasOption => !string.IsNullOrWhiteSpace(Option);
+    }
 
     /// <summary>
     /// Whether this checkbox should be included in the GAME broadcast.
@@ -117,6 +137,17 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
 
     protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
     {
+        // helper to parse numeric suffix, returns -1 if no suffix matched
+        static int ParseSuffix(string key, string prefix)
+        {
+            if (!key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return -1;
+            string suffix = key.Substring(prefix.Length);
+            if (suffix.Length == 0) return -1;
+            if (int.TryParse(suffix, out int idx)) return idx;
+            return -1;
+        }
+
         switch (key)
         {
             case "SpawnIniOption":
@@ -176,6 +207,75 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
                 return;
         }
 
+        // handle indexed spawn ini attributes
+        int idx;
+        idx = ParseSuffix(key, "SpawnIniOption");
+        if (idx >= 0)
+        {
+            if (!spawnIniEntries.TryGetValue(idx, out var entry))
+            {
+                entry = new SpawnIniEntry();
+                spawnIniEntries[idx] = entry;
+            }
+            entry.Option = value;
+            // index 0 overrides base no-suffix option for compatibility
+            if (idx == 0)
+                spawnIniOption = value;
+            return;
+        }
+
+        idx = ParseSuffix(key, "SpawnIniProject");
+        if (idx >= 0)
+        {
+            if (!spawnIniEntries.TryGetValue(idx, out var entry))
+            {
+                entry = new SpawnIniEntry();
+                spawnIniEntries[idx] = entry;
+            }
+            entry.Project = value;
+            if (idx == 0)
+                spawnIniProject = value;
+            return;
+        }
+
+        idx = ParseSuffix(key, "EnabledSpawnIniValue");
+        if (idx >= 0)
+        {
+            if (!spawnIniEntries.TryGetValue(idx, out var entry))
+            {
+                entry = new SpawnIniEntry();
+                spawnIniEntries[idx] = entry;
+            }
+            entry.EnabledValue = value;
+            if (idx == 0)
+                enabledSpawnIniValue = value;
+            return;
+        }
+
+        idx = ParseSuffix(key, "DisabledSpawnIniValue");
+        if (idx >= 0)
+        {
+            if (!spawnIniEntries.TryGetValue(idx, out var entry))
+            {
+                entry = new SpawnIniEntry();
+                spawnIniEntries[idx] = entry;
+            }
+            entry.DisabledValue = value;
+            if (idx == 0)
+                disabledSpawnIniValue = value;
+            return;
+        }
+
+        // handle indexed CustomIniPath attributes like CustomIniPath0, CustomIniPath1 ...
+        idx = ParseSuffix(key, "CustomIniPath");
+        if (idx >= 0)
+        {
+            customIniPaths[idx] = value;
+            if (idx == 0)
+                customIniPath = value;
+            return;
+        }
+
         base.ParseControlINIAttribute(iniFile, key, value);
     }
 
@@ -190,13 +290,37 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
         if (!AffectsSpawnIni)
             return;
 
-        string value = disabledSpawnIniValue;
-        if (Checked != reversed)
+        // If there are indexed entries, write each configured one.
+        if (spawnIniEntries.Count > 0)
         {
-            value = enabledSpawnIniValue;
+            foreach (var kvp in spawnIniEntries)
+            {
+                var entry = kvp.Value;
+                if (!entry.HasOption)
+                    continue;
+
+                string project = string.IsNullOrEmpty(entry.Project) ? spawnIniProject : entry.Project;
+                string enabledVal = string.IsNullOrEmpty(entry.EnabledValue) ? enabledSpawnIniValue : entry.EnabledValue;
+                string disabledVal = string.IsNullOrEmpty(entry.DisabledValue) ? disabledSpawnIniValue : entry.DisabledValue;
+
+                string value = (Checked != reversed) ? enabledVal : disabledVal;
+                spawnIni.SetStringValue(project, entry.Option, value);
+            }
+
+            return;
         }
 
-        spawnIni.SetStringValue(spawnIniProject, spawnIniOption, value);
+        // Fallback: legacy single-option behavior
+        if (String.IsNullOrEmpty(spawnIniOption))
+            return;
+
+        string outVal = disabledSpawnIniValue;
+        if (Checked != reversed)
+        {
+            outVal = enabledSpawnIniValue;
+        }
+
+        spawnIni.SetStringValue(spawnIniProject, spawnIniOption, outVal);
     }
         
     public void ApplyMapCode(IniFile mapIni, GameMode gameMode)
@@ -204,7 +328,24 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
         if (!AffectsMapCode || Checked == reversed)
             return;
 
-        MapCodeHelper.ApplyMapCode(mapIni, customIniPath, gameMode);
+        // 如果配置了索引形式的 CustomIniPath，按索引升序逐个应用
+        if (customIniPaths.Count > 0)
+        {
+            var keys = new List<int>(customIniPaths.Keys);
+            keys.Sort();
+            foreach (var k in keys)
+            {
+                var path = customIniPaths[k];
+                if (string.IsNullOrWhiteSpace(path))
+                    continue;
+                MapCodeHelper.ApplyMapCode(mapIni, path, gameMode);
+            }
+            return;
+        }
+
+        // 兼容旧逻辑：单一路径
+        if (!string.IsNullOrWhiteSpace(customIniPath))
+            MapCodeHelper.ApplyMapCode(mapIni, customIniPath, gameMode);
     }
 
     public override void OnLeftClick(InputEventArgs inputEventArgs)
