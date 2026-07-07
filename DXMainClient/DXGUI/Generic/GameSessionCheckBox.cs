@@ -51,6 +51,8 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
 
     private string spawnIniOption;
 
+    private string spawnIniProject = "Settings";
+
     private string customIniPath;
 
     protected bool reversed;
@@ -119,6 +121,9 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
         {
             case "SpawnIniOption":
                 spawnIniOption = value;
+                return;
+            case "SpawnIniProject":
+                spawnIniProject = value;
                 return;
             case "EnabledSpawnIniValue":
                 enabledSpawnIniValue = value;
@@ -191,7 +196,7 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
             value = enabledSpawnIniValue;
         }
 
-        spawnIni.SetStringValue("Settings", spawnIniOption, value);
+        spawnIni.SetStringValue(spawnIniProject, spawnIniOption, value);
     }
         
     public void ApplyMapCode(IniFile mapIni, GameMode gameMode)

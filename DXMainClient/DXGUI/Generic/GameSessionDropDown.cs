@@ -34,6 +34,8 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
 
     private string spawnIniOption = string.Empty;
 
+    private string spawnIniProject = "Settings";
+
     private int defaultIndex;
 
     /// <summary>
@@ -118,6 +120,9 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
             case "SpawnIniOption":
                 spawnIniOption = value;
                 return;
+            case "SpawnIniProject":
+                spawnIniProject = value;
+                return;
             case "DefaultIndex":
                 SelectedIndex = int.Parse(value);
                 defaultIndex = SelectedIndex;
@@ -174,14 +179,14 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
         switch (dataWriteMode)
         {
             case DropDownDataWriteMode.BOOLEAN:
-                spawnIni.SetBooleanValue("Settings", spawnIniOption, SelectedIndex > 0);
+                spawnIni.SetBooleanValue(spawnIniProject, spawnIniOption, SelectedIndex > 0);
                 break;
             case DropDownDataWriteMode.INDEX:
-                spawnIni.SetIntValue("Settings", spawnIniOption, SelectedIndex);
+                spawnIni.SetIntValue(spawnIniProject, spawnIniOption, SelectedIndex);
                 break;
             default:
             case DropDownDataWriteMode.STRING:
-                spawnIni.SetStringValue("Settings", spawnIniOption, Items[SelectedIndex].Tag.ToString());
+                spawnIni.SetStringValue(spawnIniProject, spawnIniOption, Items[SelectedIndex].Tag.ToString());
                 break;
         }
     }
