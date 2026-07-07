@@ -307,6 +307,7 @@ namespace DTAClient.DXGUI
                         services
                             .AddTransientXnaControl<XNAControl>()
                             .AddTransientXnaControl<XNAButton>()
+                            .AddTransientXnaControl<XNAInteractionButton>()
                             .AddTransientXnaControl<XNAClientButton>()
                             .AddTransientXnaControl<XNAClientCheckBox>()
                             .AddTransientXnaControl<XNAClientDropDown>()
