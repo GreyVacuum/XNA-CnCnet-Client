@@ -497,7 +497,7 @@ namespace DTAClient.DXGUI.Campaign
             }
 
             spawnIni.AddSection(spawnIniSettings);
-            WriteMissionSectionToSpawnIni(spawnIni, mission);
+            WriteMissionSectionToSpawnIni(spawnIni, mission, copyMapsToSpawnmapINI);
 
             foreach (CampaignCheckBox chkBox in CheckBoxes)
                 chkBox.ApplySpawnIniCode(spawnIni);
@@ -552,7 +552,7 @@ namespace DTAClient.DXGUI.Campaign
             GameProcessLogic.StartGameProcess(WindowManager);
         }
 
-        public static void WriteMissionSectionToSpawnIni(IniFile spawnIni, Mission mission)
+        public static void WriteMissionSectionToSpawnIni(IniFile spawnIni, Mission mission, bool useSpawnmapIniSectionName = false)
         {
             bool hasGameMissionData = false;
 
@@ -572,10 +572,14 @@ namespace DTAClient.DXGUI.Campaign
                     hasGameMissionData = true;
             }
 
-            if (mission.IsCustomMission && mission.GameMissionConfigSection is not null || hasGameMissionData)
+            if ((mission.IsCustomMission && mission.GameMissionConfigSection is not null) || hasGameMissionData)
             {
+                string missionSectionName = useSpawnmapIniSectionName
+                    ? ProgramConstants.SPAWNMAP_INI
+                    : mission.Scenario;
+
                 // copy an IniSection
-                IniSection spawnIniMissionIniSection = new(mission.Scenario);
+                IniSection spawnIniMissionIniSection = new(missionSectionName);
                 string loadingScreenName = string.Empty;
                 string loadingScreenPalName = string.Empty;
                 foreach (var kvp in mission.GameMissionConfigSection.Keys)
