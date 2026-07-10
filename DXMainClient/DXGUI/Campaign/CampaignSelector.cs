@@ -612,6 +612,18 @@ namespace DTAClient.DXGUI.Campaign
                 // append the new IniSection
                 spawnIni.AddSection(spawnIniMissionIniSection);
                 spawnIni.SetStringValue("Settings", "ReadMissionSection", "Yes");
+
+                // If the Battle.ini includes a SpawnIniBriefing for this mission, ensure it's written
+                // under [spawnmap.ini] -> Briefing in spawn.ini so the game shows the mission briefing.
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(mission.SpawnIniBriefing))
+                        spawnIni.SetStringValue(ProgramConstants.SPAWNMAP_INI, "Briefing", mission.SpawnIniBriefing);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log("Failed to set spawnmap.ini Briefing in spawn.ini for mission: " + mission.CodeName + " - " + ex.ToString());
+                }
             }
         }
 

@@ -48,6 +48,9 @@ namespace DTAClient.Domain
             CodeName = missionCodeName;
             CustomMissionID = ComputeCustomMissionID(missionCodeName);
             PreviewImage = missionSection.GetStringValue("PreviewImage", string.Empty);
+            // Read spawn.ini briefing if present in Battle.ini mission section
+            SpawnIniBriefing = missionSection.GetStringValue("SpawnIniBriefing", string.Empty)
+                .FromIniString();
         }
 
         public static Mission NewCustomMission(IniSection clientMissionConfigSection, string missionCodeName, string scenario, IniSection? gameMissionConfigSection)
@@ -106,6 +109,11 @@ namespace DTAClient.Domain
         public IniSection? GameMissionConfigSection { get; set; }
 
         public string PreviewImage { get; private set; }
+
+        /// <summary>
+        /// Briefing text to be written into spawn.ini (if configured in Battle.ini or ClientMissionConfig).
+        /// </summary>
+        public string SpawnIniBriefing { get; private set; }
 
         public bool TryGetScenarioFilePath(out string scenarioFilePath)
         {
