@@ -1363,10 +1363,14 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
                     if (checkBox.Checked != boolArray[optionIndex])
                     {
+                        string chkName = checkBox.OptionName;
+                        if (string.IsNullOrEmpty(chkName))
+                            chkName = checkBox.Text;
+
                         if (boolArray[optionIndex])
-                            AddNotice(string.Format("The game host has enabled {0}".L10N("Client:Main:HostEnableOption"), checkBox.Text));
+                            AddNotice(string.Format("The game host has enabled {0}".L10N("Client:Main:HostEnableOption"), chkName));
                         else
-                            AddNotice(string.Format("The game host has disabled {0}".L10N("Client:Main:HostDisableOption"), checkBox.Text));
+                            AddNotice(string.Format("The game host has disabled {0}".L10N("Client:Main:HostDisableOption"), chkName));
                     }
 
                     CheckBoxes[gameOptionIndex].Checked = boolArray[optionIndex];

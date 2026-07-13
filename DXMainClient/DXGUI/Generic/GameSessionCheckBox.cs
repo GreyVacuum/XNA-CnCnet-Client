@@ -1,6 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+
+using ClientCore.Extensions;
+using ClientCore.I18N;
 
 using ClientGUI;
 
@@ -9,6 +12,7 @@ using DTAClient.DXGUI.Multiplayer.GameLobby;
 
 using Rampastring.Tools;
 using Rampastring.XNAUI;
+using Rampastring.XNAUI.XNAControls;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -41,6 +45,8 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
     private const int DEFAULT_SORT_ORDER = 0;
 
     public GameSessionCheckBox(WindowManager windowManager) : base (windowManager) { }
+
+    public string OptionName { get; private set; }
 
     public bool AllowChanges { get; set; } = true;
 
@@ -209,6 +215,9 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
 
     protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
     {
+        static string Localize(XNAControl control, string attributeName, string defaultValue, bool notify = true)
+            => Translation.Instance.LookUp(control, attributeName, defaultValue, notify);
+
         // helper to parse numeric suffix, returns -1 if no suffix matched
         static int ParseSuffix(string key, string prefix)
         {
@@ -222,6 +231,9 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
 
         switch (key)
         {
+            case "OptionName":
+                OptionName = Localize(this, "OptionName", value);
+                return;
             case "SpawnIniOption":
                 spawnIniOption = value;
                 return;
