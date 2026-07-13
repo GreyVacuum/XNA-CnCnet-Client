@@ -65,7 +65,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private Random random;
 
-        protected bool IsHost = false;
+        public bool IsHost { get; protected set; } = false;
 
         private bool locked = false;
         protected bool Locked

@@ -115,11 +115,25 @@ public class GameLobbyCheckBox : GameSessionCheckBox
         // it doesn't set handled if changing the setting is not allowed
         inputEventArgs.Handled = true;
 
-        if (!AllowChanges)
+        if (!AllowChanges || !CanChangeByCurrentPlayer())
             return;
 
         base.OnLeftClick(inputEventArgs);
         UserChecked = Checked;
+    }
+
+    private bool CanChangeByCurrentPlayer()
+    {
+        XNAControl current = Parent;
+        while (current != null)
+        {
+            if (current is MultiplayerGameLobby multiplayerLobby)
+                return multiplayerLobby.IsHost; // 现在可访问
+
+            current = current.Parent;
+        }
+
+        return true;
     }
 
     public override void Draw(GameTime gameTime)
