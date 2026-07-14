@@ -42,6 +42,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         private const string FILE_HASH_COMMAND = "FHASH";
         private const string DICE_ROLL_COMMAND = "DR";
         public const string PING = "PING";
+        private const string PLAYER_NAME_OPTIONS_REQUEST_COMMAND = "PNOREQ";
+        public const string PlayerNameOptionsLanMessageKey = "PNOPT";
 
         public LANGameLobby(WindowManager windowManager, string iniName,
             TopBar topBar, LANColor[] chatColors, MapLoader mapLoader, DiscordHandler discordHandler, PrivateMessagingWindow pmWindow, Random random) :
@@ -58,6 +60,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 new StringCommandHandler(PLAYER_READY_REQUEST, GameHost_HandleReadyRequest),
                 new StringCommandHandler(FILE_HASH_COMMAND, HandleFileHashCommand),
                 new StringCommandHandler(DICE_ROLL_COMMAND, Host_HandleDiceRoll),
+                new StringCommandHandler(PLAYER_NAME_OPTIONS_REQUEST_COMMAND, HandlePlayerNameOptionsRequest),
                 new NoParamCommandHandler(PING, s => { }),
             };
 
@@ -69,6 +72,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 new ClientStringCommandHandler(RETURN_COMMAND, Player_HandleReturnCommand),
                 new ClientStringCommandHandler(PLAYER_OPTIONS_BROADCAST_COMMAND, HandlePlayerOptionsBroadcast),
                 new ClientStringCommandHandler(PlayerExtraOptions.LAN_MESSAGE_KEY, HandlePlayerExtraOptionsBroadcast),
+                new ClientStringCommandHandler(PlayerNameOptionsLanMessageKey, HandlePlayerNameOptionsBroadcast),
                 new ClientStringCommandHandler(LAUNCH_GAME_COMMAND, HandleGameLaunchCommand),
                 new ClientStringCommandHandler(GAME_OPTIONS_COMMAND, HandleGameOptionsMessage),
                 new ClientStringCommandHandler(DICE_ROLL_COMMAND, Client_HandleDiceRoll),
@@ -576,6 +580,54 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             var playerExtraOptions = GetPlayerExtraOptions();
 
             BroadcastMessage(playerExtraOptions.ToLanMessage(), true);
+        }
+
+        protected override void BroadcastPlayerNameOptions()
+        {
+            if (PlayerNameOptionsPanel == null)
+                return;
+
+            string message = PlayerNameOptionsPanel.ToMessage();
+
+            if (IsHost)
+            {
+                BroadcastMessage($"{PlayerNameOptionsLanMessageKey} {ProgramConstants.PLAYERNAME}{ProgramConstants.LAN_DATA_SEPARATOR}{message}", true);
+                ApplyPlayerNameOptions(ProgramConstants.PLAYERNAME, message);
+            }
+            else
+            {
+                SendMessageToHost($"{PLAYER_NAME_OPTIONS_REQUEST_COMMAND} {message}");
+            }
+        }
+
+        private void HandlePlayerNameOptionsRequest(string sender, string data)
+        {
+            if (!IsHost)
+                return;
+
+            ApplyPlayerNameOptions(sender, data);
+
+            BroadcastMessage($"{PlayerNameOptionsLanMessageKey} {sender}{ProgramConstants.LAN_DATA_SEPARATOR}{data}", true);
+        }
+
+        private void HandlePlayerNameOptionsBroadcast(string data)
+        {
+            if (IsHost)
+                return;
+
+            string[] parts = data.Split(ProgramConstants.LAN_DATA_SEPARATOR);
+            if (parts.Length < 2)
+                return;
+
+            string sender = parts[0];
+            string message = parts[1];
+
+            ApplyPlayerNameOptions(sender, message);
+        }
+
+        protected override bool IsHostSender(string sender)
+        {
+            return Players.Count > 0 && Players[0].Name == sender;
         }
 
         protected override void HostLaunchGame() => BroadcastMessage(LAUNCH_GAME_COMMAND + " " + UniqueGameID);

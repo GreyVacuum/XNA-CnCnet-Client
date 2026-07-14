@@ -41,6 +41,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         private const string DICE_ROLL_MESSAGE = "DR";
         private const string CHANGE_TUNNEL_SERVER_MESSAGE = "CHTNL";
 
+        public const string PlayerNameOptionsMessageKey = "PNO";
         public CnCNetGameLobby(
             WindowManager windowManager, 
             TopBar topBar, 
@@ -70,6 +71,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 new IntCommandHandler("R", HandleReadyRequest),
                 new StringCommandHandler("PO", ApplyPlayerOptions),
                 new StringCommandHandler(PlayerExtraOptions.CNCNET_MESSAGE_KEY, ApplyPlayerExtraOptions),
+                new StringCommandHandler(PlayerNameOptionsMessageKey, ApplyPlayerNameOptionsHandler),
                 new StringCommandHandler("GO", ApplyGameOptions),
                 new StringCommandHandler("START", NonHostLaunchGame),
                 new NotificationHandler("AISPECS", HandleNotification, AISpectatorsNotification),
@@ -1099,6 +1101,22 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             channel.SendCTCPMessage(playerExtraOptions.ToCncnetMessage(), QueuedMessageType.GAME_PLAYERS_EXTRA_MESSAGE, 11, true);
         }
+
+        protected override void BroadcastPlayerNameOptions()
+        {
+            if (PlayerNameOptionsPanel == null)
+                return;
+
+            string message = $"{PlayerNameOptionsMessageKey} {PlayerNameOptionsPanel.ToMessage()}";
+            channel.SendCTCPMessage(message, QueuedMessageType.GAME_PLAYERS_MESSAGE, 11, true);
+        }
+
+        private void ApplyPlayerNameOptionsHandler(string sender, string message)
+        {
+            ApplyPlayerNameOptions(sender, message);
+        }
+
+        protected override bool IsHostSender(string sender) => sender == hostName;
 
         /// <summary>
         /// Handles player option messages received from the game host.

@@ -618,9 +618,13 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             IsHost = isHost;
             Locked = false;
             CopyPlayerDataToUI();
+            UpdateAIQuickControlsVisibility();
 
             UpdateMapPreviewBoxEnabledStatus();
             PlayerExtraOptionsPanel?.SetIsHost(isHost);
+            PlayerNameOptionsPanel?.SetIsHost(isHost);
+            PlayerNameOptionsPanel?.UpdateLobbyName();
+            PlayerNameOptionsPanel?.UpdateOtherPlayers(Players.ConvertAll(p => p.Name));
             //MapPreviewBox.EnableContextMenu = IsHost;
 
             btnLaunchGame.Text = IsHost ? BTN_LAUNCH_GAME : BTN_LAUNCH_READY;

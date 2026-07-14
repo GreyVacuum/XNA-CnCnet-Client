@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ClientGUI;
 using DTAClient.Domain.Multiplayer;
 using ClientCore.Extensions;
 using Microsoft.Xna.Framework;
+using Rampastring.Tools;
 using Rampastring.XNAUI;
 using Rampastring.XNAUI.XNAControls;
 
@@ -348,6 +349,21 @@ namespace DTAClient.DXGUI.Multiplayer
             _isHost = isHost;
             RefreshPresetDropdown();
             EnableControls(_isHost);
+        }
+
+        /// <summary>
+        /// Loads default values from the [PlayerExtraOptions] section of GameOptions.ini.
+        /// Checkbox values: Yes/No.
+        /// </summary>
+        public void LoadDefaults(IniFile ini)
+        {
+            const string section = "PlayerExtraOptions";
+
+            chkBoxForceRandomSides.Checked = ini.GetBooleanValue(section, nameof(chkBoxForceRandomSides), false);
+            chkBoxForceNoTeams.Checked = ini.GetBooleanValue(section, nameof(chkBoxForceNoTeams), false);
+            chkBoxForceRandomColors.Checked = ini.GetBooleanValue(section, nameof(chkBoxForceRandomColors), false);
+            chkBoxForceRandomStarts.Checked = ini.GetBooleanValue(section, nameof(chkBoxForceRandomStarts), false);
+            chkBoxUseTeamStartMappings.Checked = ini.GetBooleanValue(section, nameof(chkBoxUseTeamStartMappings), false);
         }
     }
 }

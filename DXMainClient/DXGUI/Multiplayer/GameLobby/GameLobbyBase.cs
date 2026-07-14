@@ -172,6 +172,13 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected XNAClientButton btnLeaveGame;
         protected GameLaunchButton btnLaunchGame;
         protected XNAClientButton btnPickRandomMap;
+
+        protected XNAClientButton btnPlayerAIQuickOptionsOpen;
+        protected PlayerAIQuickOptionsPanel PlayerAIQuickOptionsPanel;
+
+        protected XNAClientButton btnPlayerNameOptionsOpen;
+        protected PlayerNameOptionsPanel PlayerNameOptionsPanel;
+
         protected XNALabel lblMapName;
         protected XNALabel lblMapAuthor;
         protected XNALabel lblGameMode;
@@ -380,6 +387,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             btnPickRandomMap = FindChild<XNAClientButton>(nameof(btnPickRandomMap));
             btnPickRandomMap.LeftClick += BtnPickRandomMap_LeftClick;
 
+            InitializePlayerAIQuickOptionsPanel();
+            InitializePlayerNameOptionsPanel();
+
             CheckBoxes.ForEach(chk => chk.CheckedChanged += ChkBox_CheckedChanged);
             DropDowns.ForEach(dd => dd.SelectedIndexChanged += Dropdown_SelectedIndexChanged);
 
@@ -411,6 +421,230 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ReadINIForControl(btnMapSortAlphabetically);
 
             MapLoader.MapChanged += MapLoader_MapChanged;
+        }
+
+        private void InitializePlayerAIQuickOptionsPanel()
+        {
+            btnPlayerAIQuickOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerAIQuickOptionsOpen), true);
+
+            if (btnPlayerAIQuickOptionsOpen != null)
+            {
+                PlayerAIQuickOptionsPanel = FindChild<PlayerAIQuickOptionsPanel>(nameof(PlayerAIQuickOptionsPanel));
+                ReadINIForControl(PlayerAIQuickOptionsPanel);
+
+                foreach (var child in PlayerAIQuickOptionsPanel.Children)
+                    ReadINIForControl(child);
+
+                PlayerAIQuickOptionsPanel.SetMPColors(MPColors);
+                PlayerAIQuickOptionsPanel.LoadDefaults(GameOptionsIni);
+                PlayerAIQuickOptionsPanel.Disable();
+
+                PlayerAIQuickOptionsPanel.AddAIRequested += BtnAddAIQuick_LeftClick;
+                PlayerAIQuickOptionsPanel.RemoveAIRequested += BtnRemoveAIQuick_LeftClick;
+                PlayerAIQuickOptionsPanel.FillAllAIRequested += BtnAIQuickFillAll_LeftClick;
+                PlayerAIQuickOptionsPanel.RemoveAllAIRequested += BtnAIQuickRemoveAll_LeftClick;
+
+                btnPlayerAIQuickOptionsOpen.LeftClick += BtnPlayerAIQuickOptions_LeftClick;
+            }
+        }
+
+        protected void BtnPlayerAIQuickOptions_LeftClick(object sender, EventArgs e)
+        {
+            if (PlayerAIQuickOptionsPanel.Enabled)
+                PlayerAIQuickOptionsPanel.Disable();
+            else
+                PlayerAIQuickOptionsPanel.Enable();
+        }
+
+        private void InitializePlayerNameOptionsPanel()
+        {
+            btnPlayerNameOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerNameOptionsOpen), true);
+
+            if (btnPlayerNameOptionsOpen != null)
+            {
+                PlayerNameOptionsPanel = FindChild<PlayerNameOptionsPanel>(nameof(PlayerNameOptionsPanel));
+                if (PlayerNameOptionsPanel == null)
+                {
+                    PlayerNameOptionsPanel = new PlayerNameOptionsPanel(WindowManager);
+                    PlayerNameOptionsPanel.Name = nameof(PlayerNameOptionsPanel);
+                    AddChild(PlayerNameOptionsPanel);
+
+                    // Initialize() (called by AddChild) sets the panel size;
+                    // reposition based on the now-known width.
+                    PlayerNameOptionsPanel.X = PlayerOptionsPanel.ClientRectangle.Right - PlayerNameOptionsPanel.Width;
+                    PlayerNameOptionsPanel.Y = PlayerOptionsPanel.ClientRectangle.Y;
+                }
+
+                ReadINIForControl(PlayerNameOptionsPanel);
+
+                foreach (var child in PlayerNameOptionsPanel.Children)
+                    ReadINIForControl(child);
+
+                PlayerNameOptionsPanel.LoadDefaults(GameOptionsIni);
+                PlayerNameOptionsPanel.Disable();
+
+                PlayerNameOptionsPanel.OptionsChanged += PlayerNameOptions_OptionsChanged;
+                btnPlayerNameOptionsOpen.LeftClick += BtnPlayerNameOptions_LeftClick;
+            }
+        }
+
+        protected void BtnPlayerNameOptions_LeftClick(object sender, EventArgs e)
+        {
+            if (PlayerNameOptionsPanel.Enabled)
+                PlayerNameOptionsPanel.Disable();
+            else
+                PlayerNameOptionsPanel.Enable();
+        }
+
+        protected virtual void PlayerNameOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            BroadcastPlayerNameOptions();
+        }
+
+        protected virtual void BroadcastPlayerNameOptions() { }
+
+        protected virtual bool IsHostSender(string sender) => false;
+
+        protected void ApplyPlayerNameOptions(string sender, string message)
+        {
+            if (PlayerNameOptionsPanel == null)
+                return;
+
+            bool isHostSender = IsHostSender(sender);
+            PlayerNameOptionsPanel.ApplyMessage(sender, isHostSender, message);
+            PlayerNameOptionsPanel.UpdateLobbyName();
+            var playerNames = Players.ConvertAll(p => p.Name);
+            PlayerNameOptionsPanel.UpdateOtherPlayers(playerNames);
+        }
+
+        private void BtnAddAIQuick_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            if (Players.Count + AIPlayers.Count >= MaxPlayerCount)
+                return;
+
+            AddAIPlayer();
+        }
+
+        private void BtnRemoveAIQuick_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            if (AIPlayers.Count == 0)
+                return;
+
+            RemoveAIPlayer();
+        }
+
+        private void BtnAIQuickFillAll_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            FillRemainingSlotsWithAI();
+        }
+
+        private void BtnAIQuickRemoveAll_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            AIPlayers.Clear();
+            CopyPlayerDataToUI();
+        }
+
+        private void AddAIPlayer()
+        {
+            string[] aiNames = ProgramConstants.AI_PLAYER_NAMES.ToArray();
+            int aiNameIndex = AIPlayers.Count % aiNames.Length;
+            string aiName = aiNames[aiNameIndex];
+
+            int difficultyLevel = PlayerAIQuickOptionsPanel?.AIDifficultyLevel ?? 2;
+            int sideIndex = PlayerAIQuickOptionsPanel?.AISideIndex ?? 0;
+            int colorIndex = PlayerAIQuickOptionsPanel?.AIColorIndex ?? 0;
+            int teamId = PlayerAIQuickOptionsPanel?.AITeamId ?? 0;
+
+            // Apply per-AI randomization when the corresponding checkbox is checked
+            if (PlayerAIQuickOptionsPanel != null)
+            {
+                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty)
+                    difficultyLevel = random.Next(0, 3);
+
+                if (PlayerAIQuickOptionsPanel.RandomAISide && PlayerAIQuickOptionsPanel.SideItemCount > 0)
+                    sideIndex = random.Next(0, PlayerAIQuickOptionsPanel.SideItemCount);
+
+                if (PlayerAIQuickOptionsPanel.RandomAIColor && PlayerAIQuickOptionsPanel.ColorItemCount > 0)
+                    colorIndex = random.Next(0, PlayerAIQuickOptionsPanel.ColorItemCount);
+
+                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 0)
+                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount);
+            }
+
+            int startingLocation = 0;
+            bool autoAssignAIStarts = PlayerAIQuickOptionsPanel?.AutoAssignAIStarts ?? false;
+            if (autoAssignAIStarts && GameModeMap != null)
+            {
+                var usedLocations = new HashSet<int>();
+                foreach (PlayerInfo p in Players)
+                    usedLocations.Add(p.StartingLocation);
+                foreach (PlayerInfo ai in AIPlayers)
+                    usedLocations.Add(ai.StartingLocation);
+
+                foreach (int loc in GameModeMap.AllowedStartingLocations)
+                {
+                    if (!usedLocations.Contains(loc))
+                    {
+                        startingLocation = loc;
+                        break;
+                    }
+                }
+            }
+
+            PlayerInfo aiPlayer = new PlayerInfo
+            {
+                Name = aiName,
+                IsAI = true,
+                AILevel = difficultyLevel,
+                SideId = sideIndex,
+                ColorId = colorIndex,
+                TeamId = teamId,
+                StartingLocation = startingLocation,
+                Index = Players.Count + AIPlayers.Count
+            };
+
+            AIPlayers.Add(aiPlayer);
+
+            CopyPlayerDataToUI();
+        }
+
+        private void RemoveAIPlayer()
+        {
+            if (AIPlayers.Count > 0)
+            {
+                AIPlayers.RemoveAt(AIPlayers.Count - 1);
+                CopyPlayerDataToUI();
+            }
+        }
+
+        private void FillRemainingSlotsWithAI()
+        {
+            int remainingSlots = MaxPlayerCount - Players.Count - AIPlayers.Count;
+            for (int i = 0; i < remainingSlots; i++)
+            {
+                AddAIPlayer();
+            }
+        }
+
+        protected void UpdateAIQuickControlsVisibility()
+        {
+            if (btnPlayerAIQuickOptionsOpen != null)
+                btnPlayerAIQuickOptionsOpen.Visible = AllowPlayerOptionsChange();
+
+            if (PlayerAIQuickOptionsPanel != null)
+                PlayerAIQuickOptionsPanel.SetIsHost(AllowPlayerOptionsChange());
         }
 
         private void InitializeGameOptionPresetUI()
@@ -1195,6 +1429,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     ReadINIForControl(child);
                 }
 
+                PlayerExtraOptionsPanel.LoadDefaults(GameOptionsIni);
                 PlayerExtraOptionsPanel.Disable();
                 PlayerExtraOptionsPanel.OptionsChanged += PlayerExtraOptions_OptionsChanged;
                 btnPlayerExtraOptionsOpen.LeftClick += BtnPlayerExtraOptions_LeftClick;
@@ -1670,7 +1905,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             IniSection settings = new IniSection("Settings");
 
-            settings.SetStringValue("Name", ProgramConstants.PLAYERNAME);
+            string localPlayerName = ProgramConstants.PLAYERNAME;
+            if (PlayerNameOptionsPanel != null)
+                localPlayerName = PlayerNameOptionsPanel.GetEffectiveLocalName();
+            settings.SetStringValue("Name", localPlayerName);
             settings.SetStringValue("Scenario", ProgramConstants.SPAWNMAP_INI);
             settings.SetStringValue("UIGameMode", GameMode.UntranslatedUIName);
             settings.SetStringValue("UIMapName", Map.UntranslatedName);
@@ -1731,7 +1969,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
                 string sectionName = "Other" + otherId;
 
-                spawnIni.SetStringValue(sectionName, "Name", pInfo.Name);
+                string otherPlayerName = pInfo.Name;
+                if (PlayerNameOptionsPanel != null)
+                    otherPlayerName = PlayerNameOptionsPanel.GetEffectivePlayerName(pInfo.Name);
+                spawnIni.SetStringValue(sectionName, "Name", otherPlayerName);
                 spawnIni.SetIntValue(sectionName, "Side", pHouseInfo.InternalSideIndex);
                 spawnIni.SetBooleanValue(sectionName, "IsSpectator", pHouseInfo.IsSpectator);
                 spawnIni.SetIntValue(sectionName, "Color", pHouseInfo.ColorIndex);
@@ -2413,6 +2654,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             CheckDisallowedSides();
 
             PlayerUpdatingInProgress = false;
+
+            PlayerNameOptionsPanel?.UpdateLobbyName();
+            PlayerNameOptionsPanel?.UpdateOtherPlayers(Players.ConvertAll(p => p.Name));
         }
 
         /// <summary>
