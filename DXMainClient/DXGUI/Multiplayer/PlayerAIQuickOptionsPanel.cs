@@ -98,7 +98,7 @@ namespace DTAClient.DXGUI.Multiplayer
             // Random column header
             var lblRandomHeader = new XNALabel(WindowManager);
             lblRandomHeader.Name = "lblRandomHeader";
-            lblRandomHeader.Text = "Random";
+            lblRandomHeader.Text = "Random".L10N("Client:Main:Random");
             lblRandomHeader.ClientRectangle = new Rectangle(chkX - 12, lblHeader.Y, 0, 0);
             AddChild(lblRandomHeader);
 
