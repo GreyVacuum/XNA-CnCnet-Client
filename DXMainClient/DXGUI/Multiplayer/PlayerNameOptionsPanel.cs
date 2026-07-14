@@ -184,7 +184,7 @@ namespace DTAClient.DXGUI.Multiplayer
 
             otherPlayerSlots = new List<XNAPanel>();
             otherPlayerLabels = new List<XNALabel>();
-            const int slotHeight = 24;
+            const int slotHeight = 20;
             const int slotPadding = 6;
             for (int i = 0; i < maxOtherPlayers; i++)
             {
