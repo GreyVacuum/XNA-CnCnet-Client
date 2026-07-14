@@ -618,7 +618,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             IsHost = isHost;
             Locked = false;
             CopyPlayerDataToUI();
-            UpdateAIQuickControlsVisibility();
 
             UpdateMapPreviewBoxEnabledStatus();
             PlayerExtraOptionsPanel?.SetIsHost(isHost);
