@@ -622,6 +622,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             UpdateMapPreviewBoxEnabledStatus();
             PlayerExtraOptionsPanel?.SetIsHost(isHost);
             PlayerNameOptionsPanel?.SetIsHost(isHost);
+            PlayerAIQuickOptionsPanel?.SetIsHost(isHost);
             PlayerNameOptionsPanel?.UpdateLobbyName();
             PlayerNameOptionsPanel?.UpdateOtherPlayers(Players.ConvertAll(p => p.Name));
             //MapPreviewBox.EnableContextMenu = IsHost;
