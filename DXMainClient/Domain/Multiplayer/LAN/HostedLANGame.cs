@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 
 using ClientCore;
@@ -35,9 +35,11 @@ namespace DTAClient.Domain.LAN
             }
         }
 
+        public int Port { get; set; } = ProgramConstants.LAN_GAME_LOBBY_PORT;
+
         public bool SetDataFromStringArray(GameCollection gc, string[] parameters)
         {
-            if (parameters.Length != 10)
+            if (parameters.Length < 10)
             {
                 Logger.Log("Ignoring LAN GAME message because of an incorrect number of parameters.");
                 return false;
@@ -68,6 +70,13 @@ namespace DTAClient.Domain.LAN
             // RoomName = HostName + "'s Game";
 
             MapHash = parameters[9];
+
+            if (parameters.Length >= 11)
+            {
+                int port = Conversions.IntFromString(parameters[10], ProgramConstants.LAN_GAME_LOBBY_PORT);
+                if (port > 0 && port < 65536)
+                    Port = port;
+            }
 
             return true;
         }

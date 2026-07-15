@@ -28,11 +28,13 @@ namespace DTAClient.DXGUI.Multiplayer
         private const int defaultX = sideMargin;
 
         private bool _isHost;
+        private bool _suppressEvents;
 
         public EventHandler AddAIRequested;
         public EventHandler RemoveAIRequested;
         public EventHandler FillAllAIRequested;
         public EventHandler RemoveAllAIRequested;
+        public EventHandler OptionsChanged;
 
         private XNAClientButton btnAddAIQuick;
         private XNAClientButton btnRemoveAIQuick;
@@ -162,6 +164,17 @@ namespace DTAClient.DXGUI.Multiplayer
                 "Remove All".L10N("Client:Main:RemoveAllAIQuick"),
                 btnAIQuickFillAll.Right + btnSpacing, rowY, btnWidth);
             btnAIQuickRemoveAll.LeftClick += (s, a) => RemoveAllAIRequested?.Invoke(this, EventArgs.Empty);
+
+            // Raise OptionsChanged when any control changes
+            cmbAIQuickDifficultyLevel.SelectedIndexChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            cmbAIQuickSide.SelectedIndexChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            cmbAIQuickColor.SelectedIndexChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            cmbAIQuickTeam.SelectedIndexChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            chkAutoAssignAIStarts.CheckedChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            chkRandomAIDifficulty.CheckedChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            chkRandomAISide.CheckedChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            chkRandomAIColor.CheckedChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
+            chkRandomAITeam.CheckedChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
 
             base.Initialize();
 
@@ -322,6 +335,8 @@ namespace DTAClient.DXGUI.Multiplayer
         {
             const string section = "PlayerAIQuickOptions";
 
+            _suppressEvents = true;
+
             chkRandomAIDifficulty.Checked = ini.GetBooleanValue(section, nameof(chkRandomAIDifficulty), false);
             chkRandomAISide.Checked = ini.GetBooleanValue(section, nameof(chkRandomAISide), false);
             chkRandomAIColor.Checked = ini.GetBooleanValue(section, nameof(chkRandomAIColor), false);
@@ -347,6 +362,50 @@ namespace DTAClient.DXGUI.Multiplayer
             if (teamIdx == -1) teamIdx = 0;
             if (teamIdx >= 0 && teamIdx < cmbAIQuickTeam.Items.Count)
                 cmbAIQuickTeam.SelectedIndex = teamIdx;
+
+            _suppressEvents = false;
+
+            EnableControls(_isHost);
+        }
+
+        public PlayerAIQuickOptions GetAIQuickOptions()
+        {
+            return new PlayerAIQuickOptions
+            {
+                DifficultyLevel = AIDifficultyLevel,
+                SideIndex = AISideIndex,
+                ColorIndex = AIColorIndex,
+                TeamId = AITeamId,
+                RandomDifficulty = RandomAIDifficulty,
+                RandomSide = RandomAISide,
+                RandomColor = RandomAIColor,
+                RandomTeam = RandomAITeam,
+                AutoAssignStarts = AutoAssignAIStarts
+            };
+        }
+
+        public void SetAIQuickOptions(PlayerAIQuickOptions options)
+        {
+            if (options == null) return;
+
+            _suppressEvents = true;
+
+            if (options.DifficultyLevel >= 0 && options.DifficultyLevel < cmbAIQuickDifficultyLevel.Items.Count)
+                cmbAIQuickDifficultyLevel.SelectedIndex = options.DifficultyLevel;
+            if (options.SideIndex >= 0 && options.SideIndex < cmbAIQuickSide.Items.Count)
+                cmbAIQuickSide.SelectedIndex = options.SideIndex;
+            if (options.ColorIndex >= 0 && options.ColorIndex < cmbAIQuickColor.Items.Count)
+                cmbAIQuickColor.SelectedIndex = options.ColorIndex;
+            if (options.TeamId >= 0 && options.TeamId < cmbAIQuickTeam.Items.Count)
+                cmbAIQuickTeam.SelectedIndex = options.TeamId;
+
+            chkRandomAIDifficulty.Checked = options.RandomDifficulty;
+            chkRandomAISide.Checked = options.RandomSide;
+            chkRandomAIColor.Checked = options.RandomColor;
+            chkRandomAITeam.Checked = options.RandomTeam;
+            chkAutoAssignAIStarts.Checked = options.AutoAssignStarts;
+
+            _suppressEvents = false;
 
             EnableControls(_isHost);
         }

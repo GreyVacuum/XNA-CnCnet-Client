@@ -391,7 +391,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             InitializePlayerNameOptionsPanel();
 
             CheckBoxes.ForEach(chk => chk.CheckedChanged += ChkBox_CheckedChanged);
-            DropDowns.ForEach(dd => dd.SelectedIndexChanged += Dropdown_SelectedIndexChanged);
+            DropDowns.ForEach(dd =>
+            {
+                dd.SelectedIndexChanged += Dropdown_SelectedIndexChanged;
+                dd.CustomValueChanged += Dropdown_CustomValueChanged;
+            });
 
             InitializeGameOptionPresetUI();
         }
@@ -443,6 +447,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 PlayerAIQuickOptionsPanel.RemoveAIRequested += BtnRemoveAIQuick_LeftClick;
                 PlayerAIQuickOptionsPanel.FillAllAIRequested += BtnAIQuickFillAll_LeftClick;
                 PlayerAIQuickOptionsPanel.RemoveAllAIRequested += BtnAIQuickRemoveAll_LeftClick;
+                PlayerAIQuickOptionsPanel.OptionsChanged += PlayerAIQuickOptions_OptionsChanged;
 
                 btnPlayerAIQuickOptionsOpen.LeftClick += BtnPlayerAIQuickOptions_LeftClick;
             }
@@ -503,6 +508,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         protected virtual void BroadcastPlayerNameOptions() { }
 
+        protected virtual void BroadcastPlayerOptions() { }
+
         protected virtual bool IsHostSender(string sender) => false;
 
         protected void ApplyPlayerNameOptions(string sender, string message)
@@ -511,7 +518,18 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 return;
 
             bool isHostSender = IsHostSender(sender);
+            bool wasAllowCustomNames = PlayerNameOptionsPanel.AllowCustomNames;
+
             PlayerNameOptionsPanel.ApplyMessage(sender, isHostSender, message);
+
+            // Notify non-host players when host toggles Allow Custom Names
+            if (isHostSender && wasAllowCustomNames != PlayerNameOptionsPanel.AllowCustomNames)
+            {
+                AddNotice(PlayerNameOptionsPanel.AllowCustomNames
+                    ? "The game host has enabled custom names.".L10N("Client:Main:HostEnabledCustomNames")
+                    : "The game host has disabled custom names.".L10N("Client:Main:HostDisabledCustomNames"));
+            }
+
             PlayerNameOptionsPanel.UpdateLobbyName();
             var playerNames = Players.ConvertAll(p => p.Name);
             PlayerNameOptionsPanel.UpdateOtherPlayers(playerNames);
@@ -554,9 +572,17 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             AIPlayers.Clear();
             CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
         }
 
         private void AddAIPlayer()
+        {
+            AddAIPlayerInternal();
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
+        }
+
+        private void AddAIPlayerInternal()
         {
             string[] aiNames = ProgramConstants.AI_PLAYER_NAMES.ToArray();
             int aiNameIndex = AIPlayers.Count % aiNames.Length;
@@ -616,8 +642,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             };
 
             AIPlayers.Add(aiPlayer);
-
-            CopyPlayerDataToUI();
         }
 
         private void RemoveAIPlayer()
@@ -626,25 +650,23 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             {
                 AIPlayers.RemoveAt(AIPlayers.Count - 1);
                 CopyPlayerDataToUI();
+                BroadcastPlayerOptions();
             }
         }
 
         private void FillRemainingSlotsWithAI()
         {
             int remainingSlots = MaxPlayerCount - Players.Count - AIPlayers.Count;
+            if (remainingSlots <= 0)
+                return;
+
             for (int i = 0; i < remainingSlots; i++)
             {
-                AddAIPlayer();
+                AddAIPlayerInternal();
             }
-        }
 
-        protected void UpdateAIQuickControlsVisibility()
-        {
-            if (btnPlayerAIQuickOptionsOpen != null)
-                btnPlayerAIQuickOptionsOpen.Visible = AllowPlayerOptionsChange();
-
-            if (PlayerAIQuickOptionsPanel != null)
-                PlayerAIQuickOptionsPanel.SetIsHost(AllowPlayerOptionsChange());
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
         }
 
         private void InitializeGameOptionPresetUI()
@@ -861,6 +883,20 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             dd.HostSelectedIndex = dd.SelectedIndex;
             OnGameOptionChanged();
         }
+
+        private void Dropdown_CustomValueChanged(object sender, EventArgs e)
+        {
+            if (disableGameOptionUpdateBroadcast)
+                return;
+
+            var dd = (GameLobbyDropDown)sender;
+            dd.HostCustomValue = dd.CustomValue;
+            dd.HostUseCustomValue = dd.UseCustomValue;
+            OnGameOptionChanged();
+            BroadcastDropDownCustomValues();
+        }
+
+        protected virtual void BroadcastDropDownCustomValues() { }
 
         private void ChkBox_CheckedChanged(object sender, EventArgs e)
         {
@@ -1512,6 +1548,37 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected void SetPlayerExtraOptions(PlayerExtraOptions playerExtraOptions) => PlayerExtraOptionsPanel?.SetPlayerExtraOptions(playerExtraOptions);
 
         protected string GetTeamMappingsError() => GetPlayerExtraOptions()?.GetTeamMappingsError();
+
+        protected PlayerAIQuickOptions GetAIQuickOptions()
+            => PlayerAIQuickOptionsPanel == null ? new PlayerAIQuickOptions() : PlayerAIQuickOptionsPanel.GetAIQuickOptions();
+
+        protected void ApplyAIQuickOptions(string sender, string message)
+        {
+            var oldOptions = GetAIQuickOptions();
+            var newOptions = PlayerAIQuickOptions.FromMessage(message);
+
+            if (PlayerAIQuickOptionsPanel != null)
+            {
+                PlayerAIQuickOptionsPanel.SetAIQuickOptions(newOptions);
+
+                // Notify about changes
+                if (oldOptions.RandomDifficulty != newOptions.RandomDifficulty)
+                    AddNotice(newOptions.RandomDifficulty
+                        ? "The game host has enabled random AI difficulty.".L10N("Client:Main:HostEnabledRandomAIDifficulty")
+                        : "The game host has disabled random AI difficulty.".L10N("Client:Main:HostDisabledRandomAIDifficulty"));
+                if (oldOptions.AutoAssignStarts != newOptions.AutoAssignStarts)
+                    AddNotice(newOptions.AutoAssignStarts
+                        ? "The game host has enabled auto-assign AI starts.".L10N("Client:Main:HostEnabledAutoAssignAIStarts")
+                        : "The game host has disabled auto-assign AI starts.".L10N("Client:Main:HostDisabledAutoAssignAIStarts"));
+            }
+        }
+
+        protected virtual void BroadcastAIQuickOptions() { }
+
+        protected virtual void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            BroadcastAIQuickOptions();
+        }
 
         private Texture2D LoadTextureOrNull(string name) =>
             AssetLoader.AssetExists(name) ? AssetLoader.LoadTexture(name) : null;
@@ -3099,6 +3166,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             foreach (GameLobbyDropDown dropDown in DropDowns)
             {
                 preset.AddDropDownValue(dropDown.Name, dropDown.SelectedIndex);
+                if (!string.IsNullOrEmpty(dropDown.CustomValue))
+                    preset.AddDropDownCustomValue(dropDown.Name, dropDown.CustomValue);
             }
 
             GameOptionPresets.Instance.AddPreset(preset);
@@ -3132,6 +3201,17 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 {
                     dropDown.SelectedIndex = kvp.Value;
                     dropDown.HostSelectedIndex = kvp.Value;
+                }
+            }
+
+            var dropDownCustomValues = preset.GetDropDownCustomValues();
+            foreach (var kvp in dropDownCustomValues)
+            {
+                GameLobbyDropDown dropDown = DropDowns.Find(d => d.Name == kvp.Key);
+                if (dropDown != null)
+                {
+                    dropDown.CustomValue = kvp.Value;
+                    dropDown.HostCustomValue = kvp.Value;
                 }
             }
 

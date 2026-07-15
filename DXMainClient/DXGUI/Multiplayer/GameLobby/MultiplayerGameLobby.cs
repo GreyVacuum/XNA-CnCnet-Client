@@ -1104,9 +1104,71 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
         }
 
-        protected abstract void BroadcastPlayerOptions();
+        protected override void BroadcastPlayerOptions() { }
 
         protected abstract void BroadcastPlayerExtraOptions();
+
+        protected override void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            if (IsHost && AIPlayers.Count > 0)
+                RefreshAllAIPlayers();
+            base.PlayerAIQuickOptions_OptionsChanged(sender, e);
+        }
+
+        private void RefreshAllAIPlayers()
+        {
+            if (PlayerAIQuickOptionsPanel == null)
+                return;
+
+            bool autoAssignAIStarts = PlayerAIQuickOptionsPanel.AutoAssignAIStarts;
+            var usedLocations = new HashSet<int>();
+            foreach (PlayerInfo p in Players)
+                usedLocations.Add(p.StartingLocation);
+
+            // 先收集已有 AI 玩家的出生点（用于 Auto Assign Starts）
+            foreach (PlayerInfo ai in AIPlayers)
+                usedLocations.Add(ai.StartingLocation);
+
+            for (int i = 0; i < AIPlayers.Count; i++)
+            {
+                PlayerInfo aiPlayer = AIPlayers[i];
+
+                int difficultyLevel = PlayerAIQuickOptionsPanel.AIDifficultyLevel;
+                int sideIndex = PlayerAIQuickOptionsPanel.AISideIndex;
+                int colorIndex = PlayerAIQuickOptionsPanel.AIColorIndex;
+                int teamId = PlayerAIQuickOptionsPanel.AITeamId;
+
+                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty)
+                    difficultyLevel = random.Next(0, 3);
+                if (PlayerAIQuickOptionsPanel.RandomAISide && PlayerAIQuickOptionsPanel.SideItemCount > 0)
+                    sideIndex = random.Next(0, PlayerAIQuickOptionsPanel.SideItemCount);
+                if (PlayerAIQuickOptionsPanel.RandomAIColor && PlayerAIQuickOptionsPanel.ColorItemCount > 0)
+                    colorIndex = random.Next(0, PlayerAIQuickOptionsPanel.ColorItemCount);
+                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 0)
+                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount);
+
+                aiPlayer.AILevel = difficultyLevel;
+                aiPlayer.SideId = sideIndex;
+                aiPlayer.ColorId = colorIndex;
+                aiPlayer.TeamId = teamId;
+
+                if (autoAssignAIStarts && GameModeMap != null)
+                {
+                    foreach (int loc in GameModeMap.AllowedStartingLocations)
+                    {
+                        if (!usedLocations.Contains(loc))
+                        {
+                            aiPlayer.StartingLocation = loc;
+                            usedLocations.Add(loc);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
+        }
 
         protected abstract void RequestPlayerOptions(int side, int color, int start, int team);
 

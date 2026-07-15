@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -581,7 +581,7 @@ namespace DTAClient.DXGUI.Multiplayer
 
             try
             {
-                var client = new TcpClient(hg.EndPoint.Address.ToString(), ProgramConstants.LAN_GAME_LOBBY_PORT);
+                var client = new TcpClient(hg.EndPoint.Address.ToString(), hg.Port);
 
                 byte[] buffer;
 

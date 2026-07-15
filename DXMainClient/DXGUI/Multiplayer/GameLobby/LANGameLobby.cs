@@ -44,6 +44,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         public const string PING = "PING";
         private const string PLAYER_NAME_OPTIONS_REQUEST_COMMAND = "PNOREQ";
         public const string PlayerNameOptionsLanMessageKey = "PNOPT";
+        private const string DROPDOWN_CUSTOM_VALUE_COMMAND = "DDCV";
+
 
         public LANGameLobby(WindowManager windowManager, string iniName,
             TopBar topBar, LANColor[] chatColors, MapLoader mapLoader, DiscordHandler discordHandler, PrivateMessagingWindow pmWindow, Random random) :
@@ -73,8 +75,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 new ClientStringCommandHandler(PLAYER_OPTIONS_BROADCAST_COMMAND, HandlePlayerOptionsBroadcast),
                 new ClientStringCommandHandler(PlayerExtraOptions.LAN_MESSAGE_KEY, HandlePlayerExtraOptionsBroadcast),
                 new ClientStringCommandHandler(PlayerNameOptionsLanMessageKey, HandlePlayerNameOptionsBroadcast),
+                new ClientStringCommandHandler(PlayerAIQuickOptions.LAN_MESSAGE_KEY, HandleAIQuickOptionsBroadcast),
                 new ClientStringCommandHandler(LAUNCH_GAME_COMMAND, HandleGameLaunchCommand),
                 new ClientStringCommandHandler(GAME_OPTIONS_COMMAND, HandleGameOptionsMessage),
+                new ClientStringCommandHandler(DROPDOWN_CUSTOM_VALUE_COMMAND, HandleDropDownCustomValueMessage),
                 new ClientStringCommandHandler(DICE_ROLL_COMMAND, Client_HandleDiceRoll),
                 new ClientNoParamCommandHandler(PING, HandlePing),
             };
@@ -113,6 +117,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         private TcpClient client;
         private volatile bool leaving;
         private int sessionId;
+        private int gameLobbyPort = ProgramConstants.LAN_GAME_LOBBY_PORT;
 
         private IPEndPoint hostEndPoint;
         private LANColor[] chatColors;
@@ -156,8 +161,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 Thread thread = new Thread(ListenForClients);
                 thread.Start();
 
+                while (listener == null || !listener.Server.IsBound)
+                    Thread.Sleep(10);
+
                 this.client = new TcpClient();
-                this.client.Connect("127.0.0.1", ProgramConstants.LAN_GAME_LOBBY_PORT);
+                this.client.Connect("127.0.0.1", gameLobbyPort);
 
                 byte[] buffer = encoding.GetBytes(PLAYER_JOIN_COMMAND +
                     ProgramConstants.LAN_DATA_SEPARATOR + ProgramConstants.PLAYERNAME);
@@ -196,8 +204,42 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private void ListenForClients()
         {
-            listener = new TcpListener(IPAddress.Any, ProgramConstants.LAN_GAME_LOBBY_PORT);
-            listener.Start();
+            int port = ProgramConstants.LAN_GAME_LOBBY_PORT;
+
+            if (ClientConfiguration.MultipleInstanceMode)
+            {
+                int maxAttempts = 100;
+                bool started = false;
+
+                for (int i = 0; i < maxAttempts; i++)
+                {
+                    try
+                    {
+                        listener = new TcpListener(IPAddress.Any, port);
+                        listener.Start();
+                        started = true;
+                        break;
+                    }
+                    catch (SocketException)
+                    {
+                        port++;
+                    }
+                }
+
+                if (!started)
+                {
+                    Logger.Log("Failed to start LAN game lobby listener - all ports in use!");
+                    return;
+                }
+            }
+            else
+            {
+                listener = new TcpListener(IPAddress.Any, port);
+                listener.Start();
+            }
+
+            gameLobbyPort = port;
+            Logger.Log("LAN game lobby listening on port " + port);
 
             while (true)
             {
@@ -310,6 +352,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             CopyPlayerDataToUI();
             BroadcastPlayerOptions();
             BroadcastPlayerExtraOptions();
+            BroadcastPlayerNameOptions();
+            BroadcastAIQuickOptions();
+            BroadcastDropDownCustomValues();
             UpdateDiscordPresence();
         }
 
@@ -733,6 +778,71 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             BroadcastPlayerExtraOptions();
         }
 
+        protected override void BroadcastAIQuickOptions()
+        {
+            if (PlayerAIQuickOptionsPanel == null)
+                return;
+            var options = GetAIQuickOptions();
+            BroadcastMessage(options.ToLanMessage(), true);
+        }
+
+        protected override void BroadcastDropDownCustomValues()
+        {
+            if (!IsHost)
+                return;
+
+            var sb = new ExtendedStringBuilder(DROPDOWN_CUSTOM_VALUE_COMMAND + " ", true);
+            sb.Separator = ProgramConstants.LAN_DATA_SEPARATOR;
+            foreach (GameLobbyDropDown dd in DropDowns)
+            {
+                sb.Append(dd.HostUseCustomValue ? 1 : 0);
+                sb.Append(dd.HostCustomValue ?? string.Empty);
+            }
+            BroadcastMessage(sb.ToString(), true);
+        }
+
+        private void HandleDropDownCustomValueMessage(string data)
+        {
+            if (IsHost)
+                return;
+
+            string[] parts = data.Split(ProgramConstants.LAN_DATA_SEPARATOR);
+
+            if (parts.Length != DropDowns.Count * 2)
+            {
+                Logger.Log("Invalid dropdown custom value message from host: " + data);
+                return;
+            }
+
+            for (int i = 0; i < DropDowns.Count; i++)
+            {
+                GameLobbyDropDown dd = DropDowns[i];
+                bool useCustomValue = Conversions.IntFromString(parts[i * 2], 0) > 0;
+                string customValue = parts[i * 2 + 1];
+
+                dd.HostUseCustomValue = useCustomValue;
+                dd.HostCustomValue = customValue;
+
+                if (useCustomValue)
+                {
+                    dd.CustomValue = customValue;
+                }
+            }
+        }
+
+        private void HandleAIQuickOptionsBroadcast(string data)
+        {
+            if (IsHost)
+                return;
+            ApplyAIQuickOptions(string.Empty, data);
+        }
+
+        protected override void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            base.PlayerAIQuickOptions_OptionsChanged(sender, e);
+            BroadcastAIQuickOptions();
+        }
+
         private void SendMessageToHost(string message)
         {
             if (!client.Connected)
@@ -872,6 +982,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             sb.Append(Convert.ToInt32(Locked));
             sb.Append(0); // IsLoadedGame
             sb.Append(Map?.SHA1);
+
+            if (ClientConfiguration.MultipleInstanceMode)
+                sb.Append(gameLobbyPort);
 
             GameBroadcast?.Invoke(this, new GameBroadcastEventArgs(sb.ToString()));
         }

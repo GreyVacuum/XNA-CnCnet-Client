@@ -1,4 +1,4 @@
-﻿using ClientCore;
+using ClientCore;
 using DTAClient.Domain;
 using DTAClient.Domain.LAN;
 using DTAClient.Domain.Multiplayer;
@@ -73,6 +73,7 @@ namespace DTAClient.DXGUI.Multiplayer
 
         private TcpListener listener;
         private TcpClient client;
+        private int gameLobbyPort = ProgramConstants.LAN_GAME_LOBBY_PORT;
 
         private IPEndPoint hostEndPoint;
         private LANColor[] chatColors;
@@ -120,8 +121,11 @@ namespace DTAClient.DXGUI.Multiplayer
                 Thread thread = new Thread(ListenForClients);
                 thread.Start();
 
+                while (listener == null || !listener.Server.IsBound)
+                    Thread.Sleep(10);
+
                 this.client = new TcpClient();
-                this.client.Connect("127.0.0.1", ProgramConstants.LAN_GAME_LOBBY_PORT);
+                this.client.Connect("127.0.0.1", gameLobbyPort);
 
                 byte[] buffer = encoding.GetBytes(PLAYER_JOIN_COMMAND +
                     ProgramConstants.LAN_DATA_SEPARATOR + ProgramConstants.PLAYERNAME +
@@ -159,8 +163,42 @@ namespace DTAClient.DXGUI.Multiplayer
 
         private void ListenForClients()
         {
-            listener = new TcpListener(IPAddress.Any, ProgramConstants.LAN_GAME_LOBBY_PORT);
-            listener.Start();
+            int port = ProgramConstants.LAN_GAME_LOBBY_PORT;
+
+            if (ClientConfiguration.MultipleInstanceMode)
+            {
+                int maxAttempts = 100;
+                bool started = false;
+
+                for (int i = 0; i < maxAttempts; i++)
+                {
+                    try
+                    {
+                        listener = new TcpListener(IPAddress.Any, port);
+                        listener.Start();
+                        started = true;
+                        break;
+                    }
+                    catch (SocketException)
+                    {
+                        port++;
+                    }
+                }
+
+                if (!started)
+                {
+                    Logger.Log("Failed to start LAN game loading lobby listener - all ports in use!");
+                    return;
+                }
+            }
+            else
+            {
+                listener = new TcpListener(IPAddress.Any, port);
+                listener.Start();
+            }
+
+            gameLobbyPort = port;
+            Logger.Log("LAN game loading lobby listening on port " + port);
 
             while (true)
             {
@@ -708,6 +746,7 @@ namespace DTAClient.DXGUI.Multiplayer
             sb.Append(Convert.ToInt32(started || Players.Count == SGPlayers.Count));
             sb.Append(1); // IsLoadedGame
             sb.Append(string.Empty); // MapHash
+            sb.Append(gameLobbyPort);
 
             GameBroadcast?.Invoke(this, new GameBroadcastEventArgs(sb.ToString()));
         }
