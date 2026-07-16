@@ -787,6 +787,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (!IsHost)
             {
                 CopyPlayerDataToUI();
+                // Re-broadcast our own PlayerNameOptions state so the newly joined
+                // member receives our custom name settings without needing the host
+                // to refresh / re-trigger a broadcast.
+                if (e.User.IRCUser.Name != ProgramConstants.PLAYERNAME)
+                    BroadcastPlayerNameOptions();
                 return;
             }
 

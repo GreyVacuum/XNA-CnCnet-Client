@@ -353,6 +353,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             BroadcastPlayerOptions();
             BroadcastPlayerExtraOptions();
             BroadcastPlayerNameOptions();
+            BroadcastStoredPlayerNameOptions();
             BroadcastAIQuickOptions();
             BroadcastDropDownCustomValues();
             UpdateDiscordPresence();
@@ -642,6 +643,30 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             else
             {
                 SendMessageToHost($"{PLAYER_NAME_OPTIONS_REQUEST_COMMAND} {message}");
+            }
+        }
+
+        /// <summary>
+        /// Host-only: relays all previously stored other-member PlayerNameOptions
+        /// states to a newly joined member so they can see every existing member's
+        /// custom name settings without needing the host to refresh.
+        /// </summary>
+        private void BroadcastStoredPlayerNameOptions()
+        {
+            if (!IsHost || PlayerNameOptionsPanel == null)
+                return;
+
+            string allowCustomFlag = PlayerNameOptionsPanel.AllowCustomNames ? "1" : "0";
+
+            foreach (var state in PlayerNameOptionsPanel.GetOtherPlayerStates())
+            {
+                if (state.Name == ProgramConstants.PLAYERNAME)
+                    continue;
+
+                string memberMessage = $"{allowCustomFlag};{(state.Enabled ? "1" : "0")};{state.CustomName}";
+                BroadcastMessage(
+                    $"{PlayerNameOptionsLanMessageKey} {state.Name}{ProgramConstants.LAN_DATA_SEPARATOR}{memberMessage}",
+                    true);
             }
         }
 
