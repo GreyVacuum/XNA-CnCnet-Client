@@ -29,6 +29,10 @@ namespace DTAClient.DXGUI.Multiplayer
         private const int panelWidth = 250;
         private const int defaultX = sideMargin;
         private const int maxOtherPlayers = 7;
+        private const int slotHeight = 20;
+        private const int slotPadding = 6;
+        // Room reserved for the vertical scrollbar inside the player slots scroll panel.
+        private const int scrollBarRoom = 20;
 
         private bool _isHost;
         private bool _hasReceivedHostState = false;
@@ -42,6 +46,7 @@ namespace DTAClient.DXGUI.Multiplayer
         private XNALabel lblLobbyNameValue;
         private List<XNAPanel> otherPlayerSlots;
         private List<XNATextBox> otherPlayerTextBoxes;
+        private PlayerSlotsScrollPanel playerSlotsScrollPanel;
 
         /// <summary>
         /// Stores custom names received from other players, keyed by their lobby name.
@@ -196,7 +201,7 @@ namespace DTAClient.DXGUI.Multiplayer
 
             // Create scroll panel for player slots
             const int scrollPanelHeight = 100; // Show ~4 slots at a time
-            var playerSlotsScrollPanel = new PlayerSlotsScrollPanel(WindowManager);
+            playerSlotsScrollPanel = new PlayerSlotsScrollPanel(WindowManager);
             playerSlotsScrollPanel.Name = "playerSlotsScrollPanel";
             playerSlotsScrollPanel.ClientRectangle = new Rectangle(
                 labelX, rowY,
@@ -204,16 +209,17 @@ namespace DTAClient.DXGUI.Multiplayer
             playerSlotsScrollPanel.BackgroundTexture = AssetLoader.CreateTexture(new Color(0, 0, 0, 200), 1, 1);
             playerSlotsScrollPanel.DrawBorders = true;
             playerSlotsScrollPanel.BorderColor = new Color(80, 80, 100);
-            playerSlotsScrollPanel.AllowScroll = (false, true); // Vertical scroll only
+            // Enable both horizontal and vertical scrolling so long player names
+            // can be revealed by scrolling horizontally instead of being clipped.
+            playerSlotsScrollPanel.AllowScroll = (true, true);
             AddChild(playerSlotsScrollPanel);
 
             var contentPanel = playerSlotsScrollPanel.GetContentPanel();
 
             otherPlayerSlots = new List<XNAPanel>();
             otherPlayerTextBoxes = new List<XNATextBox>();
-            const int slotHeight = 20;
-            const int slotPadding = 6;
             int slotY = 0;
+            int minSlotWidth = playerSlotsScrollPanel.Width - scrollBarRoom;
             for (int i = 0; i < maxOtherPlayers; i++)
             {
                 var slot = new XNAPanel(WindowManager);
@@ -224,7 +230,7 @@ namespace DTAClient.DXGUI.Multiplayer
                 slot.InputEnabled = false;
                 slot.ClientRectangle = new Rectangle(
                     0, slotY,
-                    playerSlotsScrollPanel.Width - 20, slotHeight); // leave room for scrollbar
+                    minSlotWidth, slotHeight);
                 slot.Visible = false;
                 contentPanel.AddChild(slot);
                 otherPlayerSlots.Add(slot);
@@ -308,6 +314,46 @@ namespace DTAClient.DXGUI.Multiplayer
                 otherPlayerTextBoxes[i].Visible = false;
                 otherPlayerTextBoxes[i].Text = string.Empty;
                 otherPlayerSlots[i].Visible = false;
+            }
+
+            UpdateSlotWidths();
+        }
+
+        /// <summary>
+        /// Resizes each visible player slot (and its inner text box) so that the
+        /// full text is displayed without being clipped. When the resulting width
+        /// exceeds the scroll panel's viewport, the horizontal scrollbar takes
+        /// over so the content never visually overflows the panel.
+        /// </summary>
+        private void UpdateSlotWidths()
+        {
+            if (playerSlotsScrollPanel == null)
+                return;
+
+            // Minimum width keeps the slot filling the visible area when text is short.
+            int minSlotWidth = playerSlotsScrollPanel.Width - scrollBarRoom;
+            int textMargin = slotPadding * 2 + 4; // padding both sides + small extra buffer
+
+            foreach (var slot in otherPlayerSlots)
+            {
+                int slotIndex = otherPlayerSlots.IndexOf(slot);
+                var tb = otherPlayerTextBoxes[slotIndex];
+
+                int desiredWidth = minSlotWidth;
+                if (slot.Visible && !string.IsNullOrEmpty(tb.Text))
+                {
+                    int textWidth = (int)Renderer.GetTextDimensions(tb.Text, tb.FontIndex).X;
+                    desiredWidth = Math.Max(minSlotWidth, textWidth + textMargin);
+                }
+
+                if (slot.Width != desiredWidth)
+                {
+                    slot.ClientRectangle = new Rectangle(
+                        slot.X, slot.Y, desiredWidth, slot.Height);
+                    tb.ClientRectangle = new Rectangle(
+                        slotPadding, (slot.Height - ddHeight) / 2,
+                        slot.Width - slotPadding * 2, ddHeight);
+                }
             }
         }
 
