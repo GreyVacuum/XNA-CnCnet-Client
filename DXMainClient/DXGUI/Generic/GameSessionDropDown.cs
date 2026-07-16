@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using ClientCore.Extensions;
@@ -468,6 +468,21 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     }
 
     public bool UseCustomValue => IsCustomItemIndex(SelectedIndex);
+
+    /// <summary>
+    /// Returns the item index for a given custom slot.
+    /// </summary>
+    public int GetCustomItemIndex(int slot) => customItemStartIndex + slot;
+
+    /// <summary>
+    /// Whether the given item index is a custom item.
+    /// </summary>
+    public bool IsCustomItem(int index) => IsCustomItemIndex(index);
+
+    /// <summary>
+    /// The number of custom value slots.
+    /// </summary>
+    public int CustomSlotCount => customValues?.Length ?? 0;
 
     public event EventHandler CustomValueChanged;
 

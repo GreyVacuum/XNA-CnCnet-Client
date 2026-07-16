@@ -519,6 +519,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             bool isHostSender = IsHostSender(sender);
             bool wasAllowCustomNames = PlayerNameOptionsPanel.AllowCustomNames;
+            bool isFirstHostMessage = isHostSender && !PlayerNameOptionsPanel.HasReceivedHostState;
 
             PlayerNameOptionsPanel.ApplyMessage(sender, isHostSender, message);
 
@@ -528,6 +529,13 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 AddNotice(PlayerNameOptionsPanel.AllowCustomNames
                     ? "The game host has enabled custom names.".L10N("Client:Main:HostEnabledCustomNames")
                     : "The game host has disabled custom names.".L10N("Client:Main:HostDisabledCustomNames"));
+            }
+            else if (isFirstHostMessage)
+            {
+                // On first join sync, notify the room member of the current master switch state
+                AddNotice(PlayerNameOptionsPanel.AllowCustomNames
+                    ? "The game host has enabled custom names.".L10N("Client:Main:HostEnabledCustomNames")
+                    : "The game host has not enabled custom names.".L10N("Client:Main:HostNotEnabledCustomNames"));
             }
 
             PlayerNameOptionsPanel.UpdateLobbyName();

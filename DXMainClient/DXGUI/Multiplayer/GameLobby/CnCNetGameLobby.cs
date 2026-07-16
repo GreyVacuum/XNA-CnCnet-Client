@@ -800,6 +800,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 BroadcastPlayerExtraOptions();
                 BroadcastPlayerNameOptions();
                 BroadcastAIQuickOptions();
+                BroadcastDropDownCustomValues();
                 UpdateDiscordPresence();
             }
             else
@@ -1346,9 +1347,26 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
                 if (useCustomValue)
                 {
+                    // Check if value changed for notification
+                    bool changed = dd.CustomValue != customValue;
                     dd.CustomValue = customValue;
+                    // Sync SelectedIndex to the first custom item
+                    if (dd.CustomSlotCount > 0)
+                        dd.SelectedIndex = dd.GetCustomItemIndex(0);
+                    // Notify room member of the change with OptionName
+                    if (changed && !string.IsNullOrEmpty(customValue))
+                    {
+                        string optionName = dd.OptionName;
+                        if (string.IsNullOrEmpty(optionName))
+                            optionName = dd.Name;
+                        AddNotice(string.Format(
+                            "The game host has changed {0} to {1}".L10N("Client:Main:HostChangeDropDownCustomValue"),
+                            optionName, customValue));
+                    }
                 }
             }
+
+            OnGameOptionChanged();
         }
 
         /// <summary>
