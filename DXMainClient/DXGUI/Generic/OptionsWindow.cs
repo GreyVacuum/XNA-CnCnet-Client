@@ -1,4 +1,4 @@
-﻿using ClientCore.Extensions;
+using ClientCore.Extensions;
 using ClientCore;
 using DTAClient.Domain.Multiplayer.CnCNet;
 using ClientCore.Enums;
@@ -185,19 +185,38 @@ namespace DTAClient.DXGUI.Generic
                 return;
 
             bool restartRequired = false;
+            bool hasError = false;
+            string errorMessage = string.Empty;
+
+            foreach (var panel in optionsPanels)
+            {
+                try
+                {
+                    restartRequired = panel.Save() || restartRequired;
+                }
+                catch (Exception ex)
+                {
+                    hasError = true;
+                    errorMessage = ex.Message;
+                    Logger.Log($"Saving panel settings failed! Error message: {ex}");
+                }
+            }
 
             try
             {
-                foreach (var panel in optionsPanels)
-                    restartRequired = panel.Save() || restartRequired;
-
                 UserINISettings.Instance.SaveSettings();
             }
             catch (Exception ex)
             {
-                Logger.Log("Saving settings failed! Error message: " + ex.ToString());
+                hasError = true;
+                errorMessage = ex.Message;
+                Logger.Log($"Saving settings to INI failed! Error message: {ex}");
+            }
+
+            if (hasError)
+            {
                 XNAMessageBox.Show(WindowManager, "Saving Settings Failed".L10N("Client:DTAConfig:SaveSettingFailTitle"),
-                    "Saving settings failed! Error message:".L10N("Client:DTAConfig:SaveSettingFailText") + " " + ex.Message);
+                    "Saving settings failed! Error message:".L10N("Client:DTAConfig:SaveSettingFailText") + " " + errorMessage);
             }
 
             Disable();
