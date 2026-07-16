@@ -295,6 +295,8 @@ namespace DTAClient.DXGUI
                             .AddSingletonXnaControl<MapPreviewBox>()
                             .AddSingletonXnaControl<GameLaunchButton>()
                             .AddSingletonXnaControl<PlayerExtraOptionsPanel>()
+                            .AddSingletonXnaControl<PlayerAIQuickOptionsPanel>()
+                            .AddSingletonXnaControl<PlayerNameOptionsPanel>()
                             .AddSingletonXnaControl<CampaignTagSelector>()
                             .AddSingletonXnaControl<GameLoadingWindow>()
                             .AddSingletonXnaControl<StatisticsWindow>()
@@ -363,6 +365,16 @@ namespace DTAClient.DXGUI
             settings.DefaultAlphaRate = ClientConfiguration.Instance.DefaultAlphaRate;
             settings.CheckBoxAlphaRate = ClientConfiguration.Instance.CheckBoxAlphaRate;
             settings.IndicatorAlphaRate = ClientConfiguration.Instance.IndicatorAlphaRate;
+
+            string thumbColor = ClientConfiguration.Instance.DropDownScrollBarThumbColor;
+            string trackColor = ClientConfiguration.Instance.DropDownScrollBarTrackColor;
+            string borderColor = ClientConfiguration.Instance.DropDownScrollBarBorderColor;
+            if (!string.IsNullOrEmpty(thumbColor))
+                settings.DropDownScrollBarThumbColor = AssetLoader.GetRGBAColorFromString(thumbColor);
+            if (!string.IsNullOrEmpty(trackColor))
+                settings.DropDownScrollBarTrackColor = AssetLoader.GetRGBAColorFromString(trackColor);
+            if (!string.IsNullOrEmpty(borderColor))
+                settings.DropDownScrollBarBorderColor = AssetLoader.GetRGBAColorFromString(borderColor);
 
             settings.CheckBoxClearTexture = AssetLoader.LoadTexture("checkBoxClear.png");
             settings.CheckBoxCheckedTexture = AssetLoader.LoadTexture("checkBoxChecked.png");

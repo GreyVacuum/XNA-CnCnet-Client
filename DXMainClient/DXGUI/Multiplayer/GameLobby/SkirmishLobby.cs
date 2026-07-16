@@ -67,6 +67,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ddPlayerSides[0].SelectedIndexChanged += PlayerSideChanged;
 
             PlayerExtraOptionsPanel?.SetIsHost(true);
+            PlayerNameOptionsPanel?.SetIsHost(true);
+            PlayerAIQuickOptionsPanel?.SetIsHost(true);
         }
 
         protected override void ToggleFavoriteMap()

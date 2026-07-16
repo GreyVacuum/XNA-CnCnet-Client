@@ -28,6 +28,7 @@ namespace ClientCore
         public const string NETWORK_DEFS = "NetworkDefinitions.ini";
 
         private static ClientConfiguration _instance;
+        public static bool MultipleInstanceMode { get; set; } = false;
 
         private IniFile gameOptions_ini;
         private IniFile DTACnCNetClient_ini;
@@ -157,6 +158,10 @@ namespace ClientCore
         public string ListBoxFocusColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "ListBoxFocusColor", "64,64,168");
 
         public string HoverOnGameColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "HoverOnGameColor", "32,32,84");
+
+        public string DropDownScrollBarThumbColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "DropDownScrollBarThumbColor", "");
+        public string DropDownScrollBarTrackColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "DropDownScrollBarTrackColor", "");
+        public string DropDownScrollBarBorderColor => DTACnCNetClient_ini.GetStringValue(GENERAL, "DropDownScrollBarBorderColor", "");
 
         public IniSection GetParserConstants() => DTACnCNetClient_ini.GetSection("ParserConstants");
 

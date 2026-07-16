@@ -172,6 +172,13 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected XNAClientButton btnLeaveGame;
         protected GameLaunchButton btnLaunchGame;
         protected XNAClientButton btnPickRandomMap;
+
+        protected XNAClientButton btnPlayerAIQuickOptionsOpen;
+        protected PlayerAIQuickOptionsPanel PlayerAIQuickOptionsPanel;
+
+        protected XNAClientButton btnPlayerNameOptionsOpen;
+        protected PlayerNameOptionsPanel PlayerNameOptionsPanel;
+
         protected XNALabel lblMapName;
         protected XNALabel lblMapAuthor;
         protected XNALabel lblGameMode;
@@ -380,8 +387,15 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             btnPickRandomMap = FindChild<XNAClientButton>(nameof(btnPickRandomMap));
             btnPickRandomMap.LeftClick += BtnPickRandomMap_LeftClick;
 
+            InitializePlayerAIQuickOptionsPanel();
+            InitializePlayerNameOptionsPanel();
+
             CheckBoxes.ForEach(chk => chk.CheckedChanged += ChkBox_CheckedChanged);
-            DropDowns.ForEach(dd => dd.SelectedIndexChanged += Dropdown_SelectedIndexChanged);
+            DropDowns.ForEach(dd =>
+            {
+                dd.SelectedIndexChanged += Dropdown_SelectedIndexChanged;
+                dd.CustomValueChanged += Dropdown_CustomValueChanged;
+            });
 
             InitializeGameOptionPresetUI();
         }
@@ -411,6 +425,248 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ReadINIForControl(btnMapSortAlphabetically);
 
             MapLoader.MapChanged += MapLoader_MapChanged;
+        }
+
+        private void InitializePlayerAIQuickOptionsPanel()
+        {
+            btnPlayerAIQuickOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerAIQuickOptionsOpen), true);
+
+            if (btnPlayerAIQuickOptionsOpen != null)
+            {
+                PlayerAIQuickOptionsPanel = FindChild<PlayerAIQuickOptionsPanel>(nameof(PlayerAIQuickOptionsPanel));
+                ReadINIForControl(PlayerAIQuickOptionsPanel);
+
+                foreach (var child in PlayerAIQuickOptionsPanel.Children)
+                    ReadINIForControl(child);
+
+                PlayerAIQuickOptionsPanel.SetMPColors(MPColors);
+                PlayerAIQuickOptionsPanel.LoadDefaults(GameOptionsIni);
+                PlayerAIQuickOptionsPanel.Disable();
+
+                PlayerAIQuickOptionsPanel.AddAIRequested += BtnAddAIQuick_LeftClick;
+                PlayerAIQuickOptionsPanel.RemoveAIRequested += BtnRemoveAIQuick_LeftClick;
+                PlayerAIQuickOptionsPanel.FillAllAIRequested += BtnAIQuickFillAll_LeftClick;
+                PlayerAIQuickOptionsPanel.RemoveAllAIRequested += BtnAIQuickRemoveAll_LeftClick;
+                PlayerAIQuickOptionsPanel.OptionsChanged += PlayerAIQuickOptions_OptionsChanged;
+
+                btnPlayerAIQuickOptionsOpen.LeftClick += BtnPlayerAIQuickOptions_LeftClick;
+            }
+        }
+
+        protected void BtnPlayerAIQuickOptions_LeftClick(object sender, EventArgs e)
+        {
+            if (PlayerAIQuickOptionsPanel.Enabled)
+                PlayerAIQuickOptionsPanel.Disable();
+            else
+                PlayerAIQuickOptionsPanel.Enable();
+        }
+
+        private void InitializePlayerNameOptionsPanel()
+        {
+            btnPlayerNameOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerNameOptionsOpen), true);
+
+            if (btnPlayerNameOptionsOpen != null)
+            {
+                PlayerNameOptionsPanel = FindChild<PlayerNameOptionsPanel>(nameof(PlayerNameOptionsPanel));
+                if (PlayerNameOptionsPanel == null)
+                {
+                    PlayerNameOptionsPanel = new PlayerNameOptionsPanel(WindowManager);
+                    PlayerNameOptionsPanel.Name = nameof(PlayerNameOptionsPanel);
+                    AddChild(PlayerNameOptionsPanel);
+
+                    // Initialize() (called by AddChild) sets the panel size;
+                    // reposition based on the now-known width.
+                    PlayerNameOptionsPanel.X = PlayerOptionsPanel.ClientRectangle.Right - PlayerNameOptionsPanel.Width;
+                    PlayerNameOptionsPanel.Y = PlayerOptionsPanel.ClientRectangle.Y;
+                }
+
+                ReadINIForControl(PlayerNameOptionsPanel);
+
+                foreach (var child in PlayerNameOptionsPanel.Children)
+                    ReadINIForControl(child);
+
+                PlayerNameOptionsPanel.LoadDefaults(GameOptionsIni);
+                PlayerNameOptionsPanel.Disable();
+
+                PlayerNameOptionsPanel.OptionsChanged += PlayerNameOptions_OptionsChanged;
+                btnPlayerNameOptionsOpen.LeftClick += BtnPlayerNameOptions_LeftClick;
+            }
+        }
+
+        protected void BtnPlayerNameOptions_LeftClick(object sender, EventArgs e)
+        {
+            if (PlayerNameOptionsPanel.Enabled)
+                PlayerNameOptionsPanel.Disable();
+            else
+                PlayerNameOptionsPanel.Enable();
+        }
+
+        protected virtual void PlayerNameOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            BroadcastPlayerNameOptions();
+        }
+
+        protected virtual void BroadcastPlayerNameOptions() { }
+
+        protected virtual void BroadcastPlayerOptions() { }
+
+        protected virtual bool IsHostSender(string sender) => false;
+
+        protected void ApplyPlayerNameOptions(string sender, string message)
+        {
+            if (PlayerNameOptionsPanel == null)
+                return;
+
+            bool isHostSender = IsHostSender(sender);
+            bool wasAllowCustomNames = PlayerNameOptionsPanel.AllowCustomNames;
+
+            PlayerNameOptionsPanel.ApplyMessage(sender, isHostSender, message);
+
+            // Notify non-host players when host toggles Allow Custom Names
+            if (isHostSender && wasAllowCustomNames != PlayerNameOptionsPanel.AllowCustomNames)
+            {
+                AddNotice(PlayerNameOptionsPanel.AllowCustomNames
+                    ? "The game host has enabled custom names.".L10N("Client:Main:HostEnabledCustomNames")
+                    : "The game host has disabled custom names.".L10N("Client:Main:HostDisabledCustomNames"));
+            }
+
+            PlayerNameOptionsPanel.UpdateLobbyName();
+            var playerNames = Players.ConvertAll(p => p.Name);
+            PlayerNameOptionsPanel.UpdateOtherPlayers(playerNames);
+        }
+
+        private void BtnAddAIQuick_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            if (Players.Count + AIPlayers.Count >= MaxPlayerCount)
+                return;
+
+            AddAIPlayer();
+        }
+
+        private void BtnRemoveAIQuick_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            if (AIPlayers.Count == 0)
+                return;
+
+            RemoveAIPlayer();
+        }
+
+        private void BtnAIQuickFillAll_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            FillRemainingSlotsWithAI();
+        }
+
+        private void BtnAIQuickRemoveAll_LeftClick(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            AIPlayers.Clear();
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
+        }
+
+        private void AddAIPlayer()
+        {
+            AddAIPlayerInternal();
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
+        }
+
+        private void AddAIPlayerInternal()
+        {
+            string[] aiNames = ProgramConstants.AI_PLAYER_NAMES.ToArray();
+            int aiNameIndex = AIPlayers.Count % aiNames.Length;
+            string aiName = aiNames[aiNameIndex];
+
+            int difficultyLevel = PlayerAIQuickOptionsPanel?.AIDifficultyLevel ?? 2;
+            int sideIndex = PlayerAIQuickOptionsPanel?.AISideIndex ?? 0;
+            int colorIndex = PlayerAIQuickOptionsPanel?.AIColorIndex ?? 0;
+            int teamId = PlayerAIQuickOptionsPanel?.AITeamId ?? 0;
+
+            // Apply per-AI randomization when the corresponding checkbox is checked
+            if (PlayerAIQuickOptionsPanel != null)
+            {
+                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty)
+                    difficultyLevel = random.Next(0, 3);
+
+                if (PlayerAIQuickOptionsPanel.RandomAISide && PlayerAIQuickOptionsPanel.SideItemCount > 0)
+                    sideIndex = random.Next(0, PlayerAIQuickOptionsPanel.SideItemCount);
+
+                if (PlayerAIQuickOptionsPanel.RandomAIColor && PlayerAIQuickOptionsPanel.ColorItemCount > 0)
+                    colorIndex = random.Next(0, PlayerAIQuickOptionsPanel.ColorItemCount);
+
+                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 0)
+                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount);
+            }
+
+            int startingLocation = 0;
+            bool autoAssignAIStarts = PlayerAIQuickOptionsPanel?.AutoAssignAIStarts ?? false;
+            if (autoAssignAIStarts && GameModeMap != null)
+            {
+                var usedLocations = new HashSet<int>();
+                foreach (PlayerInfo p in Players)
+                    usedLocations.Add(p.StartingLocation);
+                foreach (PlayerInfo ai in AIPlayers)
+                    usedLocations.Add(ai.StartingLocation);
+
+                foreach (int loc in GameModeMap.AllowedStartingLocations)
+                {
+                    if (!usedLocations.Contains(loc))
+                    {
+                        startingLocation = loc;
+                        break;
+                    }
+                }
+            }
+
+            PlayerInfo aiPlayer = new PlayerInfo
+            {
+                Name = aiName,
+                IsAI = true,
+                AILevel = difficultyLevel,
+                SideId = sideIndex,
+                ColorId = colorIndex,
+                TeamId = teamId,
+                StartingLocation = startingLocation,
+                Index = Players.Count + AIPlayers.Count
+            };
+
+            AIPlayers.Add(aiPlayer);
+        }
+
+        private void RemoveAIPlayer()
+        {
+            if (AIPlayers.Count > 0)
+            {
+                AIPlayers.RemoveAt(AIPlayers.Count - 1);
+                CopyPlayerDataToUI();
+                BroadcastPlayerOptions();
+            }
+        }
+
+        private void FillRemainingSlotsWithAI()
+        {
+            int remainingSlots = MaxPlayerCount - Players.Count - AIPlayers.Count;
+            if (remainingSlots <= 0)
+                return;
+
+            for (int i = 0; i < remainingSlots; i++)
+            {
+                AddAIPlayerInternal();
+            }
+
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
         }
 
         private void InitializeGameOptionPresetUI()
@@ -627,6 +883,20 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             dd.HostSelectedIndex = dd.SelectedIndex;
             OnGameOptionChanged();
         }
+
+        private void Dropdown_CustomValueChanged(object sender, EventArgs e)
+        {
+            if (disableGameOptionUpdateBroadcast)
+                return;
+
+            var dd = (GameLobbyDropDown)sender;
+            dd.HostCustomValue = dd.CustomValue;
+            dd.HostUseCustomValue = dd.UseCustomValue;
+            OnGameOptionChanged();
+            BroadcastDropDownCustomValues();
+        }
+
+        protected virtual void BroadcastDropDownCustomValues() { }
 
         private void ChkBox_CheckedChanged(object sender, EventArgs e)
         {
@@ -1195,6 +1465,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     ReadINIForControl(child);
                 }
 
+                PlayerExtraOptionsPanel.LoadDefaults(GameOptionsIni);
                 PlayerExtraOptionsPanel.Disable();
                 PlayerExtraOptionsPanel.OptionsChanged += PlayerExtraOptions_OptionsChanged;
                 btnPlayerExtraOptionsOpen.LeftClick += BtnPlayerExtraOptions_LeftClick;
@@ -1277,6 +1548,37 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected void SetPlayerExtraOptions(PlayerExtraOptions playerExtraOptions) => PlayerExtraOptionsPanel?.SetPlayerExtraOptions(playerExtraOptions);
 
         protected string GetTeamMappingsError() => GetPlayerExtraOptions()?.GetTeamMappingsError();
+
+        protected PlayerAIQuickOptions GetAIQuickOptions()
+            => PlayerAIQuickOptionsPanel == null ? new PlayerAIQuickOptions() : PlayerAIQuickOptionsPanel.GetAIQuickOptions();
+
+        protected void ApplyAIQuickOptions(string sender, string message)
+        {
+            var oldOptions = GetAIQuickOptions();
+            var newOptions = PlayerAIQuickOptions.FromMessage(message);
+
+            if (PlayerAIQuickOptionsPanel != null)
+            {
+                PlayerAIQuickOptionsPanel.SetAIQuickOptions(newOptions);
+
+                // Notify about changes
+                if (oldOptions.RandomDifficulty != newOptions.RandomDifficulty)
+                    AddNotice(newOptions.RandomDifficulty
+                        ? "The game host has enabled random AI difficulty.".L10N("Client:Main:HostEnabledRandomAIDifficulty")
+                        : "The game host has disabled random AI difficulty.".L10N("Client:Main:HostDisabledRandomAIDifficulty"));
+                if (oldOptions.AutoAssignStarts != newOptions.AutoAssignStarts)
+                    AddNotice(newOptions.AutoAssignStarts
+                        ? "The game host has enabled auto-assign AI starts.".L10N("Client:Main:HostEnabledAutoAssignAIStarts")
+                        : "The game host has disabled auto-assign AI starts.".L10N("Client:Main:HostDisabledAutoAssignAIStarts"));
+            }
+        }
+
+        protected virtual void BroadcastAIQuickOptions() { }
+
+        protected virtual void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            BroadcastAIQuickOptions();
+        }
 
         private Texture2D LoadTextureOrNull(string name) =>
             AssetLoader.AssetExists(name) ? AssetLoader.LoadTexture(name) : null;
@@ -1670,7 +1972,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             IniSection settings = new IniSection("Settings");
 
-            settings.SetStringValue("Name", ProgramConstants.PLAYERNAME);
+            string localPlayerName = ProgramConstants.PLAYERNAME;
+            if (PlayerNameOptionsPanel != null)
+                localPlayerName = PlayerNameOptionsPanel.GetEffectiveLocalName();
+            settings.SetStringValue("Name", localPlayerName);
             settings.SetStringValue("Scenario", ProgramConstants.SPAWNMAP_INI);
             settings.SetStringValue("UIGameMode", GameMode.UntranslatedUIName);
             settings.SetStringValue("UIMapName", Map.UntranslatedName);
@@ -1731,7 +2036,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
                 string sectionName = "Other" + otherId;
 
-                spawnIni.SetStringValue(sectionName, "Name", pInfo.Name);
+                string otherPlayerName = pInfo.Name;
+                if (PlayerNameOptionsPanel != null)
+                    otherPlayerName = PlayerNameOptionsPanel.GetEffectivePlayerName(pInfo.Name);
+                spawnIni.SetStringValue(sectionName, "Name", otherPlayerName);
                 spawnIni.SetIntValue(sectionName, "Side", pHouseInfo.InternalSideIndex);
                 spawnIni.SetBooleanValue(sectionName, "IsSpectator", pHouseInfo.IsSpectator);
                 spawnIni.SetIntValue(sectionName, "Color", pHouseInfo.ColorIndex);
@@ -2413,6 +2721,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             CheckDisallowedSides();
 
             PlayerUpdatingInProgress = false;
+
+            PlayerNameOptionsPanel?.UpdateLobbyName();
+            PlayerNameOptionsPanel?.UpdateOtherPlayers(Players.ConvertAll(p => p.Name));
         }
 
         /// <summary>
@@ -2855,6 +3166,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             foreach (GameLobbyDropDown dropDown in DropDowns)
             {
                 preset.AddDropDownValue(dropDown.Name, dropDown.SelectedIndex);
+                if (!string.IsNullOrEmpty(dropDown.CustomValue))
+                    preset.AddDropDownCustomValue(dropDown.Name, dropDown.CustomValue);
             }
 
             GameOptionPresets.Instance.AddPreset(preset);
@@ -2888,6 +3201,17 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 {
                     dropDown.SelectedIndex = kvp.Value;
                     dropDown.HostSelectedIndex = kvp.Value;
+                }
+            }
+
+            var dropDownCustomValues = preset.GetDropDownCustomValues();
+            foreach (var kvp in dropDownCustomValues)
+            {
+                GameLobbyDropDown dropDown = DropDowns.Find(d => d.Name == kvp.Key);
+                if (dropDown != null)
+                {
+                    dropDown.CustomValue = kvp.Value;
+                    dropDown.HostCustomValue = kvp.Value;
                 }
             }
 

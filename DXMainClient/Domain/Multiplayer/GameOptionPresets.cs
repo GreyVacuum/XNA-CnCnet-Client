@@ -1,4 +1,4 @@
-﻿using ClientCore;
+using ClientCore;
 using Rampastring.Tools;
 using System;
 using System.Collections.Generic;
@@ -35,6 +35,7 @@ namespace DTAClient.Domain.Multiplayer
 
         private Dictionary<string, bool> checkBoxValues = new Dictionary<string, bool>();
         private Dictionary<string, int> dropDownValues = new Dictionary<string, int>();
+        private Dictionary<string, string> dropDownCustomValues = new Dictionary<string, string>();
 
         private void AddValues<T>(IniSection section, string keyName, Dictionary<string, T> dictionary, Converter<string, T> converter)
         {
@@ -64,17 +65,25 @@ namespace DTAClient.Domain.Multiplayer
             dropDownValues.Add(dropDownValue, value);
         }
 
+        public void AddDropDownCustomValue(string dropDownName, string customValue)
+        {
+            dropDownCustomValues.Add(dropDownName, customValue);
+        }
+
         public Dictionary<string, bool> GetCheckBoxValues() => new Dictionary<string, bool>(checkBoxValues);
         public Dictionary<string, int> GetDropDownValues() => new Dictionary<string, int>(dropDownValues);
+        public Dictionary<string, string> GetDropDownCustomValues() => new Dictionary<string, string>(dropDownCustomValues);
 
         public void Read(IniSection section)
         {
             // Syntax example:
             // CheckBoxValues=chkCrates:1,chkShortGame:1,chkFastResourceGrowth:0,.... (0 = unchecked, 1 = checked)
             // DropDownValues=ddTechLevel:7,ddStartingCredits:5,... (the number is the selected option index)
+            // DropDownCustomValues=ddTechLevel:100|200,ddStartingCredits:|
 
             AddValues(section, "CheckBoxValues", checkBoxValues, s => s == "1");
             AddValues(section, "DropDownValues", dropDownValues, s => Conversions.IntFromString(s, 0));
+            AddValues(section, "DropDownCustomValues", dropDownCustomValues, s => s);
         }
 
         public void Write(IniSection section)
@@ -83,6 +92,8 @@ namespace DTAClient.Domain.Multiplayer
                 checkBoxValues.Select(s => $"{s.Key}:{(s.Value ? "1" : "0")}")));
             section.SetStringValue("DropDownValues", string.Join(",",
                 dropDownValues.Select(s => $"{s.Key}:{s.Value.ToString()}")));
+            section.SetStringValue("DropDownCustomValues", string.Join(",",
+                dropDownCustomValues.Select(s => $"{s.Key}:{s.Value}")));
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -331,7 +331,8 @@ namespace DTAClient.DXGUI.Multiplayer
                             else
                             {
                                 // Show with text
-                                string text = $"{checkbox.Text}: {(isChecked ? "On".L10N("Client:Main:On") : "Off".L10N("Client:Main:Off"))}";
+                                string chkName = !string.IsNullOrEmpty(checkbox.OptionName) ? checkbox.OptionName : checkbox.Text;
+                                string text = $"{chkName}: {(isChecked ? "On".L10N("Client:Main:On") : "Off".L10N("Client:Main:Off"))}";
                                 optionIconsWithText.Add((icon, text, checkbox.SortOrder));
                             }
                         }

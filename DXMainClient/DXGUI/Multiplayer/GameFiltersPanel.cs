@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ClientCore;
@@ -224,9 +224,10 @@ namespace DTAClient.DXGUI.Multiplayer
             // Create filters for broadcastable checkboxes
             foreach (var checkbox in broadcastableCheckboxes)
             {
+                string optionName = !string.IsNullOrEmpty(checkbox.OptionName) ? checkbox.OptionName : checkbox.Name;
                 var filterControl = new GameOptionFilterControl
                 {
-                    OptionName = checkbox.Name,
+                    OptionName = optionName,
                     IsCheckbox = true,
                     EnabledIcon = checkbox.EnabledIcon,
                     DisabledIcon = checkbox.DisabledIcon
@@ -256,10 +257,11 @@ namespace DTAClient.DXGUI.Multiplayer
                     filterControl.IconPanel = iconPanel;
                 }
 
+                string labelText = !string.IsNullOrEmpty(checkbox.OptionName) ? checkbox.OptionName : checkbox.Text;
                 var label = new XNALabel(WindowManager)
                 {
                     Name = $"lbl{checkbox.Name}Filter",
-                    Text = checkbox.Text + ":",
+                    Text = labelText + ":",
                     ClientRectangle = new Rectangle(
                     columnX + iconWidth + (iconWidth > 0 ? iconLabelSpacing : 0), rowY,
                     0, UIDesignConstants.BUTTON_HEIGHT)

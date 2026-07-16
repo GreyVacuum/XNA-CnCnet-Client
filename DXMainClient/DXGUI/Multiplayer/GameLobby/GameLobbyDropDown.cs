@@ -1,3 +1,5 @@
+using System;
+
 using DTAClient.DXGUI.Generic;
 
 using Rampastring.Tools;
@@ -13,6 +15,14 @@ public class GameLobbyDropDown : GameSessionDropDown
     public int HostSelectedIndex { get; set; }
 
     public int UserSelectedIndex { get; set; }
+
+    public string HostCustomValue { get; set; } = string.Empty;
+
+    public string UserCustomValue { get; set; } = string.Empty;
+
+    public bool HostUseCustomValue { get; set; } = false;
+
+    public bool UserUseCustomValue { get; set; } = false;
 
     public override void Initialize()
     {
@@ -35,6 +45,14 @@ public class GameLobbyDropDown : GameSessionDropDown
         }
 
         base.Initialize();
+
+        CustomValueChanged += GameLobbyDropDown_CustomValueChanged;
+    }
+
+    private void GameLobbyDropDown_CustomValueChanged(object sender, EventArgs e)
+    {
+        UserCustomValue = CustomValue;
+        UserUseCustomValue = UseCustomValue;
     }
 
     protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)

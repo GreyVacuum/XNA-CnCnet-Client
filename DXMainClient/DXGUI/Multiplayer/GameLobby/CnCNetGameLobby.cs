@@ -40,7 +40,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         private const string CHEAT_DETECTED_MESSAGE = "CD";
         private const string DICE_ROLL_MESSAGE = "DR";
         private const string CHANGE_TUNNEL_SERVER_MESSAGE = "CHTNL";
+        private const string DROPDOWN_CUSTOM_VALUE_MESSAGE = "DDCV";
 
+        public const string PlayerNameOptionsMessageKey = "PNO";
         public CnCNetGameLobby(
             WindowManager windowManager, 
             TopBar topBar, 
@@ -70,7 +72,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 new IntCommandHandler("R", HandleReadyRequest),
                 new StringCommandHandler("PO", ApplyPlayerOptions),
                 new StringCommandHandler(PlayerExtraOptions.CNCNET_MESSAGE_KEY, ApplyPlayerExtraOptions),
+                new StringCommandHandler(PlayerNameOptionsMessageKey, ApplyPlayerNameOptionsHandler),
+                new StringCommandHandler(PlayerAIQuickOptions.CNCNET_MESSAGE_KEY, ApplyAIQuickOptionsHandler),
                 new StringCommandHandler("GO", ApplyGameOptions),
+                new StringCommandHandler(DROPDOWN_CUSTOM_VALUE_MESSAGE, ApplyDropDownCustomValues),
                 new StringCommandHandler("START", NonHostLaunchGame),
                 new NotificationHandler("AISPECS", HandleNotification, AISpectatorsNotification),
                 new NotificationHandler("GETREADY", HandleNotification, GetReadyNotification),
@@ -741,13 +746,33 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     connectionManager.MainChannel.AddMessage(new ChatMessage(
                         ERROR_MESSAGE_COLOR, "The game host has abandoned the game.".L10N("Client:Main:HostHasAbandoned")));
                     BtnLeaveGame_LeftClick(this, EventArgs.Empty);
+                    return;
                 }
+
+                channel.Users.DoForAllUsers(user =>
+                {
+                    if (Players.Find(p => p.Name == user.IRCUser.Name) == null)
+                    {
+                        PlayerInfo pInfo = new PlayerInfo(user.IRCUser.Name);
+
+                        if (user.IRCUser.Name == hostName)
+                            Players.Insert(0, pInfo);
+                        else
+                            Players.Add(pInfo);
+                    }
+                });
+
+                CopyPlayerDataToUI();
+                RequestPlayerOptions(0, 0, 0, 0);
             }
             UpdateDiscordPresence();
         }
 
         private void Channel_UserAdded(object sender, ChannelUserEventArgs e)
         {
+            if (Players.Find(p => p.Name == e.User.IRCUser.Name) != null)
+                return;
+
             PlayerInfo pInfo = new PlayerInfo(e.User.IRCUser.Name);
             Players.Add(pInfo);
 
@@ -773,6 +798,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 ChangeMap(GameModeMap);
                 BroadcastPlayerOptions();
                 BroadcastPlayerExtraOptions();
+                BroadcastPlayerNameOptions();
+                BroadcastAIQuickOptions();
                 UpdateDiscordPresence();
             }
             else
@@ -1100,6 +1127,43 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             channel.SendCTCPMessage(playerExtraOptions.ToCncnetMessage(), QueuedMessageType.GAME_PLAYERS_EXTRA_MESSAGE, 11, true);
         }
 
+        protected override void BroadcastAIQuickOptions()
+        {
+            if (!IsHost || PlayerAIQuickOptionsPanel == null)
+                return;
+            var options = GetAIQuickOptions();
+            channel.SendCTCPMessage(options.ToCncnetMessage(), QueuedMessageType.GAME_PLAYERS_MESSAGE, 11, true);
+        }
+
+        private void ApplyAIQuickOptionsHandler(string sender, string message)
+        {
+            if (sender != hostName)
+                return;
+            ApplyAIQuickOptions(sender, message);
+        }
+
+        protected override void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            base.PlayerAIQuickOptions_OptionsChanged(sender, e);
+            BroadcastAIQuickOptions();
+        }
+
+        protected override void BroadcastPlayerNameOptions()
+        {
+            if (PlayerNameOptionsPanel == null)
+                return;
+
+            string message = $"{PlayerNameOptionsMessageKey} {PlayerNameOptionsPanel.ToMessage()}";
+            channel.SendCTCPMessage(message, QueuedMessageType.GAME_PLAYERS_MESSAGE, 11, true);
+        }
+
+        private void ApplyPlayerNameOptionsHandler(string sender, string message)
+        {
+            ApplyPlayerNameOptions(sender, message);
+        }
+
+        protected override bool IsHostSender(string sender) => sender == hostName;
+
         /// <summary>
         /// Handles player option messages received from the game host.
         /// </summary>
@@ -1128,16 +1192,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 else
                 {
                     pInfo.Name = pName;
-
-                    // If we can't find the player from the channel user list,
-                    // ignore the player
-                    // They've either left the channel or got kicked before the
-                    // player options message reached us
-                    if (channel.Users.Find(pName) == null)
-                    {
-                        i += HUMAN_PLAYER_OPTIONS_LENGTH;
-                        continue;
-                    }
                 }
 
                 if (parts.Length <= i + 1)
@@ -1181,12 +1235,15 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 else
                 {
                     if (parts.Length <= i + 2)
-                        return;
+                        break;
 
                     int readyStatus = Conversions.IntFromString(parts[i + 2], -1);
 
                     if (readyStatus == -1)
-                        return;
+                    {
+                        i += HUMAN_PLAYER_OPTIONS_LENGTH;
+                        continue;
+                    }
 
                     pInfo.Ready = readyStatus > 0;
                     pInfo.AutoReady = readyStatus > 1;
@@ -1249,6 +1306,49 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             sb.Append(Map?.UntranslatedName ?? string.Empty);
 
             channel.SendCTCPMessage(sb.ToString(), QueuedMessageType.GAME_SETTINGS_MESSAGE, 11);
+        }
+
+        protected override void BroadcastDropDownCustomValues()
+        {
+            if (!IsHost || channel == null)
+                return;
+
+            ExtendedStringBuilder sb = new ExtendedStringBuilder(DROPDOWN_CUSTOM_VALUE_MESSAGE + " ", true, ';');
+            foreach (GameLobbyDropDown dd in DropDowns)
+            {
+                sb.Append(dd.HostUseCustomValue ? 1 : 0);
+                sb.Append(dd.HostCustomValue ?? string.Empty);
+            }
+            channel.SendCTCPMessage(sb.ToString(), QueuedMessageType.GAME_SETTINGS_MESSAGE, 11);
+        }
+
+        private void ApplyDropDownCustomValues(string sender, string message)
+        {
+            if (sender != hostName)
+                return;
+
+            string[] parts = message.Split(';');
+
+            if (parts.Length != DropDowns.Count * 2)
+            {
+                Logger.Log("Invalid dropdown custom value message from host: " + message);
+                return;
+            }
+
+            for (int i = 0; i < DropDowns.Count; i++)
+            {
+                GameLobbyDropDown dd = DropDowns[i];
+                bool useCustomValue = Conversions.IntFromString(parts[i * 2], 0) > 0;
+                string customValue = parts[i * 2 + 1];
+
+                dd.HostUseCustomValue = useCustomValue;
+                dd.HostCustomValue = customValue;
+
+                if (useCustomValue)
+                {
+                    dd.CustomValue = customValue;
+                }
+            }
         }
 
         /// <summary>
@@ -1363,10 +1463,14 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
                     if (checkBox.Checked != boolArray[optionIndex])
                     {
+                        string chkName = checkBox.OptionName;
+                        if (string.IsNullOrEmpty(chkName))
+                            chkName = checkBox.Text;
+
                         if (boolArray[optionIndex])
-                            AddNotice(string.Format("The game host has enabled {0}".L10N("Client:Main:HostEnableOption"), checkBox.Text));
+                            AddNotice(string.Format("The game host has enabled {0}".L10N("Client:Main:HostEnableOption"), chkName));
                         else
-                            AddNotice(string.Format("The game host has disabled {0}".L10N("Client:Main:HostDisableOption"), checkBox.Text));
+                            AddNotice(string.Format("The game host has disabled {0}".L10N("Client:Main:HostDisableOption"), chkName));
                     }
 
                     CheckBoxes[gameOptionIndex].Checked = boolArray[optionIndex];

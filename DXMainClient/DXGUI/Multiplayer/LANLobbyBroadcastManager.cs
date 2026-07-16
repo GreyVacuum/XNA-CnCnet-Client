@@ -9,6 +9,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
+using ClientCore;
+
 using Rampastring.Tools;
 
 using NetworkInterface = System.Net.NetworkInformation.NetworkInterface;
@@ -108,6 +110,8 @@ internal class LANLobbyBroadcastManager : IDisposable
                 {
                     EnableBroadcast = true
                 };
+                if (ClientConfiguration.MultipleInstanceMode)
+                    socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 socket.Bind(new IPEndPoint(IPAddress.Any, lobbyPort));
                 
                 // Discover initial broadcast interfaces
