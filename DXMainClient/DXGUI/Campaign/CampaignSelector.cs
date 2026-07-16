@@ -497,7 +497,7 @@ namespace DTAClient.DXGUI.Campaign
             }
 
             spawnIni.AddSection(spawnIniSettings);
-            WriteMissionSectionToSpawnIni(spawnIni, mission);
+            WriteMissionSectionToSpawnIni(spawnIni, mission, copyMapsToSpawnmapINI);
 
             foreach (CampaignCheckBox chkBox in CheckBoxes)
                 chkBox.ApplySpawnIniCode(spawnIni);
@@ -552,7 +552,7 @@ namespace DTAClient.DXGUI.Campaign
             GameProcessLogic.StartGameProcess(WindowManager);
         }
 
-        public static void WriteMissionSectionToSpawnIni(IniFile spawnIni, Mission mission)
+        public static void WriteMissionSectionToSpawnIni(IniFile spawnIni, Mission mission, bool useSpawnmapIniSectionName = false)
         {
             bool hasGameMissionData = false;
 
@@ -572,10 +572,14 @@ namespace DTAClient.DXGUI.Campaign
                     hasGameMissionData = true;
             }
 
-            if (mission.IsCustomMission && mission.GameMissionConfigSection is not null || hasGameMissionData)
+            if ((mission.IsCustomMission && mission.GameMissionConfigSection is not null) || hasGameMissionData)
             {
+                string missionSectionName = useSpawnmapIniSectionName
+                    ? ProgramConstants.SPAWNMAP_INI
+                    : mission.Scenario;
+
                 // copy an IniSection
-                IniSection spawnIniMissionIniSection = new(mission.Scenario);
+                IniSection spawnIniMissionIniSection = new(missionSectionName);
                 string loadingScreenName = string.Empty;
                 string loadingScreenPalName = string.Empty;
                 foreach (var kvp in mission.GameMissionConfigSection.Keys)
@@ -612,6 +616,18 @@ namespace DTAClient.DXGUI.Campaign
                 // append the new IniSection
                 spawnIni.AddSection(spawnIniMissionIniSection);
                 spawnIni.SetStringValue("Settings", "ReadMissionSection", "Yes");
+
+                // If the Battle.ini includes a SpawnIniBriefing for this mission, ensure it's written
+                // under [spawnmap.ini] -> Briefing in spawn.ini so the game shows the mission briefing.
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(mission.SpawnIniBriefing))
+                        spawnIni.SetStringValue(ProgramConstants.SPAWNMAP_INI, "Briefing", mission.SpawnIniBriefing);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log("Failed to set spawnmap.ini Briefing in spawn.ini for mission: " + mission.CodeName + " - " + ex.ToString());
+                }
             }
         }
 
