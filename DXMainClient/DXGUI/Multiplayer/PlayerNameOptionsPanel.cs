@@ -376,6 +376,23 @@ namespace DTAClient.DXGUI.Multiplayer
         }
 
         /// <summary>
+        /// Returns all stored other-player custom name states.
+        /// Used by the host to relay existing members' states to a newly joined member.
+        /// </summary>
+        public List<(string Name, bool Enabled, string CustomName)> GetOtherPlayerStates()
+        {
+            var result = new List<(string, bool, string)>();
+            foreach (var kvp in otherCustomNames)
+            {
+                string name = kvp.Key;
+                string customName = kvp.Value;
+                bool enabled = otherCustomNameEnabled.TryGetValue(name, out bool e) && e;
+                result.Add((name, enabled, customName));
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Serializes the local player's options to a message string for broadcasting.
         /// </summary>
         public string ToMessage()
