@@ -1,4 +1,4 @@
-﻿using Rampastring.Tools;
+using Rampastring.Tools;
 using System.IO;
 
 namespace ClientCore
@@ -37,12 +37,27 @@ namespace ClientCore
         protected override void ApplyBaseIni()
         {
             string basedOnSetting = GetStringValue("INISystem", "BasedOn", string.Empty);
-            if (string.IsNullOrEmpty(basedOnSetting))
-                return;
+            if (!string.IsNullOrEmpty(basedOnSetting))
+            {
+                string[] basedOns = basedOnSetting.Split(',');
+                foreach (string basedOn in basedOns)
+                    ApplyBasedOnIni(basedOn);
+            }
 
-            string[] basedOns = basedOnSetting.Split(',');
-            foreach (string basedOn in basedOns)
-                ApplyBasedOnIni(basedOn);
+            ApplyIncludeIni();
+        }
+
+        protected override string ResolveIncludePath(string includePath)
+        {
+            if (includePath.Contains("$THEME_DIR$"))
+                return SafePath.GetFile(includePath.Replace("$THEME_DIR$", ProgramConstants.GetResourcePath())).FullName;
+
+            return base.ResolveIncludePath(includePath);
+        }
+
+        protected override IniFile CreateIncludeIniFile(string path)
+        {
+            return new CCIniFile(path);
         }
 
         private void ApplyBasedOnIni(string basedOn)
