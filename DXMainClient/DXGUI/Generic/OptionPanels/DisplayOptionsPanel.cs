@@ -222,6 +222,16 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             chkBorderlessClient.Text = "Fullscreen Client".L10N("Client:DTAConfig:FullscreenClient");
             chkBorderlessClient.CheckedChanged += ChkBorderlessMenu_CheckedChanged;
             chkBorderlessClient.Checked = true;
+            chkBorderlessClient.ToolTipText =
+                """
+                When checked, the client starts in fullscreen (borderless) mode.
+                When unchecked, the client starts in a resizable window that can
+                be maximized and resized freely.
+
+                Press Alt+Enter at any time to toggle between windowed and
+                borderless fullscreen mode (this does not change this setting).
+                """
+                .L10N("Client:DTAConfig:FullscreenClientToolTip");
 
             chkIntegerScaledClient = new XNAClientCheckBox(WindowManager);
             chkIntegerScaledClient.Name = nameof(chkIntegerScaledClient);
@@ -235,9 +245,6 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
                 Enable integer scaling for the client. This will cause the client to use
                 the closest fitting resolution that is required to maintain sharp graphics,
                 at the expense of black borders that may appear at some resolutions.
-
-                Additionally, enabling this option will also allow the client window 
-                to be resized (does not affect the selected client resolution).
                 """
                 .L10N("Client:DTAConfig:IntegerScaledClientToolTip");
 

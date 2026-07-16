@@ -168,37 +168,21 @@ namespace DTAClient.DXGUI
             wm.SetIcon(SafePath.CombineFilePath(ProgramConstants.GetBaseResourcePath(), "clienticon.ico"));
             wm.SetControlBox(true);
 
-            // Enable resizable window for non-borderless windowed client, if integer scaling is enabled
-            if (!UserINISettings.Instance.BorderlessWindowedClient && UserINISettings.Instance.IntegerScaledClient)
+            // Enable resizable window for non-borderless windowed client.
+            // The window can be resized and maximized regardless of integer scaling,
+            // and Alt+Enter toggles borderless fullscreen at runtime.
+            if (!UserINISettings.Instance.BorderlessWindowedClient)
             {
                 wm.SetFormBorderStyle(FormBorderStyle.Sizable);
                 wm.SetMaximizeBox(true);
-
-                //// Automatically update render resolution when the window size changes
-                //// Disabled for now. It does not work as expected.
-                //// To fix this, we need to make every window and control to be able to handle window size changes.
-                //// This is not a trivial work and does not gain much benefit since the minimum render resolution and the maximum one are close.
-                //// Example: https://github.com/Rampastring/WorldAlteringEditor/blob/71d9bd0ed9b9843d5dc15de14005f86b18e5465c/src/TSMapEditor/UI/Controls/INItializableWindow.cs#L98
-
-                //ScreenResolution lastWindowSizeCaptured = new(wm.Game.Window.ClientBounds);
-
-                //wm.WindowSizeChangedByUser += (sender, e) =>
-                //{
-                //    ScreenResolution currentWindowSize = new(wm.Game.Window.ClientBounds);
-
-                //    if (currentWindowSize != lastWindowSizeCaptured)
-                //    {
-                //        Logger.Log($"Window size changed from {lastWindowSizeCaptured} to {currentWindowSize}.");
-                //        lastWindowSizeCaptured = currentWindowSize;
-                //        SetGraphicsMode(wm, currentWindowSize.Width, currentWindowSize.Height, centerOnScreen: false);
-                //    }
-                //};
-
-                wm.WindowSizeChangedByUser += (sender, e) =>
-                {
-                    imeHandler.SetIMETextInputRectangle(wm);
-                };
             }
+
+            // The IME text input rectangle needs to follow the window size
+            // even when the window is resized by the user or toggled fullscreen.
+            wm.WindowSizeChangedByUser += (sender, e) =>
+            {
+                imeHandler.SetIMETextInputRectangle(wm);
+            };
 #endif
 
             wm.Cursor.Textures = new Texture2D[]
