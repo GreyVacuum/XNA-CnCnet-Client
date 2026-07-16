@@ -1110,8 +1110,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         protected override void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
         {
-            if (IsHost && AIPlayers.Count > 0)
-                RefreshAllAIPlayers();
+            // Do NOT call RefreshAllAIPlayers() here — clicking a random checkbox
+            // should only toggle the dropdown's enabled state, not immediately
+            // re-randomize existing AI players. Random attributes are applied when
+            // adding new AI players via AddAIPlayerInternal().
             base.PlayerAIQuickOptions_OptionsChanged(sender, e);
         }
 

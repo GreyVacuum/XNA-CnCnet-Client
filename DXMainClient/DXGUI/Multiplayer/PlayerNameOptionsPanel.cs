@@ -10,6 +10,12 @@ using Rampastring.XNAUI.XNAControls;
 
 namespace DTAClient.DXGUI.Multiplayer
 {
+    internal class PlayerSlotsScrollPanel : XNAScrollPanel
+    {
+        public PlayerSlotsScrollPanel(WindowManager windowManager) : base(windowManager) { }
+        public XNAPanel GetContentPanel() => ContentPanel;
+    }
+
     public class PlayerNameOptionsPanel : XNAPanel
     {
         private const int ddHeight = 21;
@@ -25,6 +31,7 @@ namespace DTAClient.DXGUI.Multiplayer
         private const int maxOtherPlayers = 7;
 
         private bool _isHost;
+        private bool _hasReceivedHostState = false;
 
         public EventHandler OptionsChanged;
 
@@ -34,7 +41,7 @@ namespace DTAClient.DXGUI.Multiplayer
         private XNALabel lblLobbyName;
         private XNALabel lblLobbyNameValue;
         private List<XNAPanel> otherPlayerSlots;
-        private List<XNALabel> otherPlayerLabels;
+        private List<XNATextBox> otherPlayerTextBoxes;
 
         /// <summary>
         /// Stores custom names received from other players, keyed by their lobby name.
@@ -49,6 +56,11 @@ namespace DTAClient.DXGUI.Multiplayer
         public bool AllowCustomNames => chkAllowCustomNames?.Checked ?? false;
         public bool IsCustomNameEnabled => chkEnableCustomName?.Checked ?? false;
         public string CustomName => tbCustomName?.Text ?? string.Empty;
+
+        /// <summary>
+        /// Whether the host's AllowCustomNames state has been received at least once.
+        /// </summary>
+        public bool HasReceivedHostState => _hasReceivedHostState;
 
         /// <summary>
         /// Returns the effective in-game name for the local player.
@@ -182,10 +194,26 @@ namespace DTAClient.DXGUI.Multiplayer
 
             rowY += ddHeight + 4;
 
+            // Create scroll panel for player slots
+            const int scrollPanelHeight = 100; // Show ~4 slots at a time
+            var playerSlotsScrollPanel = new PlayerSlotsScrollPanel(WindowManager);
+            playerSlotsScrollPanel.Name = "playerSlotsScrollPanel";
+            playerSlotsScrollPanel.ClientRectangle = new Rectangle(
+                labelX, rowY,
+                panelWidth - sideMargin - labelX, scrollPanelHeight);
+            playerSlotsScrollPanel.BackgroundTexture = AssetLoader.CreateTexture(new Color(0, 0, 0, 200), 1, 1);
+            playerSlotsScrollPanel.DrawBorders = true;
+            playerSlotsScrollPanel.BorderColor = new Color(80, 80, 100);
+            playerSlotsScrollPanel.AllowScroll = (false, true); // Vertical scroll only
+            AddChild(playerSlotsScrollPanel);
+
+            var contentPanel = playerSlotsScrollPanel.GetContentPanel();
+
             otherPlayerSlots = new List<XNAPanel>();
-            otherPlayerLabels = new List<XNALabel>();
+            otherPlayerTextBoxes = new List<XNATextBox>();
             const int slotHeight = 20;
             const int slotPadding = 6;
+            int slotY = 0;
             for (int i = 0; i < maxOtherPlayers; i++)
             {
                 var slot = new XNAPanel(WindowManager);
@@ -195,21 +223,23 @@ namespace DTAClient.DXGUI.Multiplayer
                 slot.BorderColor = new Color(80, 80, 100);
                 slot.InputEnabled = false;
                 slot.ClientRectangle = new Rectangle(
-                    labelX, rowY,
-                    panelWidth - sideMargin - labelX, slotHeight);
+                    0, slotY,
+                    playerSlotsScrollPanel.Width - 20, slotHeight); // leave room for scrollbar
                 slot.Visible = false;
-                AddChild(slot);
+                contentPanel.AddChild(slot);
                 otherPlayerSlots.Add(slot);
 
-                var lbl = new XNALabel(WindowManager);
-                lbl.Name = "lblOther" + (i + 1);
-                lbl.Text = string.Empty;
-                lbl.ClientRectangle = new Rectangle(slotPadding, (slotHeight - ddHeight) / 2, 0, 0);
-                lbl.Visible = false;
-                slot.AddChild(lbl);
-                otherPlayerLabels.Add(lbl);
+                // Use XNATextBox instead of XNALabel for displaying long names
+                var tb = new XNATextBox(WindowManager);
+                tb.Name = "tbOther" + (i + 1);
+                tb.Text = string.Empty;
+                tb.ClientRectangle = new Rectangle(slotPadding, (slotHeight - ddHeight) / 2, slot.Width - slotPadding * 2, ddHeight);
+                tb.InputEnabled = false; // Read-only
+                tb.Visible = false;
+                slot.AddChild(tb);
+                otherPlayerTextBoxes.Add(tb);
 
-                rowY += slotHeight + 4;
+                slotY += slotHeight + 4;
             }
 
             base.Initialize();
@@ -218,7 +248,7 @@ namespace DTAClient.DXGUI.Multiplayer
             // otherwise the parent's GetChildOnCursor() never finds this panel
             // and none of its children receive input.
             Width = panelWidth;
-            Height = rowY + sideMargin;
+            Height = rowY + scrollPanelHeight + sideMargin;
 
             btnClose.ClientRectangle = new Rectangle(
                 0,
@@ -248,7 +278,7 @@ namespace DTAClient.DXGUI.Multiplayer
         /// </summary>
         public void UpdateOtherPlayers(List<string> playerNames)
         {
-            if (otherPlayerLabels == null || otherPlayerSlots == null)
+            if (otherPlayerTextBoxes == null || otherPlayerSlots == null)
                 return;
 
             int idx = 0;
@@ -267,16 +297,16 @@ namespace DTAClient.DXGUI.Multiplayer
                     displayText = $"{name} -> {customName}";
                 }
 
-                otherPlayerLabels[idx].Text = $"{idx + 1}. {displayText}";
-                otherPlayerLabels[idx].Visible = true;
+                otherPlayerTextBoxes[idx].Text = $"{idx + 1}. {displayText}";
+                otherPlayerTextBoxes[idx].Visible = true;
                 otherPlayerSlots[idx].Visible = true;
                 idx++;
             }
 
             for (int i = idx; i < maxOtherPlayers; i++)
             {
-                otherPlayerLabels[i].Visible = false;
-                otherPlayerLabels[i].Text = string.Empty;
+                otherPlayerTextBoxes[i].Visible = false;
+                otherPlayerTextBoxes[i].Text = string.Empty;
                 otherPlayerSlots[i].Visible = false;
             }
         }
@@ -326,6 +356,7 @@ namespace DTAClient.DXGUI.Multiplayer
 
             if (isHost)
             {
+                _hasReceivedHostState = true;
                 if (chkAllowCustomNames != null && chkAllowCustomNames.Checked != allowCustom)
                 {
                     chkAllowCustomNames.Checked = allowCustom;
