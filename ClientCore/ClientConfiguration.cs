@@ -318,8 +318,6 @@ namespace ClientCore
 
         public string TranslationIniName => clientDefinitionsIni.GetStringValue(TRANSLATIONS, nameof(TranslationIniName), "Translation.ini");
 
-        public string[] TranslationIniNames => clientDefinitionsIni.GetStringListValue(TRANSLATIONS, nameof(TranslationIniName), "Translation.ini");
-
         public string TranslationsFolderPath => SafePath.CombineDirectoryPath(
             clientDefinitionsIni.GetStringValue(TRANSLATIONS, "TranslationsFolder",
                 SafePath.CombineDirectoryPath("Resources", "Translations")));

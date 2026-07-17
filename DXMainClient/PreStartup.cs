@@ -134,33 +134,29 @@ namespace DTAClient
             // Try to load translation
             try
             {
-                Translation? translation = Translation.LoadFromFolder(
-                    UserINISettings.Instance.TranslationFolderPath,
-                    UserINISettings.Instance.Translation);
+                Translation translation;
+                FileInfo translationThemeFile = SafePath.GetFile(UserINISettings.Instance.TranslationThemeFolderPath, ClientConfiguration.Instance.TranslationIniName);
+                FileInfo translationFile = SafePath.GetFile(UserINISettings.Instance.TranslationFolderPath, ClientConfiguration.Instance.TranslationIniName);
 
-                if (translation is not null)
+                if (translationFile.Exists)
                 {
-                    Logger.Log($"Loaded generic translation from {UserINISettings.Instance.TranslationFolderPath}");
-
-                    Translation? themeTranslation = Translation.LoadFromFolder(
-                        UserINISettings.Instance.TranslationThemeFolderPath,
-                        UserINISettings.Instance.Translation);
-
-                    if (themeTranslation is not null)
+                    Logger.Log($"Loading generic translation file at {translationFile.FullName}");
+                    translation = new Translation(translationFile.FullName, UserINISettings.Instance.Translation);
+                    if (translationThemeFile.Exists)
                     {
-                        Logger.Log($"Loading theme-specific translation from {UserINISettings.Instance.TranslationThemeFolderPath}");
-                        translation.AppendFromTranslation(themeTranslation);
+                        Logger.Log($"Loading theme-specific translation file at {translationThemeFile.FullName}");
+                        translation.AppendValuesFromIniFile(translationThemeFile.FullName);
                     }
 
                     Translation.Instance = translation;
-                    Logger.Log("Loaded translation: " + Translation.Instance.Name);
                 }
                 else
                 {
                     Logger.Log($"Failed to load a translation file. " +
-                        $"No translation files found in {UserINISettings.Instance.TranslationFolderPath} " +
-                        $"or {UserINISettings.Instance.TranslationThemeFolderPath}");
+                        $"Neither {translationThemeFile.FullName} nor {translationFile.FullName} exist.");
                 }
+
+                Logger.Log("Loaded translation: " + Translation.Instance.Name);
             }
             catch (Exception ex)
             {
