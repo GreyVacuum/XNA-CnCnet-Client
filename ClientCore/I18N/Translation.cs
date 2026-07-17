@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -114,6 +114,59 @@ public class Translation : ICloneable
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Translation"/> class
+    /// that loads translations from multiple INI files in order.
+    /// Later files override earlier ones (both values and metadata).
+    /// </summary>
+    /// <param name="iniPaths">An array of INI file paths to read from, in order of priority (later = higher priority).</param>
+    /// <param name="localeCode">A locale code for this translation.</param>
+    public Translation(string[] iniPaths, string localeCode)
+        : this(localeCode)
+    {
+        if (iniPaths is null)
+            throw new ArgumentNullException(nameof(iniPaths));
+
+        bool anyLoaded = false;
+
+        foreach (string iniPath in iniPaths)
+        {
+            if (!SafePath.GetFile(iniPath).Exists)
+                continue;
+
+            var ini = new CCIniFile(iniPath);
+            anyLoaded = true;
+
+            IniSection? metadataSection = ini.GetSection(METADATA_SECTION);
+            if (metadataSection is not null)
+            {
+                string name = metadataSection.GetStringValue(nameof(Name), string.Empty);
+                if (!string.IsNullOrWhiteSpace(name))
+                    Name = name;
+
+                string author = metadataSection.GetStringValue(nameof(Author), string.Empty);
+                if (!string.IsNullOrWhiteSpace(author))
+                    Author = author;
+
+                string? mapEncoding = metadataSection.GetStringValue(nameof(MapEncoding), null);
+                if (mapEncoding is not null)
+                    MapEncoding = EncodingExt.GetEncodingWithAuto(mapEncoding);
+
+                string? cultureName = metadataSection.GetStringValue(nameof(Culture), null);
+                if (cultureName is not null)
+                    Culture = new(cultureName);
+            }
+
+            AppendValuesFromIniFile(ini);
+        }
+
+        if (!anyLoaded && iniPaths.Length > 0)
+        {
+            throw new FileNotFoundException(
+                $"None of the translation files were found: {string.Join(", ", iniPaths)}");
+        }
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Translation"/> class
     /// that is a copy of the given instance.
     /// </summary>
     /// <param name="other">An object to copy from.</param>
@@ -159,25 +212,30 @@ public class Translation : ICloneable
     {
         string? result = null;
 
-        string iniPath = SafePath.CombineFilePath(
-            ClientConfiguration.Instance.TranslationsFolderPath, localeCode, ClientConfiguration.Instance.TranslationIniName);
+        string localeFolder = SafePath.CombineDirectoryPath(
+            ClientConfiguration.Instance.TranslationsFolderPath, localeCode);
 
-        if (SafePath.GetFile(iniPath).Exists)
+        string[] iniNames = ClientConfiguration.Instance.TranslationIniNames;
+        for (int i = iniNames.Length - 1; i >= 0; i--)
         {
-            // This parses only the metadata section content so that we don't parse
-            // the bazillion of localized values just to read the translation name.
-            // The only issue is that inheritance would break.
-            // FIXME AllowNewSections is ignored with inheritance
-            IniFile ini = new();
-            ini.AddSection(METADATA_SECTION);
-            ini.FileName = iniPath;
-            ini.AllowNewSections = false;
+            string iniPath = SafePath.CombineFilePath(localeFolder, iniNames[i]);
+            if (SafePath.GetFile(iniPath).Exists)
+            {
+                IniFile ini = new();
+                ini.AddSection(METADATA_SECTION);
+                ini.FileName = iniPath;
+                ini.AllowNewSections = false;
 
-            ini.Parse();
+                ini.Parse();
 
-            // Overridden name first
-            IniSection? metadataSection = ini.GetSection(METADATA_SECTION);
-            result = metadataSection?.GetStringValue(nameof(Name), null);
+                IniSection? metadataSection = ini.GetSection(METADATA_SECTION);
+                string? name = metadataSection?.GetStringValue(nameof(Name), null);
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    result = name;
+                    break;
+                }
+            }
         }
 
         if (string.IsNullOrWhiteSpace(result))
@@ -233,7 +291,7 @@ public class Translation : ICloneable
 
     /// <summary>
     /// Lists valid available translations from the <see cref="TranslationsFolderPath"/> along with their UI names.
-    /// A localization is valid if it has a corresponding <see cref="TranslationIniName"/> file in the <see cref="TranslationsFolderPath"/>.
+    /// A localization is valid if it has at least one of the <see cref="TranslationIniNames"/> files in the <see cref="TranslationsFolderPath"/>.
     /// </summary>
     /// <returns>Locale code -> display name pairs.</returns>
     public static Dictionary<string, string> GetTranslations()
@@ -247,10 +305,24 @@ public class Translation : ICloneable
         if (!Directory.Exists(ClientConfiguration.Instance.TranslationsFolderPath))
             return translations;
 
+        string[] iniNames = ClientConfiguration.Instance.TranslationIniNames;
+
         foreach (var localizationFolder in Directory.GetDirectories(ClientConfiguration.Instance.TranslationsFolderPath))
         {
             string localizationCode = Path.GetFileName(localizationFolder);
-            translations[localizationCode] = GetLanguageName(localizationCode);
+
+            bool hasTranslationFile = false;
+            foreach (string iniName in iniNames)
+            {
+                if (SafePath.GetFile(SafePath.CombineFilePath(localizationFolder, iniName)).Exists)
+                {
+                    hasTranslationFile = true;
+                    break;
+                }
+            }
+
+            if (hasTranslationFile)
+                translations[localizationCode] = GetLanguageName(localizationCode);
         }
 
         return translations;
@@ -320,6 +392,46 @@ public class Translation : ICloneable
         }
 
         return ini;
+    }
+
+    /// <summary>
+    /// Appends all translation values from another Translation instance,
+    /// overriding any existing values with the same keys.
+    /// </summary>
+    /// <param name="other">The other Translation instance to merge values from.</param>
+    public void AppendFromTranslation(Translation other)
+    {
+        if (other is null)
+            throw new ArgumentNullException(nameof(other));
+
+        foreach (var (key, value) in other.Values)
+            Values[key] = value;
+    }
+
+    /// <summary>
+    /// Creates a Translation by loading all configured translation INI files from a given folder.
+    /// Files are loaded in the order specified by <see cref="ClientConfiguration.TranslationIniNames"/>,
+    /// with later files overriding earlier ones.
+    /// </summary>
+    /// <param name="folderPath">The folder containing translation INI files.</param>
+    /// <param name="localeCode">A locale code for this translation.</param>
+    /// <returns>A new Translation instance, or null if no translation files were found.</returns>
+    public static Translation? LoadFromFolder(string folderPath, string localeCode)
+    {
+        string[] iniNames = ClientConfiguration.Instance.TranslationIniNames;
+        List<string> existingPaths = new();
+
+        foreach (string iniName in iniNames)
+        {
+            string iniPath = SafePath.CombineFilePath(folderPath, iniName);
+            if (SafePath.GetFile(iniPath).Exists)
+                existingPaths.Add(iniPath);
+        }
+
+        if (existingPaths.Count == 0)
+            return null;
+
+        return new Translation(existingPaths.ToArray(), localeCode);
     }
 
     private bool HandleMissing(string key, string defaultValue)
