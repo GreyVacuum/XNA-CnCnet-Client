@@ -182,6 +182,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             Exited?.Invoke(this, EventArgs.Empty);
 
             PlayerExtraOptionsPanel?.Disable();
+            PlayerNameOptionsPanel?.Disable();
+            PlayerAIQuickOptionsPanel?.Disable();
             Disable();
 
             topBar.RemovePrimarySwitchable(this);

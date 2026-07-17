@@ -536,6 +536,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             Clear();
             GameLeft?.Invoke(this, new GameLeftEventArgs() { Message = message });
             PlayerExtraOptionsPanel?.Disable();
+            PlayerNameOptionsPanel?.Disable();
+            PlayerAIQuickOptionsPanel?.Disable();
             Disable();
         }
 
