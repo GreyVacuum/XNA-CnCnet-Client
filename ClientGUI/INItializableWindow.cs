@@ -1,4 +1,4 @@
-using ClientCore;
+﻿using ClientCore;
 using ClientCore.I18N;
 using ClientCore.Extensions;
 using Microsoft.Xna.Framework;
@@ -10,7 +10,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 
 namespace ClientGUI
 {
@@ -311,22 +310,6 @@ namespace ClientGUI
                 throw new INIConfigException("Names of INItializableWindow child controls must consist of letters, digits and underscores only. Offending name: " + parts[0]);
 
             childControl.Name = childName;
-
-            // XNAScrollPanel hosts scrollbars and a content panel as its direct
-            // children, so $CC child controls must be mounted onto its ContentPanel
-            // rather than the scroll panel itself. ContentPanel is a protected field,
-            // so it is accessed via reflection here.
-            if (parent is XNAScrollPanel scrollPanel)
-            {
-                FieldInfo contentPanelField = typeof(XNAScrollPanel).GetField("ContentPanel",
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                if (contentPanelField?.GetValue(scrollPanel) is XNAPanel contentPanel)
-                {
-                    contentPanel.AddChildWithoutInitialize(childControl);
-                    return childControl;
-                }
-            }
-
             parent.AddChildWithoutInitialize(childControl);
             return childControl;
         }
