@@ -1,9 +1,10 @@
-﻿using ClientCore;
+using ClientCore;
 using ClientGUI.Settings;
 using Microsoft.Xna.Framework;
 using Rampastring.Tools;
 using Rampastring.XNAUI;
 using Rampastring.XNAUI.XNAControls;
+using System;
 using System.Collections.Generic;
 
 namespace ClientGUI
@@ -82,7 +83,16 @@ namespace ClientGUI
         {
             bool restartRequired = false;
             foreach (var setting in userSettings)
-                restartRequired = setting.Save() || restartRequired;
+            {
+                try
+                {
+                    restartRequired = setting.Save() || restartRequired;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Saving setting {setting.SettingSection}/{setting.SettingKey} failed: {ex.Message}");
+                }
+            }
 
             return restartRequired;
         }
