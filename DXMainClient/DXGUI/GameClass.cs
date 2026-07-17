@@ -164,17 +164,16 @@ namespace DTAClient.DXGUI
 
             SetGraphicsMode(wm);
 
-#if WINFORMS
-            wm.SetIcon(SafePath.CombineFilePath(ProgramConstants.GetBaseResourcePath(), "clienticon.ico"));
-            wm.SetControlBox(true);
-
             // Enable resizable window for non-borderless windowed client.
-            // The window can be resized and maximized regardless of integer scaling,
-            // and Alt+Enter toggles borderless fullscreen at runtime.
+            // The window can be resized regardless of integer scaling,
+            // and Alt+Enter toggles borderless fullscreen at runtime (non-XNA only).
             if (!UserINISettings.Instance.BorderlessWindowedClient)
             {
-                wm.SetFormBorderStyle(FormBorderStyle.Sizable);
-                wm.SetMaximizeBox(true);
+                wm.EnableResizing(true);
+                // Set minimum window size to prevent window from being too small to display UI properly.
+                wm.SetMinimumSize(
+                    ClientConfiguration.Instance.MinimumRenderWidth,
+                    ClientConfiguration.Instance.MinimumRenderHeight);
             }
 
             // The IME text input rectangle needs to follow the window size
@@ -183,6 +182,13 @@ namespace DTAClient.DXGUI
             {
                 imeHandler.SetIMETextInputRectangle(wm);
             };
+
+#if WINFORMS
+            wm.SetIcon(SafePath.CombineFilePath(ProgramConstants.GetBaseResourcePath(), "clienticon.ico"));
+            wm.SetControlBox(true);
+            // Enable maximize button for non-borderless windowed client
+            if (!UserINISettings.Instance.BorderlessWindowedClient)
+                wm.SetMaximizeBox(true);
 #endif
 
             wm.Cursor.Textures = new Texture2D[]
@@ -192,8 +198,14 @@ namespace DTAClient.DXGUI
             };
 
 #if WINFORMS
-            FileInfo primaryNativeCursorPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), "cursor.cur");
-            FileInfo alternativeNativeCursorPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), "cursor.cur");
+            FileInfo primaryNativeCursorPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), "cursor.ani");
+            FileInfo alternativeNativeCursorPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), "cursor.ani");
+
+            if (!primaryNativeCursorPath.Exists)
+                primaryNativeCursorPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), "cursor.cur");
+
+            if (!alternativeNativeCursorPath.Exists)
+                alternativeNativeCursorPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), "cursor.cur");
 
             if (primaryNativeCursorPath.Exists)
                 wm.Cursor.LoadNativeCursor(primaryNativeCursorPath.FullName);
@@ -279,6 +291,8 @@ namespace DTAClient.DXGUI
                             .AddSingletonXnaControl<MapPreviewBox>()
                             .AddSingletonXnaControl<GameLaunchButton>()
                             .AddSingletonXnaControl<PlayerExtraOptionsPanel>()
+                            .AddSingletonXnaControl<PlayerAIQuickOptionsPanel>()
+                            .AddSingletonXnaControl<PlayerNameOptionsPanel>()
                             .AddSingletonXnaControl<CampaignTagSelector>()
                             .AddSingletonXnaControl<GameLoadingWindow>()
                             .AddSingletonXnaControl<StatisticsWindow>()
@@ -291,6 +305,7 @@ namespace DTAClient.DXGUI
                         services
                             .AddTransientXnaControl<XNAControl>()
                             .AddTransientXnaControl<XNAButton>()
+                            .AddTransientXnaControl<XNAInteractionButton>()
                             .AddTransientXnaControl<XNAClientButton>()
                             .AddTransientXnaControl<XNAClientCheckBox>()
                             .AddTransientXnaControl<XNAClientDropDown>()
@@ -298,12 +313,15 @@ namespace DTAClient.DXGUI
                             .AddTransientXnaControl<XNAExtraPanel>()
                             .AddTransientXnaControl<XNACheckBox>()
                             .AddTransientXnaControl<XNADropDown>()
+                            .AddTransientXnaControl<XNAClientTabControl>()
+                            .AddTransientXnaControl<XNATabControl>()
                             .AddTransientXnaControl<XNALabel>()
                             .AddTransientXnaControl<XNALinkLabel>()
                             .AddTransientXnaControl<XNAClientLinkLabel>()
                             .AddTransientXnaControl<XNAListBox>()
                             .AddTransientXnaControl<XNAMultiColumnListBox>()
                             .AddTransientXnaControl<XNAPanel>()
+                            .AddTransientXnaControl<XNAScrollPanel>()
                             .AddTransientXnaControl<XNAProgressBar>()
                             .AddTransientXnaControl<XNASuggestionTextBox>()
                             .AddTransientXnaControl<XNATextBox>()
@@ -344,6 +362,16 @@ namespace DTAClient.DXGUI
             settings.DefaultAlphaRate = ClientConfiguration.Instance.DefaultAlphaRate;
             settings.CheckBoxAlphaRate = ClientConfiguration.Instance.CheckBoxAlphaRate;
             settings.IndicatorAlphaRate = ClientConfiguration.Instance.IndicatorAlphaRate;
+
+            string thumbColor = ClientConfiguration.Instance.DropDownScrollBarThumbColor;
+            string trackColor = ClientConfiguration.Instance.DropDownScrollBarTrackColor;
+            string borderColor = ClientConfiguration.Instance.DropDownScrollBarBorderColor;
+            if (!string.IsNullOrEmpty(thumbColor))
+                settings.DropDownScrollBarThumbColor = AssetLoader.GetRGBAColorFromString(thumbColor);
+            if (!string.IsNullOrEmpty(trackColor))
+                settings.DropDownScrollBarTrackColor = AssetLoader.GetRGBAColorFromString(trackColor);
+            if (!string.IsNullOrEmpty(borderColor))
+                settings.DropDownScrollBarBorderColor = AssetLoader.GetRGBAColorFromString(borderColor);
 
             settings.CheckBoxClearTexture = AssetLoader.LoadTexture("checkBoxClear.png");
             settings.CheckBoxCheckedTexture = AssetLoader.LoadTexture("checkBoxChecked.png");
