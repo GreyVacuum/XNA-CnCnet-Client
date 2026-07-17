@@ -164,17 +164,16 @@ namespace DTAClient.DXGUI
 
             SetGraphicsMode(wm);
 
-#if WINFORMS
-            wm.SetIcon(SafePath.CombineFilePath(ProgramConstants.GetBaseResourcePath(), "clienticon.ico"));
-            wm.SetControlBox(true);
-
             // Enable resizable window for non-borderless windowed client.
-            // The window can be resized and maximized regardless of integer scaling,
-            // and Alt+Enter toggles borderless fullscreen at runtime.
+            // The window can be resized regardless of integer scaling,
+            // and Alt+Enter toggles borderless fullscreen at runtime (non-XNA only).
             if (!UserINISettings.Instance.BorderlessWindowedClient)
             {
-                wm.SetFormBorderStyle(FormBorderStyle.Sizable);
-                wm.SetMaximizeBox(true);
+                wm.EnableResizing(true);
+                // Set minimum window size to prevent window from being too small to display UI properly.
+                wm.SetMinimumSize(
+                    ClientConfiguration.Instance.MinimumRenderWidth,
+                    ClientConfiguration.Instance.MinimumRenderHeight);
             }
 
             // The IME text input rectangle needs to follow the window size
@@ -183,6 +182,13 @@ namespace DTAClient.DXGUI
             {
                 imeHandler.SetIMETextInputRectangle(wm);
             };
+
+#if WINFORMS
+            wm.SetIcon(SafePath.CombineFilePath(ProgramConstants.GetBaseResourcePath(), "clienticon.ico"));
+            wm.SetControlBox(true);
+            // Enable maximize button for non-borderless windowed client
+            if (!UserINISettings.Instance.BorderlessWindowedClient)
+                wm.SetMaximizeBox(true);
 #endif
 
             wm.Cursor.Textures = new Texture2D[]
