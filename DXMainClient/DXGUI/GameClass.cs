@@ -208,8 +208,14 @@ namespace DTAClient.DXGUI
             };
 
 #if WINFORMS
-            FileInfo primaryNativeCursorPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), "cursor.cur");
-            FileInfo alternativeNativeCursorPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), "cursor.cur");
+            FileInfo primaryNativeCursorPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), "cursor.ani");
+            FileInfo alternativeNativeCursorPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), "cursor.ani");
+
+            if (!primaryNativeCursorPath.Exists)
+                primaryNativeCursorPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), "cursor.cur");
+
+            if (!alternativeNativeCursorPath.Exists)
+                alternativeNativeCursorPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), "cursor.cur");
 
             if (primaryNativeCursorPath.Exists)
                 wm.Cursor.LoadNativeCursor(primaryNativeCursorPath.FullName);
@@ -307,6 +313,7 @@ namespace DTAClient.DXGUI
                         services
                             .AddTransientXnaControl<XNAControl>()
                             .AddTransientXnaControl<XNAButton>()
+                            .AddTransientXnaControl<XNAInteractionButton>()
                             .AddTransientXnaControl<XNAClientButton>()
                             .AddTransientXnaControl<XNAClientCheckBox>()
                             .AddTransientXnaControl<XNAClientDropDown>()
@@ -314,6 +321,8 @@ namespace DTAClient.DXGUI
                             .AddTransientXnaControl<XNAExtraPanel>()
                             .AddTransientXnaControl<XNACheckBox>()
                             .AddTransientXnaControl<XNADropDown>()
+                            .AddTransientXnaControl<XNAClientTabControl>()
+                            .AddTransientXnaControl<XNATabControl>()
                             .AddTransientXnaControl<XNALabel>()
                             .AddTransientXnaControl<XNALinkLabel>()
                             .AddTransientXnaControl<XNAClientLinkLabel>()
