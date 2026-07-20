@@ -187,6 +187,74 @@ namespace ClientGUI
             base.ParseControlINIAttribute(iniFile, key, value);
         }
 
+        /// <summary>
+        /// 处理控件段的 $Include 指令，合并子ini文件中对应段的内容。
+        /// 格式: $Include任意字数串=子ini路径
+        /// 例如: $Include00=SpawnGameOptions.ini
+        /// </summary>
+        private void ProcessControlInclude(XNAControl control, IniSection section)
+        {
+            // 找出所有 $Include 开头的key
+            var includeKeys = section.Keys
+                .Where(kvp => kvp.Key.StartsWith("$Include"))
+                .ToList();
+
+            foreach (var includeKvp in includeKeys)
+            {
+                string includePath = includeKvp.Value;
+                if (string.IsNullOrWhiteSpace(includePath))
+                    continue;
+
+                // 解析路径（支持 $THEME_DIR$ 变量）
+                string resolvedPath = ResolveControlIncludePath(includePath);
+                FileInfo includeFile = SafePath.GetFile(resolvedPath);
+
+                if (!includeFile.Exists)
+                {
+                    Logger.Log($"{Name}: $Include file not found for control {control.Name}: {includeFile.FullName}");
+                    continue;
+                }
+
+                // 加载子ini文件
+                CCIniFile includeIni = new CCIniFile(includeFile.FullName);
+
+                // 查找子ini中与控件同名的段
+                var includeSection = includeIni.GetSection(control.Name);
+                if (includeSection == null)
+                {
+                    Logger.Log($"{Name}: $Include file {includePath} does not contain section [{control.Name}]");
+                    continue;
+                }
+
+                // 合并子ini段内容到当前段（子ini的内容覆盖当前段）
+                foreach (var kvp in includeSection.Keys)
+                {
+                    // 移除已存在的同名key，添加新的
+                    int existingIndex = section.Keys.FindIndex(k => k.Key == kvp.Key);
+                    if (existingIndex >= 0)
+                        section.Keys[existingIndex] = kvp;
+                    else
+                        section.Keys.Add(kvp);
+                }
+            }
+
+            // 移除已处理的 $Include key，避免后续解析时出错
+            section.Keys.RemoveAll(kvp => kvp.Key.StartsWith("$Include"));
+        }
+
+        /// <summary>
+        /// 解析控件 $Include 路径，支持 $THEME_DIR$ 变量和相对路径。
+        /// </summary>
+        private string ResolveControlIncludePath(string includePath)
+        {
+            if (includePath.Contains("$THEME_DIR$"))
+                return SafePath.GetFile(includePath.Replace("$THEME_DIR$", ProgramConstants.GetResourcePath())).FullName;
+
+            // 相对于当前ini文件所在目录
+            string currentDir = SafePath.GetFileDirectoryName(ConfigIni.FileName);
+            return SafePath.CombineFilePath(currentDir, includePath);
+        }
+
         protected void ReadINIForControl(XNAControl control)
         {
             var section = ConfigIni.GetSection(control.Name);
@@ -194,6 +262,9 @@ namespace ClientGUI
                 return;
 
             Parser.Instance.SetPrimaryControl(this);
+
+            // 处理控件段的 $Include 指令，合并子ini内容
+            ProcessControlInclude(control, section);
 
             // shorthand for localization function
             static string Localize(XNAControl control, string attributeName, string defaultValue, bool notify = true)
