@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Security.Cryptography;
@@ -48,9 +48,9 @@ namespace DTAClient.Domain
             CodeName = missionCodeName;
             CustomMissionID = ComputeCustomMissionID(missionCodeName);
             PreviewImage = missionSection.GetStringValue("PreviewImage", string.Empty);
-            // Read spawn.ini briefing if present in Battle.ini mission section
-            SpawnIniBriefing = missionSection.GetStringValue("SpawnIniBriefing", string.Empty)
-                .FromIniString();
+            ScenarioMapINI = missionSection.GetStringValue("ScenarioMapINI", string.Empty);
+            Supplement = missionSection.GetBooleanValue("Supplement", ClientConfiguration.Instance.CustomMissionSupplementEnableBattle);
+            MissionSpawnIniOptions = missionSection.GetStringValue("MissionSpawnIniOptions", string.Empty);
         }
 
         public static Mission NewCustomMission(IniSection clientMissionConfigSection, string missionCodeName, string scenario, IniSection? gameMissionConfigSection)
@@ -62,6 +62,8 @@ namespace DTAClient.Domain
                 GameMissionConfigSection = gameMissionConfigSection,
                 Tags = ["CUSTOM"],
             };
+            if (!clientMissionConfigSection.KeyExists("Supplement"))
+                mission.Supplement = ClientConfiguration.Instance.CustomMissionSupplementEnableCustom;
             return mission;
         }
 
@@ -110,10 +112,11 @@ namespace DTAClient.Domain
 
         public string PreviewImage { get; private set; }
 
-        /// <summary>
-        /// Briefing text to be written into spawn.ini (if configured in Battle.ini or ClientMissionConfig).
-        /// </summary>
-        public string SpawnIniBriefing { get; private set; }
+        public string ScenarioMapINI { get; private set; }
+
+        public bool Supplement { get; private set; }
+
+        public string MissionSpawnIniOptions { get; private set; }
 
         public bool TryGetScenarioFilePath(out string scenarioFilePath)
         {

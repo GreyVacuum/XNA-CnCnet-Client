@@ -438,7 +438,12 @@ namespace DTAClient.DXGUI.Campaign
 
             spawnerSettingsFile.Delete();
 
-            bool copyMapsToSpawnmapINI = ClientConfiguration.Instance.CopyMissionsToSpawnmapINI;
+            bool copyMapsToSpawnmapINI = mission.IsCustomMission
+                ? ClientConfiguration.Instance.CopyMissionsToSpawnmapINICustom
+                : ClientConfiguration.Instance.CopyMissionsToSpawnmapINIBattle;
+
+            if (!string.IsNullOrEmpty(mission.ScenarioMapINI))
+                copyMapsToSpawnmapINI = Conversions.BooleanFromString(mission.ScenarioMapINI, copyMapsToSpawnmapINI);
 
             string scenario = mission.Scenario;
             bool scenarioPathFound = mission.TryGetScenarioFilePath(out string scenarioPath);
@@ -498,6 +503,23 @@ namespace DTAClient.DXGUI.Campaign
 
             spawnIni.AddSection(spawnIniSettings);
             WriteMissionSectionToSpawnIni(spawnIni, mission, copyMapsToSpawnmapINI);
+
+            if (!string.IsNullOrEmpty(mission.MissionSpawnIniOptions))
+            {
+                var battleIni = new IniFile(SafePath.CombineFilePath(ProgramConstants.GamePath, "INI/Battle.ini"));
+                IniSection forcedOptionsSection = battleIni.GetSection(mission.MissionSpawnIniOptions);
+                if (forcedOptionsSection != null)
+                {
+                    IniSection spawnMapIniSection = spawnIni.GetSection(ProgramConstants.SPAWNMAP_INI) ?? new IniSection(ProgramConstants.SPAWNMAP_INI);
+                    foreach (var kvp in forcedOptionsSection.Keys)
+                    {
+                        spawnMapIniSection.AddKey(kvp.Key, kvp.Value);
+                    }
+                    if (spawnIni.SectionExists(ProgramConstants.SPAWNMAP_INI))
+                        spawnIni.RemoveSection(ProgramConstants.SPAWNMAP_INI);
+                    spawnIni.AddSection(spawnMapIniSection);
+                }
+            }
 
             foreach (CampaignCheckBox chkBox in CheckBoxes)
                 chkBox.ApplySpawnIniCode(spawnIni);
@@ -613,21 +635,8 @@ namespace DTAClient.DXGUI.Campaign
                         spawnIniMissionIniSection.AddOrReplaceKey("LS800BkgdPal", palFilename);
                 }
 
-                // append the new IniSection
                 spawnIni.AddSection(spawnIniMissionIniSection);
                 spawnIni.SetStringValue("Settings", "ReadMissionSection", "Yes");
-
-                // If the Battle.ini includes a SpawnIniBriefing for this mission, ensure it's written
-                // under [spawnmap.ini] -> Briefing in spawn.ini so the game shows the mission briefing.
-                try
-                {
-                    if (!string.IsNullOrWhiteSpace(mission.SpawnIniBriefing))
-                        spawnIni.SetStringValue(ProgramConstants.SPAWNMAP_INI, "Briefing", mission.SpawnIniBriefing);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log("Failed to set spawnmap.ini Briefing in spawn.ini for mission: " + mission.CodeName + " - " + ex.ToString());
-                }
             }
         }
 
