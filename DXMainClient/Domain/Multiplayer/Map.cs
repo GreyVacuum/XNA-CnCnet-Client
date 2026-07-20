@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -220,6 +220,16 @@ namespace DTAClient.Domain.Multiplayer
         [JsonIgnore]
         private List<KeyValuePair<string, string>> ForcedSpawnIniOptions = new List<KeyValuePair<string, string>>(0);
 
+        [JsonIgnore]
+        private List<MissionSpawnMapIniOption> MissionSpawnMapIniOptionsList = new List<MissionSpawnMapIniOption>(0);
+
+        public class MissionSpawnMapIniOption
+        {
+            public string SourceSection { get; set; }
+            public string TargetSection { get; set; }
+            public Dictionary<string, string> KeyValues { get; set; } = new Dictionary<string, string>();
+        }
+
         /// <summary>
         /// The name of an extra INI file in INI\Map Code\ that should be
         /// embedded into this map's INI code when a game is started.
@@ -362,6 +372,12 @@ namespace DTAClient.Domain.Multiplayer
                     string[] sections = forcedSpawnIniOptionsSections.Split(',');
                     foreach (string fsioSection in sections)
                         ParseSpawnIniOptions(iniFile, fsioSection);
+                }
+
+                string missionSpawnMapIniOptions = iniFile.GetStringValue(BaseFilePath, "MissionSpawnMapIniOptions", string.Empty);
+                if (!string.IsNullOrEmpty(missionSpawnMapIniOptions))
+                {
+                    ParseMissionSpawnMapIniOptions(iniFile, missionSpawnMapIniOptions);
                 }
 
                 ExtraININame = section.GetStringValueOrNull("ExtraIniName") ?? section.GetStringValueOrNull("ExtraININame");
@@ -612,6 +628,50 @@ namespace DTAClient.Domain.Multiplayer
             }
         }
 
+        private void ParseMissionSpawnMapIniOptions(IniFile iniFile, string missionSpawnMapIniOptions)
+        {
+            string[] mappings = missionSpawnMapIniOptions.Split(',');
+
+            foreach (string mapping in mappings)
+            {
+                string[] parts = mapping.Split(':');
+                if (parts.Length != 2)
+                {
+                    Logger.Log($"Invalid MissionSpawnMapIniOptions mapping format \"{mapping}\" in map {BaseFilePath}");
+                    continue;
+                }
+
+                string sourceSection = parts[0].Trim();
+                string targetSection = parts[1].Trim();
+
+                if (string.IsNullOrEmpty(sourceSection) || string.IsNullOrEmpty(targetSection))
+                {
+                    Logger.Log($"Invalid MissionSpawnMapIniOptions section names in map {BaseFilePath}");
+                    continue;
+                }
+
+                IniSection sourceIniSection = iniFile.GetSection(sourceSection);
+                if (sourceIniSection == null)
+                {
+                    Logger.Log($"MissionSpawnMapIniOptions source section \"{sourceSection}\" not found in map {BaseFilePath}");
+                    continue;
+                }
+
+                var option = new MissionSpawnMapIniOption
+                {
+                    SourceSection = sourceSection,
+                    TargetSection = targetSection
+                };
+
+                foreach (var kvp in sourceIniSection.Keys)
+                {
+                    option.KeyValues[kvp.Key] = kvp.Value;
+                }
+
+                MissionSpawnMapIniOptionsList.Add(option);
+            }
+        }
+
         public bool IsImmediatePreviewImageAvailable() => !string.IsNullOrWhiteSpace(PreviewPath) && SafePath.GetFile(ProgramConstants.GamePath, PreviewPath).Exists;
 
         public Image GetImmediatePreviewImage() => IsImmediatePreviewImageAvailable()
@@ -652,6 +712,14 @@ namespace DTAClient.Domain.Multiplayer
         {
             foreach (KeyValuePair<string, string> key in ForcedSpawnIniOptions)
                 spawnIni.SetStringValue("Settings", key.Key, key.Value);
+
+            foreach (var option in MissionSpawnMapIniOptionsList)
+            {
+                foreach (var kvp in option.KeyValues)
+                {
+                    spawnIni.SetStringValue(option.TargetSection, kvp.Key, kvp.Value);
+                }
+            }
 
             if (Credits != -1)
                 spawnIni.SetIntValue("Settings", "Credits", Credits);
