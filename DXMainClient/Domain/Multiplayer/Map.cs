@@ -707,19 +707,22 @@ namespace DTAClient.Domain.Multiplayer
             return mapIni;
         }
 
+        public void ApplyMissionSpawnMapIniOptions(IniFile mapIni)
+        {
+            foreach (var option in MissionSpawnMapIniOptionsList)
+            {
+                foreach (var kvp in option.KeyValues)
+                {
+                    mapIni.SetStringValue(option.TargetSection, kvp.Key, kvp.Value);
+                }
+            }
+        }
+
         public void ApplySpawnIniCode(IniFile spawnIni, int totalPlayerCount,
             int aiPlayerCount, bool isCoop, CoopMapInfo coopInfo, int coopDifficultyLevel, Random pseudoRandom, int sideCount)
         {
             foreach (KeyValuePair<string, string> key in ForcedSpawnIniOptions)
                 spawnIni.SetStringValue("Settings", key.Key, key.Value);
-
-            foreach (var option in MissionSpawnMapIniOptionsList)
-            {
-                foreach (var kvp in option.KeyValues)
-                {
-                    spawnIni.SetStringValue(option.TargetSection, kvp.Key, kvp.Value);
-                }
-            }
 
             if (Credits != -1)
                 spawnIni.SetIntValue("Settings", "Credits", Credits);

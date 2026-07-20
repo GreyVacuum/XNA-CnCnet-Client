@@ -2275,6 +2275,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             MapCodeHelper.ApplyMapCode(mapIni, globalCodeIni);
 
+            Map.ApplyMissionSpawnMapIniOptions(mapIni);
+
             if (isMultiplayer)
             {
                 IniFile mpGlobalCodeIni = new IniFile(SafePath.CombineFilePath(ProgramConstants.GamePath, "INI", "Map Code", "MultiplayerGlobalCode.ini"));
