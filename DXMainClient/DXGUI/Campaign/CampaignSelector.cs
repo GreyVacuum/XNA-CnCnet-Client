@@ -64,6 +64,7 @@ namespace DTAClient.DXGUI.Campaign
         private XNAClientButton btnReturn;
         private XNATextBlock tbMissionDescription;
         private XNATrackbar trbDifficultySelector;
+        private XNATrackbar trbGameSpeedSelector;
         private List<IUserSetting> userSettings = new List<IUserSetting>();
 
         private CheaterWindow cheaterWindow;
@@ -146,11 +147,14 @@ namespace DTAClient.DXGUI.Campaign
 
             tbMissionDescription = new XNATextBlock(WindowManager);
             tbMissionDescription.Name = nameof(tbMissionDescription);
+            int descriptionHeight = pnlMissionPreviewEnabled ? 430 - 200 - 12 : 430;
+            if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable)
+                descriptionHeight -= 100;
             tbMissionDescription.ClientRectangle = new Rectangle(
                 lblMissionDescriptionHeader.X,
                 lblMissionDescriptionHeader.Bottom + 6,
                 Width - 24 - lbCampaignList.Right,
-                pnlMissionPreviewEnabled ? 430 - 200 - 12 : 430);
+                descriptionHeight);
             tbMissionDescription.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
             tbMissionDescription.Alpha = 1.0f;
             tbMissionDescription.BackgroundTexture = AssetLoader.CreateTexture(AssetLoader.GetColorFromString(ClientConfiguration.Instance.AltUIBackgroundColor),
@@ -200,6 +204,57 @@ namespace DTAClient.DXGUI.Campaign
             lblHard.ClientRectangle = new Rectangle(
                 tbMissionDescription.Right - lblHard.Width,
                 lblEasy.Y, 1, 1);
+
+            if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable)
+            {
+                var lblGameSpeed = new XNALabel(WindowManager);
+                lblGameSpeed.Name = nameof(lblGameSpeed);
+                lblGameSpeed.Text = "GAME SPEED".L10N("Client:Main:GameSpeed");
+                lblGameSpeed.FontIndex = 1;
+                textSize = Renderer.GetTextDimensions(lblGameSpeed.Text, lblGameSpeed.FontIndex);
+                lblGameSpeed.ClientRectangle = new Rectangle(
+                    tbMissionDescription.X + (tbMissionDescription.Width - (int)textSize.X) / 2,
+                    lblHard.Bottom + 28, (int)textSize.X, (int)textSize.Y);
+
+                int trackbarWidth = tbMissionDescription.Width;
+                int trackbarX = tbMissionDescription.X;
+                Texture2D trackbarBtnTex = AssetLoader.LoadTextureUncached("trackbarButton.png");
+                int buttonWidth = trackbarBtnTex.Width;
+
+                int speedLabelY = lblGameSpeed.Bottom + 8;
+                int speedCount = 7;
+                var speedNumberLabels = new XNALabel[speedCount];
+                double effectiveWidth = trackbarWidth - buttonWidth;
+                double pixelsPerValue = effectiveWidth / (speedCount - 1);
+                for (int i = 0; i < speedCount; i++)
+                {
+                    speedNumberLabels[i] = new XNALabel(WindowManager);
+                    speedNumberLabels[i].Name = nameof(speedNumberLabels) + i;
+                    speedNumberLabels[i].FontIndex = 1;
+                    speedNumberLabels[i].Text = i.ToString();
+                    Vector2 numSize = Renderer.GetTextDimensions(speedNumberLabels[i].Text, speedNumberLabels[i].FontIndex);
+                    int buttonCenterX = trackbarX + buttonWidth / 2 + (int)(i * pixelsPerValue);
+                    speedNumberLabels[i].ClientRectangle = new Rectangle(
+                        buttonCenterX - (int)numSize.X / 2,
+                        speedLabelY, (int)numSize.X, (int)numSize.Y);
+                }
+
+                trbGameSpeedSelector = new XNATrackbar(WindowManager);
+                trbGameSpeedSelector.Name = nameof(trbGameSpeedSelector);
+                trbGameSpeedSelector.ClientRectangle = new Rectangle(
+                    trackbarX, speedLabelY + (int)textSize.Y + 4,
+                    trackbarWidth, 22);
+                trbGameSpeedSelector.MinValue = 0;
+                trbGameSpeedSelector.MaxValue = 6;
+                trbGameSpeedSelector.BackgroundTexture = AssetLoader.CreateTexture(
+                    new Color(0, 0, 0, 128), 2, 2);
+                trbGameSpeedSelector.ButtonTexture = trackbarBtnTex;
+
+                AddChild(lblGameSpeed);
+                for (int i = 0; i < speedCount; i++)
+                    AddChild(speedNumberLabels[i]);
+                AddChild(trbGameSpeedSelector);
+            }
 
             btnLaunch = new XNAClientButton(WindowManager);
             btnLaunch.Name = nameof(btnLaunch);
@@ -269,6 +324,12 @@ namespace DTAClient.DXGUI.Campaign
             CenterOnParent();
 
             trbDifficultySelector.Value = UserINISettings.Instance.Difficulty;
+
+            if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable && trbGameSpeedSelector != null)
+            {
+                int defaultGameSpeed = UserINISettings.Instance.CampaignDefaultGameSpeed;
+                trbGameSpeedSelector.Value = Math.Clamp(defaultGameSpeed, 0, 6);
+            }
 
             userSettings.AddRange(Children.OfType<IUserSetting>());
 
@@ -466,7 +527,11 @@ namespace DTAClient.DXGUI.Campaign
                 UserINISettings.Instance.GameSpeed.Value = 1;
 
             spawnIniSettings.AddKey("CampaignID", mission.CampaignID.ToString(CultureInfo.InvariantCulture));
-            spawnIniSettings.AddKey("GameSpeed", UserINISettings.Instance.GameSpeed.ToString());
+
+            int gameSpeed = ClientConfiguration.Instance.CampaignGameSpeedControlEnable && trbGameSpeedSelector != null
+                ? trbGameSpeedSelector.Value
+                : UserINISettings.Instance.GameSpeed;
+            spawnIniSettings.AddKey("GameSpeed", gameSpeed.ToString(CultureInfo.InvariantCulture));
 
             switch (ClientConfiguration.Instance.ClientGameType)
             {
@@ -487,6 +552,9 @@ namespace DTAClient.DXGUI.Campaign
             spawnIniSettings.AddKey("BuildOffAlly", mission.BuildOffAlly.ToString(CultureInfo.InvariantCulture));
 
             UserINISettings.Instance.Difficulty.Value = trbDifficultySelector.Value;
+
+            if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable && trbGameSpeedSelector != null)
+                UserINISettings.Instance.CampaignDefaultGameSpeed.Value = trbGameSpeedSelector.Value;
 
             spawnIniSettings.AddKey("DifficultyModeHuman", mission.PlayerAlwaysOnNormalDifficulty ? "1" : trbDifficultySelector.Value.ToString(CultureInfo.InvariantCulture));
             spawnIniSettings.AddKey("DifficultyModeComputer", GetComputerDifficulty().ToString(CultureInfo.InvariantCulture));
@@ -539,6 +607,8 @@ namespace DTAClient.DXGUI.Campaign
             }
 
             UserINISettings.Instance.Difficulty.Value = trbDifficultySelector.Value;
+            if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable && trbGameSpeedSelector != null)
+                UserINISettings.Instance.CampaignDefaultGameSpeed.Value = trbGameSpeedSelector.Value;
             UserINISettings.Instance.SaveSettings();
 
             if (ClientConfiguration.Instance.ReturnToMainMenuOnMissionLaunch)
@@ -621,6 +691,8 @@ namespace DTAClient.DXGUI.Campaign
             btnCancel.AllowClick = enabled;
             lbCampaignList.Enabled = enabled;
             trbDifficultySelector.Enabled = enabled;
+            if (trbGameSpeedSelector != null)
+                trbGameSpeedSelector.Enabled = enabled;
 
             if (btnReturn is not null)
                 btnReturn.AllowClick = enabled;
