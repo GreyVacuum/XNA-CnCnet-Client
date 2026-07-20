@@ -101,13 +101,25 @@ namespace ClientCore
         public string MainMenuMusicName => _mainMenuMusicName ??= GetMainMenuMusicName();
         private string GetMainMenuMusicName()
         {
+            // 读取主题路径前缀，默认空（等价于 Resources 根目录，保持原行为）
+            // 可在 DTACnCNetClient.ini 中配置为子路径（如 "Themes/MyriaDimensionTheme"）
+            // 以便 MainMenuTheme 只需写文件名，减少重复路径书写
+            string themePath = DTACnCNetClient_ini.GetStringValue(GENERAL, "MainMenuThemePath", string.Empty);
+
             string raw = DTACnCNetClient_ini.GetStringValue(GENERAL, "MainMenuTheme", "mainmenu");
             string[] parts = raw.SplitWithCleanup();
             string chosen = parts.Length > 0
                 ? parts[new Random().Next(parts.Length)]
                 : "mainmenu";
 
-            return SafePath.CombineFilePath(chosen);
+            // themePath 为空或显式写 "Resources" 时，不添加前缀，行为与原版一致
+            if (string.IsNullOrWhiteSpace(themePath) ||
+                themePath.Equals("Resources", StringComparison.OrdinalIgnoreCase))
+            {
+                return SafePath.CombineFilePath(chosen);
+            }
+
+            return SafePath.CombineFilePath(themePath, chosen);
         }
 
         public float DefaultAlphaRate => DTACnCNetClient_ini.GetSingleValue(GENERAL, "AlphaRate", 0.005f);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -84,6 +84,21 @@ namespace DTAClient.DXGUI.Generic
 
             if (randomTextures.Count == 0)
                 return;
+
+            // 读取背景纹理路径前缀，默认空（等价于 Resources 根目录，保持原行为）
+            // 可在 LoadingScreen.ini 中配置为子路径（如 "Themes/MyriaDimensionTheme"）
+            // 以便 RandomBackgroundTextures 只需写文件名，减少重复路径书写
+            string texturesPath = iniFile.GetStringValue(Name, "RandomBackgroundTexturesPath", string.Empty);
+
+            // texturesPath 为空或显式写 "Resources" 时，不添加前缀，行为与原版一致
+            bool usePrefix = !string.IsNullOrWhiteSpace(texturesPath)
+                && !texturesPath.Equals("Resources", StringComparison.OrdinalIgnoreCase);
+
+            for (int i = 0; i < randomTextures.Count; i++)
+            {
+                if (usePrefix)
+                    randomTextures[i] = SafePath.CombineFilePath(texturesPath, randomTextures[i]);
+            }
 
             BackgroundTexture = AssetLoader.LoadTexture(randomTextures[random.Next(randomTextures.Count)]);
         }
