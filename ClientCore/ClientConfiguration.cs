@@ -398,6 +398,16 @@ namespace ClientCore
 
         public bool CopyMissionsToSpawnmapINI => clientDefinitionsIni.GetBooleanValue(SETTINGS, "CopyMissionsToSpawnmapINI", true);
 
+        public bool CopyMissionsToSpawnmapINIBattle => clientDefinitionsIni.GetBooleanValue(SETTINGS, "CopyMissionsToSpawnmapINI.Battle", CopyMissionsToSpawnmapINI);
+
+        public bool CopyMissionsToSpawnmapINICustom => clientDefinitionsIni.GetBooleanValue(SETTINGS, "CopyMissionsToSpawnmapINI.Custom", CopyMissionsToSpawnmapINI);
+
+        public bool CustomMissionSupplementEnable => clientDefinitionsIni.GetBooleanValue(SETTINGS, "CustomMissionSupplementEnable", true);
+
+        public bool CustomMissionSupplementEnableBattle => clientDefinitionsIni.GetBooleanValue(SETTINGS, "CustomMissionSupplementEnable.Battle", CustomMissionSupplementEnable);
+
+        public bool CustomMissionSupplementEnableCustom => clientDefinitionsIni.GetBooleanValue(SETTINGS, "CustomMissionSupplementEnable.Custom", CustomMissionSupplementEnable);
+
         public string AllowedCustomGameModes => clientDefinitionsIni.GetStringValue(SETTINGS, "AllowedCustomGameModes", "Standard,Custom Map");
 
         public int InactiveHostWarningMessageSeconds => clientDefinitionsIni.GetIntValue(SETTINGS, "InactiveHostWarningMessageSeconds", 0);

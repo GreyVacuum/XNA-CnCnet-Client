@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -81,25 +81,24 @@ internal static class CustomMissionHelper
 
         DeleteSupplementalMissionFiles();
 
-        if (mission.IsCustomMission)
+        if (!mission.Supplement)
+            return;
+
+        string mapExtension = "." + ClientConfiguration.Instance.MapFileExtension;
+
+        string missionFileName = mission.Scenario;
+        Debug.Assert(missionFileName.EndsWith(mapExtension, StringComparison.InvariantCultureIgnoreCase), string.Format("Mission file should have the extension \"{0}\".", mapExtension));
+
+        foreach ((string ext, string filename) in CustomMissionSupplementDefinition!)
         {
-            string mapExtension = "." + ClientConfiguration.Instance.MapFileExtension; // e.g., ".map"
-
-            string missionFileName = mission.Scenario;
-            Debug.Assert(missionFileName.EndsWith(mapExtension, StringComparison.InvariantCultureIgnoreCase), string.Format("Mission file should have the extension \"{0}\".", mapExtension));
-
-            // copy the CSF file if exists
-            foreach ((string ext, string filename) in CustomMissionSupplementDefinition!)
+            string sourceFileName = missionFileName[..^mapExtension.Length] + "." + ext;
+            string sourceFilePath = SafePath.CombineFilePath(ProgramConstants.GamePath, sourceFileName);
+            if (SafePath.GetFile(sourceFilePath).Exists)
             {
-                string sourceFileName = missionFileName[..^mapExtension.Length] + "." + ext;
-                string sourceFilePath = SafePath.CombineFilePath(ProgramConstants.GamePath, sourceFileName);
-                if (SafePath.GetFile(sourceFilePath).Exists)
-                {
-                    string targetFilePath = SafePath.CombineFilePath(ProgramConstants.GamePath, filename);
+                string targetFilePath = SafePath.CombineFilePath(ProgramConstants.GamePath, filename);
 
-                    FileExtensions.CreateHardLinkFromSource(sourceFilePath, targetFilePath);
-                    new FileInfo(targetFilePath).IsReadOnly = true;
-                }
+                FileExtensions.CreateHardLinkFromSource(sourceFilePath, targetFilePath);
+                new FileInfo(targetFilePath).IsReadOnly = true;
             }
         }
     }
