@@ -1,5 +1,9 @@
-﻿using Rampastring.XNAUI.XNAControls;
+﻿using ClientCore.Extensions;
+using ClientCore.I18N;
+
+using Rampastring.Tools;
 using Rampastring.XNAUI;
+using Rampastring.XNAUI.XNAControls;
 
 namespace ClientGUI
 {
@@ -15,7 +19,7 @@ namespace ClientGUI
             {
                 ClickSound = new EnhancedSoundEffect("button.wav");
             }
-            
+
             base.Initialize();
         }
 
@@ -34,5 +38,8 @@ namespace ClientGUI
                     AssetLoader.LoadTexture(width + "pxbtn_c.png"));
             }
         }
+
+        protected override string LocalizeTabText(string text, string key)
+            => Translation.Instance.LookUp(this, key, text.FromIniString());
     }
 }
