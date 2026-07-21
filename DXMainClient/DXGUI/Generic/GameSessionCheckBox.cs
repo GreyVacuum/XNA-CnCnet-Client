@@ -51,8 +51,67 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
     public bool AllowChanges { get; set; } = true;
 
     // AffectsSpawnIni now true if any spawn ini option (default or indexed) exists
-    public bool AffectsSpawnIni => !string.IsNullOrWhiteSpace(spawnIniOption) || spawnIniEntries.Count > 0;
-    public bool AffectsMapCode => !string.IsNullOrWhiteSpace(customIniPath) || customIniPaths.Count > 0;
+    public bool AffectsSpawnIni => HasAnySpawnIniEntry() || ShouldWriteCustomToSpawnIni();
+    public bool AffectsMapCode => HasAnyCustomIniPath() || ShouldWriteSpawnToMapCode();
+
+    private bool HasAnySpawnIniEntry()
+        => !string.IsNullOrWhiteSpace(spawnIniOption) || spawnIniEntries.Count > 0;
+
+    private bool HasAnyCustomIniPath()
+        => !string.IsNullOrWhiteSpace(customIniPath) || customIniPaths.Count > 0;
+
+    private bool HasSpawnIniEntry(int index)
+    {
+        if (index == 0)
+            return !string.IsNullOrWhiteSpace(spawnIniOption) ||
+                   (spawnIniEntries.TryGetValue(0, out var e) && e.HasOption);
+        return spawnIniEntries.TryGetValue(index, out var entry) && entry.HasOption;
+    }
+
+    private bool HasCustomIniPath(int index)
+    {
+        if (index == 0)
+            return !string.IsNullOrWhiteSpace(customIniPath) || customIniPaths.ContainsKey(0);
+        return customIniPaths.ContainsKey(index) && !string.IsNullOrWhiteSpace(customIniPaths[index]);
+    }
+
+    private bool ShouldWriteSpawnToMapCode()
+    {
+        if (!HasAnySpawnIniEntry())
+            return false;
+        if (HasSpawnIniEntry(0))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(0, out var v) ? v : spawnWriteCustom;
+            if (writeCustom)
+                return true;
+        }
+        foreach (var idx in spawnIniEntries.Keys.Where(k => k != 0))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(idx, out var v) ? v : spawnWriteCustom;
+            if (writeCustom)
+                return true;
+        }
+        return false;
+    }
+
+    private bool ShouldWriteCustomToSpawnIni()
+    {
+        if (!HasAnyCustomIniPath())
+            return false;
+        if (HasCustomIniPath(0))
+        {
+            bool writeSpawn = customWriteSpawns.TryGetValue(0, out var v) ? v : customWriteSpawn;
+            if (writeSpawn)
+                return true;
+        }
+        foreach (var idx in customIniPaths.Keys.Where(k => k != 0))
+        {
+            bool writeSpawn = customWriteSpawns.TryGetValue(idx, out var v) ? v : customWriteSpawn;
+            if (writeSpawn)
+                return true;
+        }
+        return false;
+    }
 
     public bool AllowScoring
         => !((mapScoringMode == CheckBoxMapScoringMode.DenyWhenChecked && Checked)
@@ -69,6 +128,18 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
     // 支持按索引配置的 CustomIniPath，如 CustomIniPath0、CustomIniPath1 ...
     // CustomIniPath0 会覆盖无后缀的 CustomIniPath（兼容）
     private readonly Dictionary<int, string> customIniPaths = new();
+
+    // SpawnWriteCustom 控制是否将 SpawnIni 条目写入 spawnmap.ini 而非 spawn.ini
+    private bool spawnWriteCustom = false;
+    private readonly Dictionary<int, bool> spawnWriteCustoms = new();
+
+    // CustomWriteSpawn 控制是否将 CustomIniPath 应用到 spawn.ini 而非 spawnmap.ini（仅 CheckBox）
+    private bool customWriteSpawn = false;
+    private readonly Dictionary<int, bool> customWriteSpawns = new();
+
+    // SpawnIniValueCheck 控制写入 SpawnIni 前是否检查值非空，为空则不写入
+    private bool spawnIniValueCheck = false;
+    private readonly Dictionary<int, bool> spawnIniValueChecks = new();
 
     protected bool reversed;
 
@@ -248,6 +319,18 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
                 return;
             case "CustomIniPath":
                 customIniPath = value;
+                return;
+            case "SpawnWriteCustom":
+                spawnWriteCustom = Conversions.BooleanFromString(value, false);
+                spawnWriteCustoms[0] = spawnWriteCustom;
+                return;
+            case "CustomWriteSpawn":
+                customWriteSpawn = Conversions.BooleanFromString(value, false);
+                customWriteSpawns[0] = customWriteSpawn;
+                return;
+            case "SpawnIniValueCheck":
+                spawnIniValueCheck = Conversions.BooleanFromString(value, false);
+                spawnIniValueChecks[0] = spawnIniValueCheck;
                 return;
             case "Reversed":
                 reversed = Conversions.BooleanFromString(value, false);
@@ -474,6 +557,33 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
             return;
         }
 
+        idx = ParseSuffix(key, "SpawnWriteCustom");
+        if (idx >= 0)
+        {
+            spawnWriteCustoms[idx] = Conversions.BooleanFromString(value, false);
+            if (idx == 0)
+                spawnWriteCustom = spawnWriteCustoms[idx];
+            return;
+        }
+
+        idx = ParseSuffix(key, "CustomWriteSpawn");
+        if (idx >= 0)
+        {
+            customWriteSpawns[idx] = Conversions.BooleanFromString(value, false);
+            if (idx == 0)
+                customWriteSpawn = customWriteSpawns[idx];
+            return;
+        }
+
+        idx = ParseSuffix(key, "SpawnIniValueCheck");
+        if (idx >= 0)
+        {
+            spawnIniValueChecks[idx] = Conversions.BooleanFromString(value, false);
+            if (idx == 0)
+                spawnIniValueCheck = spawnIniValueChecks[idx];
+            return;
+        }
+
         // --- 新增：支持索引形式的 ParentCheckBox 属性，例如 ParentCheckBoxName0, ParentCheckBoxRequiredValue0, ParentCheckBoxTexture0, ParentChecked0 ---
         idx = ParseSuffix(key, "ParentCheckBoxName");
         if (idx >= 0)
@@ -556,7 +666,7 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
         if (!AffectsSpawnIni)
             return;
 
-        // If there are indexed entries, write each configured one.
+        // 写入未开启 SpawnWriteCustom 的 SpawnIniEntries 到 spawn.ini
         if (spawnIniEntries.Count > 0)
         {
             foreach (var kvp in spawnIniEntries)
@@ -565,36 +675,111 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
                 if (!entry.HasOption)
                     continue;
 
-                string project = string.IsNullOrEmpty(entry.Project) ? spawnIniProject : entry.Project;
-                string enabledVal = string.IsNullOrEmpty(entry.EnabledValue) ? enabledSpawnIniValue : entry.EnabledValue;
-                string disabledVal = string.IsNullOrEmpty(entry.DisabledValue) ? disabledSpawnIniValue : entry.DisabledValue;
+                bool writeCustom = spawnWriteCustoms.TryGetValue(kvp.Key, out var v) ? v : spawnWriteCustom;
+                if (writeCustom)
+                    continue;
 
-                string value = (Checked != reversed) ? enabledVal : disabledVal;
+                string project = string.IsNullOrEmpty(entry.Project) ? spawnIniProject : entry.Project;
+                string value = GetSpawnIniValue(entry);
+                if (ShouldSkipEmptySpawnIniValue(kvp.Key, value))
+                    continue;
+
                 spawnIni.SetStringValue(project, entry.Option, value);
             }
-
-            return;
         }
-
-        // Fallback: legacy single-option behavior
-        if (String.IsNullOrEmpty(spawnIniOption))
-            return;
-
-        string outVal = disabledSpawnIniValue;
-        if (Checked != reversed)
+        else
         {
-            outVal = enabledSpawnIniValue;
+            // Fallback: legacy single-option behavior
+            if (String.IsNullOrEmpty(spawnIniOption))
+                return;
+
+            bool writeCustom = spawnWriteCustoms.TryGetValue(0, out var v0) ? v0 : spawnWriteCustom;
+            if (writeCustom)
+                return;
+
+            string outVal = GetSpawnIniValue(enabledSpawnIniValue, disabledSpawnIniValue);
+            if (ShouldSkipEmptySpawnIniValue(0, outVal))
+                return;
+
+            spawnIni.SetStringValue(spawnIniProject, spawnIniOption, outVal);
         }
 
-        spawnIni.SetStringValue(spawnIniProject, spawnIniOption, outVal);
+        // 若 CustomWriteSpawn 开启，将 CustomIniPath 应用到 spawn.ini 而非 spawnmap.ini
+        ApplyCustomIniPathsByConfig(spawnIni, null, writeToSpawn: true);
     }
-        
+
     public void ApplyMapCode(IniFile mapIni, GameMode gameMode)
     {
         if (!AffectsMapCode || Checked == reversed)
             return;
 
-        // 如果配置了索引形式的 CustomIniPath，按索引升序逐个应用
+        // 若 SpawnWriteCustom 开启，将 SpawnIniEntries 写入 spawnmap.ini
+        if (spawnIniEntries.Count > 0)
+        {
+            foreach (var kvp in spawnIniEntries)
+            {
+                var entry = kvp.Value;
+                if (!entry.HasOption)
+                    continue;
+
+                bool writeCustom = spawnWriteCustoms.TryGetValue(kvp.Key, out var v) ? v : spawnWriteCustom;
+                if (!writeCustom)
+                    continue;
+
+                string project = string.IsNullOrEmpty(entry.Project) ? spawnIniProject : entry.Project;
+                string value = GetSpawnIniValue(entry);
+                if (ShouldSkipEmptySpawnIniValue(kvp.Key, value))
+                    continue;
+
+                mapIni.SetStringValue(project, entry.Option, value);
+            }
+        }
+        else if (!string.IsNullOrEmpty(spawnIniOption))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(0, out var v0) ? v0 : spawnWriteCustom;
+            if (writeCustom)
+            {
+                string outVal = GetSpawnIniValue(enabledSpawnIniValue, disabledSpawnIniValue);
+                if (ShouldSkipEmptySpawnIniValue(0, outVal))
+                    return;
+
+                mapIni.SetStringValue(spawnIniProject, spawnIniOption, outVal);
+            }
+        }
+
+        // 默认将 CustomIniPath 应用到 spawnmap.ini，除非 CustomWriteSpawn 开启
+        ApplyCustomIniPathsByConfig(mapIni, gameMode, writeToSpawn: false);
+    }
+
+    private string GetSpawnIniValue(SpawnIniEntry entry)
+    {
+        string enabledVal = string.IsNullOrEmpty(entry.EnabledValue) ? enabledSpawnIniValue : entry.EnabledValue;
+        string disabledVal = string.IsNullOrEmpty(entry.DisabledValue) ? disabledSpawnIniValue : entry.DisabledValue;
+        return (Checked != reversed) ? enabledVal : disabledVal;
+    }
+
+    private string GetSpawnIniValue(string enabledValue, string disabledValue)
+    {
+        return (Checked != reversed) ? enabledValue : disabledValue;
+    }
+
+    private bool ShouldSkipEmptySpawnIniValue(int index, string value)
+    {
+        bool check = spawnIniValueChecks.TryGetValue(index, out var v) ? v : spawnIniValueCheck;
+        return check && string.IsNullOrWhiteSpace(value);
+    }
+
+    /// <summary>
+    /// 根据 CustomWriteSpawn 配置将 CustomIniPath 应用到指定目标文件。
+    /// </summary>
+    /// <param name="targetIni">目标 INI 文件。</param>
+    /// <param name="gameMode">当前游戏模式。</param>
+    /// <param name="writeToSpawn">true 表示目标为 spawn.ini，false 表示目标为 spawnmap.ini。</param>
+    private void ApplyCustomIniPathsByConfig(IniFile targetIni, GameMode gameMode, bool writeToSpawn)
+    {
+        if (targetIni == null)
+            return;
+
         if (customIniPaths.Count > 0)
         {
             var keys = new List<int>(customIniPaths.Keys);
@@ -604,14 +789,17 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting
                 var path = customIniPaths[k];
                 if (string.IsNullOrWhiteSpace(path))
                     continue;
-                MapCodeHelper.ApplyMapCode(mapIni, path, gameMode);
-            }
-            return;
-        }
 
-        // 兼容旧逻辑：单一路径
-        if (!string.IsNullOrWhiteSpace(customIniPath))
-            MapCodeHelper.ApplyMapCode(mapIni, customIniPath, gameMode);
+                bool writeSpawn = customWriteSpawns.TryGetValue(k, out var v) ? v : customWriteSpawn;
+                if (writeSpawn == writeToSpawn)
+                    MapCodeHelper.ApplyMapCode(targetIni, path, gameMode);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(customIniPath))
+        {
+            if (customWriteSpawn == writeToSpawn)
+                MapCodeHelper.ApplyMapCode(targetIni, customIniPath, gameMode);
+        }
     }
 
     public override void OnLeftClick(InputEventArgs inputEventArgs)

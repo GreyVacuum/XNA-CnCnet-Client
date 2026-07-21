@@ -609,6 +609,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             Disable();
             PlayerExtraOptionsPanel?.Disable();
             PlayerNameOptionsPanel?.Disable();
+            PlayerNameOptionsPanel?.Reset();
             PlayerAIQuickOptionsPanel?.Disable();
 
             connectionManager.ConnectionLost -= ConnectionManager_ConnectionLost;
@@ -751,21 +752,22 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     return;
                 }
 
+                Players.Clear();
+                PlayerNameOptionsPanel?.Reset();
+
                 channel.Users.DoForAllUsers(user =>
                 {
-                    if (Players.Find(p => p.Name == user.IRCUser.Name) == null)
-                    {
-                        PlayerInfo pInfo = new PlayerInfo(user.IRCUser.Name);
+                    PlayerInfo pInfo = new PlayerInfo(user.IRCUser.Name);
 
-                        if (user.IRCUser.Name == hostName)
-                            Players.Insert(0, pInfo);
-                        else
-                            Players.Add(pInfo);
-                    }
+                    if (user.IRCUser.Name == hostName)
+                        Players.Insert(0, pInfo);
+                    else
+                        Players.Add(pInfo);
                 });
 
                 CopyPlayerDataToUI();
                 RequestPlayerOptions(0, 0, 0, 0);
+                BroadcastPlayerNameOptions();
             }
             UpdateDiscordPresence();
         }
@@ -792,8 +794,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 // Re-broadcast our own PlayerNameOptions state so the newly joined
                 // member receives our custom name settings without needing the host
                 // to refresh / re-trigger a broadcast.
-                if (e.User.IRCUser.Name != ProgramConstants.PLAYERNAME)
-                    BroadcastPlayerNameOptions();
+                BroadcastPlayerNameOptions();
                 return;
             }
 

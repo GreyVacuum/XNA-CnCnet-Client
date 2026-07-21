@@ -342,6 +342,9 @@ namespace DTAClient.DXGUI.Multiplayer
             chkBoxForceRandomStarts.Checked = playerExtraOptions.IsForceRandomStarts;
             chkBoxUseTeamStartMappings.Checked = playerExtraOptions.IsUseTeamStartMappings;
             teamStartMappingsPanel.SetTeamStartMappings(playerExtraOptions.TeamStartMappings);
+
+            // Keep child control enabled states in sync with the current host/non-host state.
+            EnableControls(_isHost);
         }
 
         public void SetIsHost(bool isHost)
