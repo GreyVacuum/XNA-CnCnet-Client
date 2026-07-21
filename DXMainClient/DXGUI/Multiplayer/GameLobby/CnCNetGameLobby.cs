@@ -603,6 +603,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             Disable();
             PlayerExtraOptionsPanel?.Disable();
+            PlayerNameOptionsPanel?.Disable();
+            PlayerNameOptionsPanel?.Reset();
+            PlayerAIQuickOptionsPanel?.Disable();
 
             connectionManager.ConnectionLost -= ConnectionManager_ConnectionLost;
             connectionManager.Disconnected -= ConnectionManager_Disconnected;
@@ -742,6 +745,23 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                         ERROR_MESSAGE_COLOR, "The game host has abandoned the game.".L10N("Client:Main:HostHasAbandoned")));
                     BtnLeaveGame_LeftClick(this, EventArgs.Empty);
                 }
+
+                Players.Clear();
+                PlayerNameOptionsPanel?.Reset();
+
+                channel.Users.DoForAllUsers(user =>
+                {
+                    PlayerInfo pInfo = new PlayerInfo(user.IRCUser.Name);
+
+                    if (user.IRCUser.Name == hostName)
+                        Players.Insert(0, pInfo);
+                    else
+                        Players.Add(pInfo);
+                });
+
+                CopyPlayerDataToUI();
+                RequestPlayerOptions(0, 0, 0, 0);
+                BroadcastPlayerNameOptions();
             }
             UpdateDiscordPresence();
         }
@@ -762,6 +782,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (!IsHost)
             {
                 CopyPlayerDataToUI();
+                // Re-broadcast our own PlayerNameOptions state so the newly joined
+                // member receives our custom name settings without needing the host
+                // to refresh / re-trigger a broadcast.
+                BroadcastPlayerNameOptions();
                 return;
             }
 

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
 using ClientCore.Extensions;
 using ClientCore.I18N;
@@ -26,13 +28,72 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     public GameSessionDropDown(WindowManager windowManager) : base(windowManager) { }
 
     public string OptionName { get; private set; }
-    public bool AffectsSpawnIni => dataWriteMode != DropDownDataWriteMode.MAPCODE;
-    public bool AffectsMapCode => dataWriteMode == DropDownDataWriteMode.MAPCODE;
+    public bool AffectsSpawnIni => HasAnySpawnIniEntryWrittenToSpawnIni();
+    public bool AffectsMapCode => dataWriteMode == DropDownDataWriteMode.MAPCODE || HasAnySpawnIniEntryWrittenToMapCode();
     public bool AllowScoring => true;  // TODO
+
+    private bool HasAnySpawnIniEntry()
+        => !string.IsNullOrWhiteSpace(spawnIniOption) || spawnIniEntries.Count > 0;
+
+    private bool HasSpawnIniEntry(int index)
+    {
+        if (index == 0)
+            return !string.IsNullOrWhiteSpace(spawnIniOption) ||
+                   (spawnIniEntries.TryGetValue(0, out var e) && e.HasOption);
+        return spawnIniEntries.TryGetValue(index, out var entry) && entry.HasOption;
+    }
+
+    private bool HasAnySpawnIniEntryWrittenToSpawnIni()
+    {
+        if (!HasAnySpawnIniEntry())
+            return false;
+        if (HasSpawnIniEntry(0))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(0, out var v) ? v : spawnWriteCustom;
+            if (!writeCustom)
+                return true;
+        }
+        foreach (var idx in spawnIniEntries.Keys.Where(k => k != 0))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(idx, out var v) ? v : spawnWriteCustom;
+            if (!writeCustom)
+                return true;
+        }
+        return false;
+    }
+
+    private bool HasAnySpawnIniEntryWrittenToMapCode()
+    {
+        if (!HasAnySpawnIniEntry())
+            return false;
+        if (HasSpawnIniEntry(0))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(0, out var v) ? v : spawnWriteCustom;
+            if (writeCustom)
+                return true;
+        }
+        foreach (var idx in spawnIniEntries.Keys.Where(k => k != 0))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(idx, out var v) ? v : spawnWriteCustom;
+            if (writeCustom)
+                return true;
+        }
+        return false;
+    }
 
     private DropDownDataWriteMode dataWriteMode = DropDownDataWriteMode.BOOLEAN;
 
     private string spawnIniOption = string.Empty;
+
+    private string spawnIniProject = "Settings";
+
+    // SpawnWriteCustom 控制是否将 SpawnIni 条目写入 spawnmap.ini 而非 spawn.ini
+    private bool spawnWriteCustom = false;
+    private readonly Dictionary<int, bool> spawnWriteCustoms = new();
+
+    // SpawnIniValueCheck 控制写入 SpawnIni 前是否检查值非空，为空则不写入
+    private bool spawnIniValueCheck = false;
+    private readonly Dictionary<int, bool> spawnIniValueChecks = new();
 
     private int defaultIndex;
 
@@ -118,6 +179,17 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
             case "SpawnIniOption":
                 spawnIniOption = value;
                 return;
+            case "SpawnIniProject":
+                spawnIniProject = value;
+                return;
+            case "SpawnWriteCustom":
+                spawnWriteCustom = Conversions.BooleanFromString(value, false);
+                spawnWriteCustoms[0] = spawnWriteCustom;
+                return;
+            case "SpawnIniValueCheck":
+                spawnIniValueCheck = Conversions.BooleanFromString(value, false);
+                spawnIniValueChecks[0] = spawnIniValueCheck;
+                return;
             case "DefaultIndex":
                 SelectedIndex = int.Parse(value);
                 defaultIndex = SelectedIndex;
@@ -151,6 +223,53 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                 return;
         }
 
+        // spawn INI indexed attributes
+        idx = ParseSuffix(key, "SpawnIniOption");
+        if (idx >= 0)
+        {
+            if (!spawnIniEntries.TryGetValue(idx, out var entry))
+            {
+                entry = new SpawnIniEntry();
+                spawnIniEntries[idx] = entry;
+            }
+            entry.Option = value;
+            if (idx == 0)
+                spawnIniOption = value;
+            return;
+        }
+
+        idx = ParseSuffix(key, "SpawnIniProject");
+        if (idx >= 0)
+        {
+            if (!spawnIniEntries.TryGetValue(idx, out var entry))
+            {
+                entry = new SpawnIniEntry();
+                spawnIniEntries[idx] = entry;
+            }
+            entry.Project = value;
+            if (idx == 0)
+                spawnIniProject = value;
+            return;
+        }
+
+        idx = ParseSuffix(key, "SpawnWriteCustom");
+        if (idx >= 0)
+        {
+            spawnWriteCustoms[idx] = Conversions.BooleanFromString(value, false);
+            if (idx == 0)
+                spawnWriteCustom = spawnWriteCustoms[idx];
+            return;
+        }
+
+        idx = ParseSuffix(key, "SpawnIniValueCheck");
+        if (idx >= 0)
+        {
+            spawnIniValueChecks[idx] = Conversions.BooleanFromString(value, false);
+            if (idx == 0)
+                spawnIniValueCheck = spawnIniValueChecks[idx];
+            return;
+        }
+
         base.ParseControlINIAttribute(iniFile, key, value);
     }
 
@@ -162,7 +281,89 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
 
     public void ApplySpawnIniCode(IniFile spawnIni)
     {
-        if (!AffectsSpawnIni || SelectedIndex < 0 || SelectedIndex >= Items.Count)
+        if (!AffectsSpawnIni)
+            return;
+
+        if (SelectedIndex < 0 || SelectedIndex >= Items.Count)
+            return;
+
+        // If a custom item is selected, write its custom value
+        if (IsCustomItemIndex(SelectedIndex))
+        {
+            int slot = CustomSlotFromIndex(SelectedIndex);
+            string cv = customValues[slot];
+
+            if (spawnIniEntries.Count > 0)
+            {
+                foreach (var kvp in spawnIniEntries)
+                {
+                    var entry = kvp.Value;
+                    if (!entry.HasOption)
+                        continue;
+
+                    bool writeCustom = spawnWriteCustoms.TryGetValue(kvp.Key, out var v) ? v : spawnWriteCustom;
+                    if (writeCustom)
+                        continue;
+
+                    if (ShouldSkipEmptySpawnIniValue(kvp.Key, cv))
+                        continue;
+
+                    string project = string.IsNullOrEmpty(entry.Project) ? spawnIniProject : entry.Project;
+                    spawnIni.SetStringValue(project, entry.Option, cv);
+                }
+
+                return;
+            }
+
+            if (String.IsNullOrEmpty(spawnIniOption))
+            {
+                Logger.Log("GameLobbyDropDown.WriteSpawnIniCode: " + Name + " has no associated spawn INI option!");
+                return;
+            }
+
+            bool writeCustom0 = spawnWriteCustoms.TryGetValue(0, out var v0) ? v0 : spawnWriteCustom;
+            if (writeCustom0)
+                return;
+
+            if (ShouldSkipEmptySpawnIniValue(0, cv))
+                return;
+
+            if (InputBoxDataMode == InputBoxDataMode.INTEGER)
+            {
+                if (int.TryParse(cv, out int intValue))
+                    spawnIni.SetIntValue(spawnIniProject, spawnIniOption, intValue);
+                else
+                    spawnIni.SetStringValue(spawnIniProject, spawnIniOption, cv);
+            }
+            else
+            {
+                spawnIni.SetStringValue(spawnIniProject, spawnIniOption, cv);
+            }
+
+            return;
+        }
+
+        // if we have indexed spawn ini entries, write the ones configured
+        if (spawnIniEntries.Count > 0)
+        {
+            foreach (var kvp in spawnIniEntries)
+            {
+                var entry = kvp.Value;
+                if (!entry.HasOption)
+                    continue;
+
+                bool writeCustom = spawnWriteCustoms.TryGetValue(kvp.Key, out var v) ? v : spawnWriteCustom;
+                if (writeCustom)
+                    continue;
+
+                string tag = Items[SelectedIndex].Tag?.ToString() ?? "";
+                if (ShouldSkipEmptySpawnIniValue(kvp.Key, tag))
+                    continue;
+
+                string project = string.IsNullOrEmpty(entry.Project) ? spawnIniProject : entry.Project;
+                spawnIni.SetStringValue(project, entry.Option, tag);
+            }
+
             return;
 
         if (String.IsNullOrEmpty(spawnIniOption))
@@ -170,6 +371,10 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
             Logger.Log("GameLobbyDropDown.WriteSpawnIniCode: " + Name + " has no associated spawn INI option!");
             return;
         }
+
+        bool writeCustomLegacy = spawnWriteCustoms.TryGetValue(0, out var vLegacy) ? vLegacy : spawnWriteCustom;
+        if (writeCustomLegacy)
+            return;
 
         switch (dataWriteMode)
         {
@@ -181,7 +386,10 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                 break;
             default:
             case DropDownDataWriteMode.STRING:
-                spawnIni.SetStringValue("Settings", spawnIniOption, Items[SelectedIndex].Tag.ToString());
+                string tag = Items[SelectedIndex].Tag.ToString();
+                if (ShouldSkipEmptySpawnIniValue(0, tag))
+                    return;
+                spawnIni.SetStringValue(spawnIniProject, spawnIniOption, tag);
                 break;
         }
     }
@@ -190,10 +398,88 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     {
         if (!AffectsMapCode || SelectedIndex < 0 || SelectedIndex >= Items.Count) return;
 
-        string customIniPath;
-        customIniPath = Items[SelectedIndex].Tag.ToString();
+        // 若 SpawnWriteCustom 开启，将 SpawnIniEntries 写入 spawnmap.ini
+        if (spawnIniEntries.Count > 0)
+        {
+            foreach (var kvp in spawnIniEntries)
+            {
+                var entry = kvp.Value;
+                if (!entry.HasOption)
+                    continue;
 
-        MapCodeHelper.ApplyMapCode(mapIni, customIniPath, gameMode);
+                bool writeCustom = spawnWriteCustoms.TryGetValue(kvp.Key, out var v) ? v : spawnWriteCustom;
+                if (!writeCustom)
+                    continue;
+
+                string tag = IsCustomItemIndex(SelectedIndex)
+                    ? customValues[CustomSlotFromIndex(SelectedIndex)]
+                    : (Items[SelectedIndex].Tag?.ToString() ?? "");
+                if (ShouldSkipEmptySpawnIniValue(kvp.Key, tag))
+                    continue;
+
+                string project = string.IsNullOrEmpty(entry.Project) ? spawnIniProject : entry.Project;
+                mapIni.SetStringValue(project, entry.Option, tag);
+            }
+        }
+        else if (!string.IsNullOrEmpty(spawnIniOption))
+        {
+            bool writeCustom = spawnWriteCustoms.TryGetValue(0, out var v0) ? v0 : spawnWriteCustom;
+            if (writeCustom)
+            {
+                if (IsCustomItemIndex(SelectedIndex))
+                {
+                    string cv = customValues[CustomSlotFromIndex(SelectedIndex)];
+                    if (ShouldSkipEmptySpawnIniValue(0, cv))
+                        return;
+
+                    if (InputBoxDataMode == InputBoxDataMode.INTEGER)
+                    {
+                        if (int.TryParse(cv, out int intValue))
+                            mapIni.SetIntValue(spawnIniProject, spawnIniOption, intValue);
+                        else
+                            mapIni.SetStringValue(spawnIniProject, spawnIniOption, cv);
+                    }
+                    else
+                    {
+                        mapIni.SetStringValue(spawnIniProject, spawnIniOption, cv);
+                    }
+                }
+                else
+                {
+                    switch (dataWriteMode)
+                    {
+                        case DropDownDataWriteMode.BOOLEAN:
+                            mapIni.SetBooleanValue(spawnIniProject, spawnIniOption, SelectedIndex > 0);
+                            break;
+                        case DropDownDataWriteMode.INDEX:
+                            mapIni.SetIntValue(spawnIniProject, spawnIniOption, SelectedIndex);
+                            break;
+                        default:
+                        case DropDownDataWriteMode.STRING:
+                            string tag = Items[SelectedIndex].Tag.ToString();
+                            if (ShouldSkipEmptySpawnIniValue(0, tag))
+                                return;
+                            mapIni.SetStringValue(spawnIniProject, spawnIniOption, tag);
+                            break;
+                    }
+                }
+
+                return;
+            }
+        }
+
+        // 原有 MAPCODE 逻辑
+        if (dataWriteMode == DropDownDataWriteMode.MAPCODE && !IsCustomItemIndex(SelectedIndex))
+        {
+            string customIniPath = Items[SelectedIndex].Tag.ToString();
+            MapCodeHelper.ApplyMapCode(mapIni, customIniPath, gameMode);
+        }
+    }
+
+    private bool ShouldSkipEmptySpawnIniValue(int index, string value)
+    {
+        bool check = spawnIniValueChecks.TryGetValue(index, out var v) ? v : spawnIniValueCheck;
+        return check && string.IsNullOrWhiteSpace(value);
     }
 
     public override void OnLeftClick(InputEventArgs inputEventArgs)

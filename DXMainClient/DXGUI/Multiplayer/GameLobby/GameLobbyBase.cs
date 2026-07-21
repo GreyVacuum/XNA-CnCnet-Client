@@ -692,6 +692,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             SetPlayerExtraOptions(playerExtraOptions);
             UpdateMapPreviewBoxEnabledStatus();
+
+            // Ensure non-host players immediately see forced options reflected
+            // in the player option drop-downs after receiving host's settings.
+            CopyPlayerDataToUI();
+            RefreshBtnPlayerExtraOptionsOpenTexture();
         }
 
         private void AddPlayerExtraOptionForcedNotice(bool disabled, string type)
@@ -1277,6 +1282,49 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected void SetPlayerExtraOptions(PlayerExtraOptions playerExtraOptions) => PlayerExtraOptionsPanel?.SetPlayerExtraOptions(playerExtraOptions);
 
         protected string GetTeamMappingsError() => GetPlayerExtraOptions()?.GetTeamMappingsError();
+
+        protected PlayerAIQuickOptions GetAIQuickOptions()
+            => PlayerAIQuickOptionsPanel == null ? new PlayerAIQuickOptions() : PlayerAIQuickOptionsPanel.GetAIQuickOptions();
+
+        protected void ApplyAIQuickOptions(string sender, string message)
+        {
+            var oldOptions = GetAIQuickOptions();
+            var newOptions = PlayerAIQuickOptions.FromMessage(message);
+
+            if (PlayerAIQuickOptionsPanel != null)
+            {
+                PlayerAIQuickOptionsPanel.SetAIQuickOptions(newOptions);
+
+                // Notify about changes
+                if (oldOptions.RandomDifficulty != newOptions.RandomDifficulty)
+                    AddNotice(newOptions.RandomDifficulty
+                        ? "The game host has enabled random AI difficulty.".L10N("Client:Main:HostEnabledRandomAIDifficulty")
+                        : "The game host has disabled random AI difficulty.".L10N("Client:Main:HostDisabledRandomAIDifficulty"));
+                if (oldOptions.RandomSide != newOptions.RandomSide)
+                    AddNotice(newOptions.RandomSide
+                        ? "The game host has enabled random AI side.".L10N("Client:Main:HostEnabledRandomAISide")
+                        : "The game host has disabled random AI side.".L10N("Client:Main:HostDisabledRandomAISide"));
+                if (oldOptions.RandomColor != newOptions.RandomColor)
+                    AddNotice(newOptions.RandomColor
+                        ? "The game host has enabled random AI color.".L10N("Client:Main:HostEnabledRandomAIColor")
+                        : "The game host has disabled random AI color.".L10N("Client:Main:HostDisabledRandomAIColor"));
+                if (oldOptions.RandomTeam != newOptions.RandomTeam)
+                    AddNotice(newOptions.RandomTeam
+                        ? "The game host has enabled random AI team.".L10N("Client:Main:HostEnabledRandomAITeam")
+                        : "The game host has disabled random AI team.".L10N("Client:Main:HostDisabledRandomAITeam"));
+                if (oldOptions.AutoAssignStarts != newOptions.AutoAssignStarts)
+                    AddNotice(newOptions.AutoAssignStarts
+                        ? "The game host has enabled auto-assign AI starts.".L10N("Client:Main:HostEnabledAutoAssignAIStarts")
+                        : "The game host has disabled auto-assign AI starts.".L10N("Client:Main:HostDisabledAutoAssignAIStarts"));
+            }
+        }
+
+        protected virtual void BroadcastAIQuickOptions() { }
+
+        protected virtual void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
+        {
+            BroadcastAIQuickOptions();
+        }
 
         private Texture2D LoadTextureOrNull(string name) =>
             AssetLoader.AssetExists(name) ? AssetLoader.LoadTexture(name) : null;
