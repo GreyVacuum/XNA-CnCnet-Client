@@ -1643,6 +1643,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     AddNotice(newOptions.AutoAssignStarts
                         ? "The game host has enabled auto-assign AI starts.".L10N("Client:Main:HostEnabledAutoAssignAIStarts")
                         : "The game host has disabled auto-assign AI starts.".L10N("Client:Main:HostDisabledAutoAssignAIStarts"));
+
+                // Ensure the format-painter AI-player checkboxes stay in sync with
+                // the actual AI player count after applying host's quick options.
+                UpdateFormatPainterPlayerCount();
             }
         }
 
@@ -1650,6 +1654,87 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         protected virtual void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
         {
+            BroadcastAIQuickOptions();
+        }
+
+        private void PlayerAIQuickOptionsPanel_FormatPainterApplyRequested(object sender, List<int> selectedIndices)
+        {
+            if (!AllowPlayerOptionsChange() || selectedIndices == null || selectedIndices.Count == 0)
+                return;
+
+            var usedLocations = new HashSet<int>();
+            foreach (PlayerInfo p in Players)
+                usedLocations.Add(p.StartingLocation);
+
+            bool autoAssignAIStarts = PlayerAIQuickOptionsPanel?.AutoAssignAIStarts ?? false;
+
+            for (int i = 0; i < AIPlayers.Count; i++)
+            {
+                if (!selectedIndices.Contains(i))
+                    continue;
+
+                PlayerInfo aiPlayer = AIPlayers[i];
+
+                int difficultyLevel = PlayerAIQuickOptionsPanel.AIDifficultyLevel;
+                int sideIndex = PlayerAIQuickOptionsPanel.AISideIndex;
+                int colorIndex = PlayerAIQuickOptionsPanel.AIColorIndex;
+                int teamId = PlayerAIQuickOptionsPanel.AITeamId;
+
+                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty && PlayerAIQuickOptionsPanel.DifficultyItemCount > 1)
+                    difficultyLevel = random.Next(0, PlayerAIQuickOptionsPanel.DifficultyItemCount - 1);
+                if (PlayerAIQuickOptionsPanel.RandomAISide)
+                {
+                    var sideIndices = PlayerAIQuickOptionsPanel.GetSideRandomIndices();
+                    if (sideIndices.Count > 0)
+                        sideIndex = sideIndices[random.Next(sideIndices.Count)] - 1;
+                }
+                if (PlayerAIQuickOptionsPanel.RandomAIColor)
+                {
+                    var colorIndices = PlayerAIQuickOptionsPanel.GetColorRandomIndices();
+                    if (colorIndices.Count > 0)
+                        colorIndex = colorIndices[random.Next(colorIndices.Count)] - 1;
+                }
+                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 1)
+                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount - 1);
+
+                if (difficultyLevel >= 0)
+                    aiPlayer.AILevel = difficultyLevel;
+                if (sideIndex >= 0)
+                    aiPlayer.SideId = sideIndex;
+                if (colorIndex >= 0)
+                    aiPlayer.ColorId = colorIndex;
+                if (teamId >= 0)
+                    aiPlayer.TeamId = teamId;
+
+                if (autoAssignAIStarts && GameModeMap != null)
+                {
+                    foreach (int loc in GameModeMap.AllowedStartingLocations)
+                    {
+                        if (!usedLocations.Contains(loc))
+                        {
+                            aiPlayer.StartingLocation = loc;
+                            usedLocations.Add(loc);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
+        }
+
+        protected void UpdateFormatPainterPlayerCount()
+        {
+            PlayerAIQuickOptionsPanel?.UpdateFormatPainterPlayerCount(AIPlayers.Count);
+        }
+
+        private void PlayerAIQuickOptionsPanel_ResetRequested(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            PlayerAIQuickOptionsPanel?.LoadDefaults(GameOptionsIni);
             BroadcastAIQuickOptions();
         }
 

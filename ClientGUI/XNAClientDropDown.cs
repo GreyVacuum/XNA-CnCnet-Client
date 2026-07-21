@@ -3,6 +3,7 @@ using System;
 using ClientCore;
 using ClientCore.Extensions;
 using ClientCore.I18N;
+using Microsoft.Xna.Framework;
 
 using Microsoft.Xna.Framework;
 
