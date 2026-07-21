@@ -1265,6 +1265,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
 
             CopyPlayerDataToUI();
+            UpdateFormatPainterPlayerCount();
         }
 
         /// <summary>
