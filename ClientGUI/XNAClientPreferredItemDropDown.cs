@@ -1,8 +1,13 @@
+using System.Collections.Generic;
+
+using ClientCore.Extensions;
+using ClientCore.I18N;
+
 using Microsoft.Xna.Framework;
+
 using Rampastring.Tools;
 using Rampastring.XNAUI;
 using Rampastring.XNAUI.XNAControls;
-using System.Collections.Generic;
 
 namespace ClientGUI
 {
@@ -34,7 +39,7 @@ namespace ClientGUI
             switch (key)
             {
                 case "PreferredItemLabel":
-                    PreferredItemLabel = value;
+                    PreferredItemLabel = Translation.Instance.LookUp(this, key, value.FromIniString());
                     return;
             }
 

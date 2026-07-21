@@ -1,10 +1,14 @@
-using Rampastring.XNAUI.XNAControls;
-using Rampastring.XNAUI;
-using Rampastring.Tools;
 using System;
+
 using ClientCore;
 using ClientCore.Extensions;
+using ClientCore.I18N;
+
 using Microsoft.Xna.Framework;
+
+using Rampastring.Tools;
+using Rampastring.XNAUI;
+using Rampastring.XNAUI.XNAControls;
 
 namespace ClientGUI
 {
@@ -73,6 +77,9 @@ namespace ClientGUI
             else
                 ToolTip.Blocked = true;
         }
+
+        protected override string LocalizeDropDownItemText(string text, string key)
+            => Translation.Instance.LookUp(this, key, text.FromIniString());
 
         public override void Draw(GameTime gameTime)
         {
