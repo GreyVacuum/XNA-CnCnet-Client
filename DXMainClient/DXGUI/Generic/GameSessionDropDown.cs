@@ -548,9 +548,8 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     public void ApplyMapCode(IniFile mapIni, GameMode gameMode)
     {
         if (!AffectsMapCode || SelectedIndex < 0 || SelectedIndex >= Items.Count) return;
-        if (IsCustomItemIndex(SelectedIndex)) return;
 
-        // 若 SpawnWriteCustom 开启，将 SpawnIniEntries 写入 spawnmap.ini
+        // 若 SpawnWriteCustom 开启，将 SpawnIniEntries 写入 spawnmap.ini（自定义项也需要处理）
         if (spawnIniEntries.Count > 0)
         {
             foreach (var kvp in spawnIniEntries)
