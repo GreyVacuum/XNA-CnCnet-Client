@@ -376,8 +376,6 @@ namespace DTAClient.DXGUI.Multiplayer
         }
 
         /// <summary>
-<<<<<<< HEAD
-=======
         /// Resets the panel state when leaving a game lobby.
         /// </summary>
         public void Reset()
@@ -387,7 +385,6 @@ namespace DTAClient.DXGUI.Multiplayer
         }
 
         /// <summary>
->>>>>>> develop
         /// Returns all stored other-player custom name states.
         /// Used by the host to relay existing members' states to a newly joined member.
         /// </summary>
