@@ -26,15 +26,28 @@ namespace DTAClient.DXGUI.Multiplayer
         private const int titleToFirstRow = 18;
         private const int autoAssignAboveBtn = 6;
         private const int defaultX = sideMargin;
+        private const int tabButtonWidth = 92;
+        private const int formatPainterBtnWidth = 75;
+        private const int maxAIPlayers = 8;
 
         private bool _isHost;
         private bool _suppressEvents;
+        private int _sideSelectorCount;
+        private bool[] _fpDefaultChecked = new bool[maxAIPlayers];
+
+        public bool SideRandomSelectionEnabled { get; private set; } = true;
+        public bool SideSelectorsRandomSelectionEnabled { get; private set; } = true;
+        public bool SideRandomItemEnabled { get; private set; } = true;
+        public bool ColorRandomSelectionEnabled { get; private set; } = true;
+        public bool ColorRandomItemEnabled { get; private set; } = true;
 
         public EventHandler AddAIRequested;
         public EventHandler RemoveAIRequested;
         public EventHandler FillAllAIRequested;
         public EventHandler RemoveAllAIRequested;
         public EventHandler OptionsChanged;
+        public EventHandler<List<int>> FormatPainterApplyRequested;
+        public EventHandler ResetRequested;
 
         private XNAClientButton btnAddAIQuick;
         private XNAClientButton btnRemoveAIQuick;
@@ -49,6 +62,16 @@ namespace DTAClient.DXGUI.Multiplayer
         private XNAClientCheckBox chkRandomAISide;
         private XNAClientCheckBox chkRandomAIColor;
         private XNAClientCheckBox chkRandomAITeam;
+        private XNAClientButton btnResetQuickOptions;
+
+        private XNAClientTabControl tabControl;
+        private XNAPanel pnlQuickActions;
+        private XNAPanel pnlFormatPainter;
+
+        private XNAClientButton btnFPConfirm;
+        private XNAClientButton bpFPSelect;
+        private XNAClientButton btnFPCancel;
+        private List<XNAClientCheckBox> chkFPPlayers;
 
         private List<MultiplayerColor> MPColors;
 
@@ -56,16 +79,17 @@ namespace DTAClient.DXGUI.Multiplayer
         {
         }
 
-        public int AIDifficultyLevel => cmbAIQuickDifficultyLevel?.SelectedIndex ?? 2;
-        public int AISideIndex => cmbAIQuickSide?.SelectedIndex ?? 0;
-        public int AIColorIndex => cmbAIQuickColor?.SelectedIndex ?? 0;
-        public int AITeamId => cmbAIQuickTeam?.SelectedIndex ?? 0;
+        public int AIDifficultyLevel => cmbAIQuickDifficultyLevel == null ? 2 : (cmbAIQuickDifficultyLevel.SelectedIndex == 0 ? -1 : cmbAIQuickDifficultyLevel.SelectedIndex - 1);
+        public int AISideIndex => cmbAIQuickSide == null ? -1 : (cmbAIQuickSide.SelectedIndex == 0 ? -1 : cmbAIQuickSide.SelectedIndex - 1);
+        public int AIColorIndex => cmbAIQuickColor == null ? 0 : (cmbAIQuickColor.SelectedIndex == 0 ? -1 : cmbAIQuickColor.SelectedIndex - 1);
+        public int AITeamId => cmbAIQuickTeam == null ? 0 : (cmbAIQuickTeam.SelectedIndex == 0 ? -1 : cmbAIQuickTeam.SelectedIndex - 1);
         public bool AutoAssignAIStarts => chkAutoAssignAIStarts?.Checked ?? false;
         public bool RandomAIDifficulty => chkRandomAIDifficulty?.Checked ?? false;
         public bool RandomAISide => chkRandomAISide?.Checked ?? false;
         public bool RandomAIColor => chkRandomAIColor?.Checked ?? false;
         public bool RandomAITeam => chkRandomAITeam?.Checked ?? false;
 
+        public int DifficultyItemCount => cmbAIQuickDifficultyLevel?.Items.Count ?? 0;
         public int SideItemCount => cmbAIQuickSide?.Items.Count ?? 0;
         public int ColorItemCount => cmbAIQuickColor?.Items.Count ?? 0;
         public int TeamItemCount => cmbAIQuickTeam?.Items.Count ?? 0;
@@ -76,7 +100,6 @@ namespace DTAClient.DXGUI.Multiplayer
             BackgroundTexture = AssetLoader.CreateTexture(new Color(0, 0, 0, 255), 1, 1);
             Visible = false;
 
-            // Close button
             var btnClose = new XNAClientButton(WindowManager);
             btnClose.Name = "btnClose";
             btnClose.ClientRectangle = new Rectangle(0, 0, 0, 0);
@@ -90,14 +113,12 @@ namespace DTAClient.DXGUI.Multiplayer
             btnClose.LeftClick += (sender, args) => Disable();
             AddChild(btnClose);
 
-            // Header label
             var lblHeader = new XNALabel(WindowManager);
             lblHeader.Name = "lblHeader";
             lblHeader.Text = "AI Quick Options".L10N("Client:Main:AIQuickOptions");
             lblHeader.ClientRectangle = new Rectangle(defaultX, topMargin, 0, 18);
             AddChild(lblHeader);
 
-            // Random column header
             var lblRandomHeader = new XNALabel(WindowManager);
             lblRandomHeader.Name = "lblRandomHeader";
             lblRandomHeader.Text = "Random".L10N("Client:Main:Random");
@@ -106,32 +127,27 @@ namespace DTAClient.DXGUI.Multiplayer
 
             int rowY = lblHeader.Bottom + titleToFirstRow;
 
-            // === Row 1: Difficulty ===
             cmbAIQuickDifficultyLevel = AddDropdownRow(ref rowY, "lblDifficulty",
                 "Difficulty:".L10N("Client:Main:AIDifficultyLabel"), nameof(cmbAIQuickDifficultyLevel),
                 new[] {
+                    "Don't Set".L10N("Client:Main:AIDifficultyDontSet"),
                     "Easy".L10N("Client:Main:AIDifficultyEasy"),
                     "Medium".L10N("Client:Main:AIDifficultyMedium"),
                     "Hard".L10N("Client:Main:AIDifficultyHard")
-                }, 2, out chkRandomAIDifficulty);
+                }, 3, out chkRandomAIDifficulty);
 
-            // === Row 2: Side ===
-            string[] sides = ClientConfiguration.Instance.Sides.Split(',');
             cmbAIQuickSide = AddDropdownRow(ref rowY, "lblSide",
                 "Side:".L10N("Client:Main:AISideLabel"), nameof(cmbAIQuickSide),
-                BuildSideItems(sides), 0, out chkRandomAISide);
+                BuildSideItems(), 1, out chkRandomAISide);
 
-            // === Row 3: Color ===
             cmbAIQuickColor = AddDropdownRow(ref rowY, "lblColor",
                 "Color:".L10N("Client:Main:AIColorLabel"), nameof(cmbAIQuickColor),
-                BuildColorItems(), 0, out chkRandomAIColor);
+                BuildColorItems(), 1, out chkRandomAIColor);
 
-            // === Row 4: Team ===
             cmbAIQuickTeam = AddDropdownRow(ref rowY, "lblTeam",
                 "Team:".L10N("Client:Main:AITeamLabel"), nameof(cmbAIQuickTeam),
-                BuildTeamItems(), 0, out chkRandomAITeam);
+                BuildTeamItems(), 1, out chkRandomAITeam);
 
-            // === Row 5: Auto-assign starts checkbox ===
             rowY += rowSpacing;
             chkAutoAssignAIStarts = new XNAClientCheckBox(WindowManager);
             chkAutoAssignAIStarts.Name = nameof(chkAutoAssignAIStarts);
@@ -140,32 +156,64 @@ namespace DTAClient.DXGUI.Multiplayer
             chkAutoAssignAIStarts.Checked = false;
             AddChild(chkAutoAssignAIStarts);
 
-            // === Row 6: Add AI / Remove AI ===
+            int resetBtnWidth = 60;
+            int resetBtnRightMargin = 14;
+            int resetBtnX = panelWidth - resetBtnRightMargin - resetBtnWidth;
+            btnResetQuickOptions = new XNAClientButton(WindowManager);
+            btnResetQuickOptions.Name = "btnResetQuickOptions";
+            btnResetQuickOptions.Text = "Reset".L10N("Client:Main:Reset");
+            btnResetQuickOptions.ClientRectangle = new Rectangle(resetBtnX, rowY - 2, resetBtnWidth, ddHeight);
+            if (AssetLoader.AssetExists("75pxbtn.png"))
+                btnResetQuickOptions.IdleTexture = AssetLoader.LoadTexture("75pxbtn.png");
+            if (AssetLoader.AssetExists("75pxbtn_c.png"))
+                btnResetQuickOptions.HoverTexture = AssetLoader.LoadTexture("75pxbtn_c.png");
+            btnResetQuickOptions.LeftClick += BtnResetQuickOptions_LeftClick;
+            AddChild(btnResetQuickOptions);
+
             rowY += chkAutoAssignAIStarts.Height + autoAssignAboveBtn + rowSpacing;
-            const int btnWidth = 90;
-            const int btnSpacing = 12;
 
-            btnAddAIQuick = CreateButton(nameof(btnAddAIQuick),
-                "Add AI".L10N("Client:Main:AddAIQuick"), defaultX, rowY, btnWidth);
-            btnAddAIQuick.LeftClick += (s, a) => AddAIRequested?.Invoke(this, EventArgs.Empty);
+            int tabTotalWidth = tabButtonWidth * 2 + 4;
+            int tabX = (panelWidth - tabTotalWidth) / 2;
 
-            btnRemoveAIQuick = CreateButton(nameof(btnRemoveAIQuick),
-                "Remove AI".L10N("Client:Main:RemoveAIQuick"),
-                btnAddAIQuick.Right + btnSpacing, rowY, btnWidth);
-            btnRemoveAIQuick.LeftClick += (s, a) => RemoveAIRequested?.Invoke(this, EventArgs.Empty);
+            tabControl = new XNAClientTabControl(WindowManager);
+            tabControl.Name = nameof(tabControl);
+            tabControl.ClientRectangle = new Rectangle(tabX, rowY, 0, 23);
+            tabControl.AddTab("Quick".L10N("Client:Main:AIQuickActionsTab"), tabButtonWidth);
+            tabControl.AddTab("Format".L10N("Client:Main:AIFormatPainterTab"), tabButtonWidth);
+            tabControl.SelectedIndexChanged += TabControl_SelectedIndexChanged;
+            AddChild(tabControl);
 
-            // === Row 7: Fill All / Remove All ===
-            rowY += ddHeight + rowSpacing;
-            btnAIQuickFillAll = CreateButton(nameof(btnAIQuickFillAll),
-                "Fill All".L10N("Client:Main:FillAllAIQuick"), defaultX, rowY, btnWidth);
-            btnAIQuickFillAll.LeftClick += (s, a) => FillAllAIRequested?.Invoke(this, EventArgs.Empty);
+            rowY += tabControl.Height + 6;
 
-            btnAIQuickRemoveAll = CreateButton(nameof(btnAIQuickRemoveAll),
-                "Remove All".L10N("Client:Main:RemoveAllAIQuick"),
-                btnAIQuickFillAll.Right + btnSpacing, rowY, btnWidth);
-            btnAIQuickRemoveAll.LeftClick += (s, a) => RemoveAllAIRequested?.Invoke(this, EventArgs.Empty);
+            int contentY = rowY;
+            int bottomMargin = 12;
 
-            // Raise OptionsChanged when any control changes
+            int estimatedContentHeight = Math.Max(
+                ddHeight * 2 + rowSpacing + 20,
+                ddHeight + 12 + (ddHeight + 6) * 2 + 16);
+            int panelHeight = contentY + estimatedContentHeight + bottomMargin;
+            ClientRectangle = new Rectangle(X, Y, panelWidth, panelHeight);
+
+            int contentAreaHeight = panelHeight - contentY - bottomMargin;
+
+            pnlQuickActions = new XNAPanel(WindowManager);
+            pnlQuickActions.Name = nameof(pnlQuickActions);
+            pnlQuickActions.ClientRectangle = new Rectangle(0, contentY, panelWidth, contentAreaHeight);
+            pnlQuickActions.BackgroundTexture = AssetLoader.CreateTexture(new Color(0, 0, 0, 0), 1, 1);
+            AddChild(pnlQuickActions);
+
+            pnlFormatPainter = new XNAPanel(WindowManager);
+            pnlFormatPainter.Name = nameof(pnlFormatPainter);
+            pnlFormatPainter.ClientRectangle = new Rectangle(0, contentY, panelWidth, contentAreaHeight);
+            pnlFormatPainter.BackgroundTexture = AssetLoader.CreateTexture(new Color(0, 0, 0, 0), 1, 1);
+            pnlFormatPainter.Visible = false;
+            AddChild(pnlFormatPainter);
+
+            chkFPPlayers = new List<XNAClientCheckBox>();
+
+            BuildQuickActionsPanel();
+            BuildFormatPainterPanel();
+
             cmbAIQuickDifficultyLevel.SelectedIndexChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
             cmbAIQuickSide.SelectedIndexChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
             cmbAIQuickColor.SelectedIndexChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
@@ -177,31 +225,177 @@ namespace DTAClient.DXGUI.Multiplayer
             chkRandomAITeam.CheckedChanged += (s, e) => { if (!_suppressEvents) OptionsChanged?.Invoke(this, EventArgs.Empty); };
 
             base.Initialize();
-
-            btnClose.ClientRectangle = new Rectangle(
-                0,
-                0,
-                btnClose.Width,
-                btnClose.Height);
         }
 
-        /// <summary>
-        /// Creates a single dropdown row: label + dropdown + random checkbox.
-        /// Returns the dropdown; outputs the checkbox.
-        /// </summary>
+        private void BuildQuickActionsPanel()
+        {
+            const int btnWidth = 90;
+            const int btnSpacing = 12;
+            int pnlWidth = pnlQuickActions.Width;
+            int pnlHeight = pnlQuickActions.Height;
+            int totalWidth = btnWidth * 2 + btnSpacing;
+            int totalHeight = ddHeight * 2 + rowSpacing;
+            int startX = (pnlWidth - totalWidth) / 2;
+            int startY = (pnlHeight - totalHeight) / 2;
+
+            btnAddAIQuick = CreatePanelButton(pnlQuickActions, nameof(btnAddAIQuick),
+                "Add AI".L10N("Client:Main:AddAIQuick"), startX, startY, btnWidth);
+            btnAddAIQuick.LeftClick += (s, a) => AddAIRequested?.Invoke(this, EventArgs.Empty);
+
+            btnAIQuickFillAll = CreatePanelButton(pnlQuickActions, nameof(btnAIQuickFillAll),
+                "Fill All".L10N("Client:Main:FillAllAIQuick"), startX + btnWidth + btnSpacing, startY, btnWidth);
+            btnAIQuickFillAll.LeftClick += (s, a) => FillAllAIRequested?.Invoke(this, EventArgs.Empty);
+
+            int row2Y = startY + ddHeight + rowSpacing;
+
+            btnRemoveAIQuick = CreatePanelButton(pnlQuickActions, nameof(btnRemoveAIQuick),
+                "Remove AI".L10N("Client:Main:RemoveAIQuick"), startX, row2Y, btnWidth);
+            btnRemoveAIQuick.LeftClick += (s, a) => RemoveAIRequested?.Invoke(this, EventArgs.Empty);
+
+            btnAIQuickRemoveAll = CreatePanelButton(pnlQuickActions, nameof(btnAIQuickRemoveAll),
+                "Remove All".L10N("Client:Main:RemoveAllAIQuick"), startX + btnWidth + btnSpacing, row2Y, btnWidth);
+            btnAIQuickRemoveAll.LeftClick += (s, a) => RemoveAllAIRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void BuildFormatPainterPanel()
+        {
+            int pnlWidth = pnlFormatPainter.Width;
+            int pnlHeight = pnlFormatPainter.Height;
+            int btnSpacing = 6;
+            int btnTotalWidth = formatPainterBtnWidth * 3 + btnSpacing * 2;
+            int btnStartX = (pnlWidth - btnTotalWidth) / 2;
+
+            int contentStartY = 12;
+
+            int btnY = contentStartY;
+
+            btnFPConfirm = CreatePanelButton(pnlFormatPainter, nameof(btnFPConfirm),
+                "Confirm".L10N("Client:Main:FormatPainterConfirm"), btnStartX, btnY, formatPainterBtnWidth, "75pxbtn");
+            btnFPConfirm.LeftClick += BtnFPConfirm_LeftClick;
+
+            bpFPSelect = CreatePanelButton(pnlFormatPainter, nameof(bpFPSelect),
+                "Select All".L10N("Client:Main:FormatPainterSelectAll"), btnStartX + formatPainterBtnWidth + btnSpacing, btnY, formatPainterBtnWidth, "75pxbtn");
+            bpFPSelect.LeftClick += BtnFPSelectAll_LeftClick;
+
+            btnFPCancel = CreatePanelButton(pnlFormatPainter, nameof(btnFPCancel),
+                "Deselect".L10N("Client:Main:FormatPainterDeselect"), btnStartX + (formatPainterBtnWidth + btnSpacing) * 2, btnY, formatPainterBtnWidth, "75pxbtn");
+            btnFPCancel.LeftClick += BtnFPDeselectAll_LeftClick;
+        }
+
+        private void RebuildFormatPainterCheckboxes(int aiCount)
+        {
+            foreach (var chk in chkFPPlayers)
+            {
+                pnlFormatPainter.RemoveChild(chk);
+                chk.Dispose();
+            }
+            chkFPPlayers.Clear();
+
+            if (aiCount <= 0 || pnlFormatPainter == null)
+                return;
+
+            int pnlWidth = pnlFormatPainter.Width;
+            int pnlHeight = pnlFormatPainter.Height;
+            int chkPerRow = 4;
+            int chkSpacing = 10;
+            int chkColWidth = chkBoxWidth + 16 + chkSpacing;
+            int visibleCols = Math.Min(aiCount, chkPerRow);
+            int chkRowWidth = chkColWidth * visibleCols - chkSpacing;
+            int chkStartX = (pnlWidth - chkRowWidth) / 2;
+
+            int chkRows = (aiCount + chkPerRow - 1) / chkPerRow;
+            int chkBlockHeight = chkRows * (ddHeight + 4) - 4;
+            int chkStartY = ddHeight + 16; // below the button row
+
+            for (int i = 0; i < aiCount; i++)
+            {
+                int row = i / chkPerRow;
+                int col = i % chkPerRow;
+                int chkXPos = chkStartX + col * chkColWidth;
+                int chkYPos = chkStartY + row * (ddHeight + 4);
+
+                var chk = new XNAClientCheckBox(WindowManager);
+                chk.Name = "chkFPPlayer" + (i + 1);
+                chk.Text = (i + 1).ToString();
+                chk.ClientRectangle = new Rectangle(chkXPos, chkYPos, 0, 0);
+                chk.Checked = i < _fpDefaultChecked.Length && _fpDefaultChecked[i];
+                chk.InputEnabled = _isHost;
+                pnlFormatPainter.AddChild(chk);
+                chkFPPlayers.Add(chk);
+            }
+        }
+
+        public void UpdateFormatPainterPlayerCount(int aiCount)
+        {
+            if (pnlFormatPainter == null)
+                return;
+            RebuildFormatPainterCheckboxes(aiCount);
+        }
+
+        private void BtnFPConfirm_LeftClick(object sender, EventArgs e)
+        {
+            if (!_isHost)
+                return;
+
+            var selectedIndices = new List<int>();
+            for (int i = 0; i < chkFPPlayers.Count; i++)
+            {
+                if (chkFPPlayers[i].Checked)
+                    selectedIndices.Add(i);
+            }
+
+            if (selectedIndices.Count > 0)
+                FormatPainterApplyRequested?.Invoke(this, selectedIndices);
+        }
+
+        private void BtnFPSelectAll_LeftClick(object sender, EventArgs e)
+        {
+            foreach (var chk in chkFPPlayers)
+                chk.Checked = true;
+        }
+
+        private void BtnFPDeselectAll_LeftClick(object sender, EventArgs e)
+        {
+            foreach (var chk in chkFPPlayers)
+                chk.Checked = false;
+        }
+
+        private void BtnResetQuickOptions_LeftClick(object sender, EventArgs e)
+        {
+            ResetRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void TabControl_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            pnlQuickActions.Visible = tabControl.SelectedTab == 0;
+            pnlFormatPainter.Visible = tabControl.SelectedTab == 1;
+        }
+
+        private XNAClientButton CreatePanelButton(XNAPanel parent, string name, string text, int x, int y, int width, string btnTexBase = "92pxbtn")
+        {
+            var btn = new XNAClientButton(WindowManager);
+            btn.Name = name;
+            btn.Text = text;
+            btn.ClientRectangle = new Rectangle(x, y, width, ddHeight);
+            if (AssetLoader.AssetExists(btnTexBase + ".png"))
+                btn.IdleTexture = AssetLoader.LoadTexture(btnTexBase + ".png");
+            if (AssetLoader.AssetExists(btnTexBase + "_c.png"))
+                btn.HoverTexture = AssetLoader.LoadTexture(btnTexBase + "_c.png");
+            parent.AddChild(btn);
+            return btn;
+        }
+
         private XNAClientDropDown AddDropdownRow(
             ref int rowY, string lblName, string lblText, string ddName,
             string[] items, int selectedIndex,
             out XNAClientCheckBox chk)
         {
-            // Label (left-aligned)
             var lbl = new XNALabel(WindowManager);
             lbl.Name = lblName;
             lbl.Text = lblText;
             lbl.ClientRectangle = new Rectangle(labelX, rowY, 0, 0);
             AddChild(lbl);
 
-            // Dropdown
             var dd = new XNAClientDropDown(WindowManager);
             dd.Name = ddName;
             dd.ClientRectangle = new Rectangle(ddX, rowY - 2, ddWidth, ddHeight);
@@ -210,52 +404,88 @@ namespace DTAClient.DXGUI.Multiplayer
             dd.SelectedIndex = selectedIndex;
             AddChild(dd);
 
-            // Random checkbox on the right
             chk = new XNAClientCheckBox(WindowManager);
             chk.Checked = false;
             chk.ClientRectangle = new Rectangle(chkX, rowY - 1, 0, 0);
             AddChild(chk);
 
-            // When random checkbox is toggled, enable/disable the dropdown and hide its arrow
             XNAClientCheckBox chkRef = chk;
+            XNAClientDropDown ddRef = dd;
+            int originalSelectedIndex = dd.SelectedIndex;
             chkRef.CheckedChanged += (sender, args) =>
             {
-                bool disabled = chkRef.Checked;
-                dd.InputEnabled = !disabled;
-                dd.AllowDropDown = !disabled;
+                bool randomEnabled = chkRef.Checked;
+                if (randomEnabled)
+                {
+                    originalSelectedIndex = ddRef.SelectedIndex;
+                    ddRef.OverrideText = "Random Assignment".L10N("Client:Main:RandomAssignment");
+                    ddRef.InputEnabled = false;
+                    ddRef.AllowDropDown = false;
+                }
+                else
+                {
+                    ddRef.OverrideText = null;
+                    ddRef.SelectedIndex = originalSelectedIndex;
+                    ddRef.InputEnabled = true;
+                    ddRef.AllowDropDown = true;
+                }
             };
 
-            // Use the tallest control height + spacing for next row
             int rowHeight = Math.Max(ddHeight, chkRef.Height);
             rowY += rowHeight + rowSpacing;
             return dd;
         }
 
-        private XNAClientButton CreateButton(string name, string text, int x, int y, int width)
+        private string[] BuildSideItems()
         {
-            var btn = new XNAClientButton(WindowManager);
-            btn.Name = name;
-            btn.Text = text;
-            btn.ClientRectangle = new Rectangle(x, y, width, ddHeight);
-            if (AssetLoader.AssetExists("92pxbtn.png"))
-                btn.IdleTexture = AssetLoader.LoadTexture("92pxbtn.png");
-            if (AssetLoader.AssetExists("92pxbtn_c.png"))
-                btn.HoverTexture = AssetLoader.LoadTexture("92pxbtn_c.png");
-            AddChild(btn);
-            return btn;
+            var list = new List<string>
+            {
+                "Don't Set".L10N("Client:Main:AISideDontSet"),
+                "Random".L10N("Client:Sides:RandomSide")
+            };
+            return list.ToArray();
         }
 
-        private string[] BuildSideItems(string[] sides)
+        public void SetSideItems(string[] sides, List<string> randomSelectorNames)
         {
-            var list = new List<string> { "Random".L10N("Client:Sides:RandomSide") };
-            foreach (string side in sides)
-                list.Add(side.L10N($"INI:Sides:{side}"));
-            return list.ToArray();
+            if (cmbAIQuickSide == null)
+                return;
+
+            int previousIndex = cmbAIQuickSide.SelectedIndex;
+
+            while (cmbAIQuickSide.Items.Count > 2)
+                cmbAIQuickSide.Items.RemoveAt(2);
+
+            if (randomSelectorNames != null)
+            {
+                _sideSelectorCount = randomSelectorNames.Count;
+                foreach (string selectorName in randomSelectorNames)
+                    cmbAIQuickSide.AddItem(selectorName);
+            }
+            else
+            {
+                _sideSelectorCount = 0;
+            }
+
+            if (sides != null)
+            {
+                foreach (string side in sides)
+                    cmbAIQuickSide.AddItem(side.L10N($"INI:Sides:{side}"));
+            }
+
+            if (previousIndex >= 0 && previousIndex < cmbAIQuickSide.Items.Count)
+                cmbAIQuickSide.SelectedIndex = previousIndex;
+            else
+                cmbAIQuickSide.SelectedIndex = 1;
         }
 
         private string[] BuildColorItems()
         {
-            var list = new List<string> { "Random".L10N("Client:Main:RandomColor") };
+            var list = new List<string>
+            {
+                "Don't Set".L10N("Client:Main:AIColorDontSet"),
+                "Random".L10N("Client:Main:RandomColor")
+            };
             if (MPColors != null)
             {
                 foreach (MultiplayerColor mpColor in MPColors)
@@ -266,7 +496,11 @@ namespace DTAClient.DXGUI.Multiplayer
 
         private string[] BuildTeamItems()
         {
-            var list = new List<string> { "-" };
+            var list = new List<string>
+            {
+                "Don't Set".L10N("Client:Main:AITeamDontSet"),
+                "-"
+            };
             ProgramConstants.TEAMS.ForEach(list.Add);
             return list.ToArray();
         }
@@ -277,8 +511,8 @@ namespace DTAClient.DXGUI.Multiplayer
 
             if (cmbAIQuickColor != null && MPColors != null)
             {
-                while (cmbAIQuickColor.Items.Count > 1)
-                    cmbAIQuickColor.Items.RemoveAt(1);
+                while (cmbAIQuickColor.Items.Count > 2)
+                    cmbAIQuickColor.Items.RemoveAt(2);
 
                 foreach (MultiplayerColor mpColor in MPColors)
                     cmbAIQuickColor.AddItem(mpColor.Name);
@@ -324,13 +558,18 @@ namespace DTAClient.DXGUI.Multiplayer
             if (chkRandomAISide != null) chkRandomAISide.InputEnabled = enable;
             if (chkRandomAIColor != null) chkRandomAIColor.InputEnabled = enable;
             if (chkRandomAITeam != null) chkRandomAITeam.InputEnabled = enable;
+            if (tabControl != null) tabControl.InputEnabled = true;
+            if (btnResetQuickOptions != null) btnResetQuickOptions.InputEnabled = enable;
+            if (btnFPConfirm != null) btnFPConfirm.InputEnabled = enable;
+            if (bpFPSelect != null) bpFPSelect.InputEnabled = enable;
+            if (btnFPCancel != null) btnFPCancel.InputEnabled = enable;
+            if (chkFPPlayers != null)
+            {
+                foreach (var chk in chkFPPlayers)
+                    if (chk != null) chk.InputEnabled = enable;
+            }
         }
 
-        /// <summary>
-        /// Loads default values from the [PlayerAIQuickOptions] section of GameOptions.ini.
-        /// Dropdown values: 0-based index, -1 is treated as 0 (selects the first item).
-        /// Checkbox values: Yes/No.
-        /// </summary>
         public void LoadDefaults(IniFile ini)
         {
             const string section = "PlayerAIQuickOptions";
@@ -344,28 +583,86 @@ namespace DTAClient.DXGUI.Multiplayer
             chkAutoAssignAIStarts.Checked = ini.GetBooleanValue(section, nameof(chkAutoAssignAIStarts), false);
 
             int difficultyIdx = ini.GetIntValue(section, nameof(cmbAIQuickDifficultyLevel), 2);
-            if (difficultyIdx == -1) difficultyIdx = 0;
-            if (difficultyIdx >= 0 && difficultyIdx < cmbAIQuickDifficultyLevel.Items.Count)
-                cmbAIQuickDifficultyLevel.SelectedIndex = difficultyIdx;
+            int difficultySelectedIndex = difficultyIdx + 1;
+            if (difficultySelectedIndex >= 0 && difficultySelectedIndex < cmbAIQuickDifficultyLevel.Items.Count)
+                cmbAIQuickDifficultyLevel.SelectedIndex = difficultySelectedIndex;
 
             int sideIdx = ini.GetIntValue(section, nameof(cmbAIQuickSide), 0);
-            if (sideIdx == -1) sideIdx = 0;
-            if (sideIdx >= 0 && sideIdx < cmbAIQuickSide.Items.Count)
-                cmbAIQuickSide.SelectedIndex = sideIdx;
+            int sideSelectedIndex = sideIdx + 1;
+            if (sideSelectedIndex >= 0 && sideSelectedIndex < cmbAIQuickSide.Items.Count)
+                cmbAIQuickSide.SelectedIndex = sideSelectedIndex;
 
             int colorIdx = ini.GetIntValue(section, nameof(cmbAIQuickColor), 0);
-            if (colorIdx == -1) colorIdx = 0;
-            if (colorIdx >= 0 && colorIdx < cmbAIQuickColor.Items.Count)
-                cmbAIQuickColor.SelectedIndex = colorIdx;
+            int colorSelectedIndex = colorIdx + 1;
+            if (colorSelectedIndex >= 0 && colorSelectedIndex < cmbAIQuickColor.Items.Count)
+                cmbAIQuickColor.SelectedIndex = colorSelectedIndex;
 
             int teamIdx = ini.GetIntValue(section, nameof(cmbAIQuickTeam), 0);
-            if (teamIdx == -1) teamIdx = 0;
-            if (teamIdx >= 0 && teamIdx < cmbAIQuickTeam.Items.Count)
-                cmbAIQuickTeam.SelectedIndex = teamIdx;
+            int teamSelectedIndex = teamIdx + 1;
+            if (teamSelectedIndex >= 0 && teamSelectedIndex < cmbAIQuickTeam.Items.Count)
+                cmbAIQuickTeam.SelectedIndex = teamSelectedIndex;
+
+            SideRandomSelectionEnabled = ini.GetBooleanValue(section, "Side.RandomAISelection", true);
+            SideSelectorsRandomSelectionEnabled = ini.GetBooleanValue(section, "SideSelectors.RandomAISelection", true);
+            SideRandomItemEnabled = ini.GetBooleanValue(section, "SideRandom.RandomAISelection", true);
+            ColorRandomSelectionEnabled = ini.GetBooleanValue(section, "Color.RandomAISelection", true);
+            ColorRandomItemEnabled = ini.GetBooleanValue(section, "ColorRandom.RandomAISelection", true);
+
+            for (int i = 0; i < maxAIPlayers; i++)
+                _fpDefaultChecked[i] = ini.GetBooleanValue(section, "chkAIPlayer" + i, false);
 
             _suppressEvents = false;
 
+            UpdateUIFromRandomSelectionConfig();
+
             EnableControls(_isHost);
+        }
+
+        private void UpdateUIFromRandomSelectionConfig()
+        {
+        }
+
+        public List<int> GetSideRandomIndices()
+        {
+            var indices = new List<int>();
+            int totalItems = cmbAIQuickSide?.Items.Count ?? 0;
+
+            if (SideRandomItemEnabled && totalItems > 1)
+                indices.Add(1);
+
+            int selectorStart = 2;
+            int selectorEnd = 2 + _sideSelectorCount;
+            if (SideSelectorsRandomSelectionEnabled && _sideSelectorCount > 0)
+            {
+                for (int i = selectorStart; i < selectorEnd && i < totalItems; i++)
+                    indices.Add(i);
+            }
+
+            int sideStart = selectorEnd;
+            if (SideRandomSelectionEnabled && sideStart < totalItems)
+            {
+                for (int i = sideStart; i < totalItems; i++)
+                    indices.Add(i);
+            }
+
+            return indices;
+        }
+
+        public List<int> GetColorRandomIndices()
+        {
+            var indices = new List<int>();
+            int totalItems = cmbAIQuickColor?.Items.Count ?? 0;
+
+            if (ColorRandomItemEnabled && totalItems > 1)
+                indices.Add(1);
+
+            if (ColorRandomSelectionEnabled && totalItems > 2)
+            {
+                for (int i = 2; i < totalItems; i++)
+                    indices.Add(i);
+            }
+
+            return indices;
         }
 
         public PlayerAIQuickOptions GetAIQuickOptions()
@@ -390,14 +687,21 @@ namespace DTAClient.DXGUI.Multiplayer
 
             _suppressEvents = true;
 
-            if (options.DifficultyLevel >= 0 && options.DifficultyLevel < cmbAIQuickDifficultyLevel.Items.Count)
-                cmbAIQuickDifficultyLevel.SelectedIndex = options.DifficultyLevel;
-            if (options.SideIndex >= 0 && options.SideIndex < cmbAIQuickSide.Items.Count)
-                cmbAIQuickSide.SelectedIndex = options.SideIndex;
-            if (options.ColorIndex >= 0 && options.ColorIndex < cmbAIQuickColor.Items.Count)
-                cmbAIQuickColor.SelectedIndex = options.ColorIndex;
-            if (options.TeamId >= 0 && options.TeamId < cmbAIQuickTeam.Items.Count)
-                cmbAIQuickTeam.SelectedIndex = options.TeamId;
+            int difficultySelectedIndex = options.DifficultyLevel + 1;
+            if (difficultySelectedIndex >= 0 && difficultySelectedIndex < cmbAIQuickDifficultyLevel.Items.Count)
+                cmbAIQuickDifficultyLevel.SelectedIndex = difficultySelectedIndex;
+
+            int sideSelectedIndex = options.SideIndex + 1;
+            if (sideSelectedIndex >= 0 && sideSelectedIndex < cmbAIQuickSide.Items.Count)
+                cmbAIQuickSide.SelectedIndex = sideSelectedIndex;
+
+            int colorSelectedIndex = options.ColorIndex + 1;
+            if (colorSelectedIndex >= 0 && colorSelectedIndex < cmbAIQuickColor.Items.Count)
+                cmbAIQuickColor.SelectedIndex = colorSelectedIndex;
+
+            int teamSelectedIndex = options.TeamId + 1;
+            if (teamSelectedIndex >= 0 && teamSelectedIndex < cmbAIQuickTeam.Items.Count)
+                cmbAIQuickTeam.SelectedIndex = teamSelectedIndex;
 
             chkRandomAIDifficulty.Checked = options.RandomDifficulty;
             chkRandomAISide.Checked = options.RandomSide;

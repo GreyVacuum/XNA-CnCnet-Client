@@ -391,6 +391,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     AIPlayers.Add(aiPlayer);
             }
 
+            UpdateFormatPainterPlayerCount();
+
             if (ClientConfiguration.Instance.SaveSkirmishGameOptions)
             {
                 foreach (GameLobbyDropDown dd in DropDowns)

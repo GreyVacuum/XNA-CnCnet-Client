@@ -1228,6 +1228,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
 
             CopyPlayerDataToUI();
+            UpdateFormatPainterPlayerCount();
 
             localPlayer = FindLocalPlayer();
             if (localPlayer != null && oldSideId != localPlayer.SideId)

@@ -1135,24 +1135,40 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             {
                 PlayerInfo aiPlayer = AIPlayers[i];
 
+                // Logical values: -1 means "Don't Set" (skip forcing this property); 0+ = real option index.
                 int difficultyLevel = PlayerAIQuickOptionsPanel.AIDifficultyLevel;
                 int sideIndex = PlayerAIQuickOptionsPanel.AISideIndex;
                 int colorIndex = PlayerAIQuickOptionsPanel.AIColorIndex;
                 int teamId = PlayerAIQuickOptionsPanel.AITeamId;
 
-                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty)
-                    difficultyLevel = random.Next(0, 3);
-                if (PlayerAIQuickOptionsPanel.RandomAISide && PlayerAIQuickOptionsPanel.SideItemCount > 0)
-                    sideIndex = random.Next(0, PlayerAIQuickOptionsPanel.SideItemCount);
-                if (PlayerAIQuickOptionsPanel.RandomAIColor && PlayerAIQuickOptionsPanel.ColorItemCount > 0)
-                    colorIndex = random.Next(0, PlayerAIQuickOptionsPanel.ColorItemCount);
-                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 0)
-                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount);
+                // Random must skip "Don't Set" (logical -1). For Side/Color, also skip "Random" (logical 0)
+                // because picking it would duplicate the Random checkbox effect.
+                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty && PlayerAIQuickOptionsPanel.DifficultyItemCount > 1)
+                    difficultyLevel = random.Next(0, PlayerAIQuickOptionsPanel.DifficultyItemCount - 1);
+                if (PlayerAIQuickOptionsPanel.RandomAISide)
+                {
+                    var sideIndices = PlayerAIQuickOptionsPanel.GetSideRandomIndices();
+                    if (sideIndices.Count > 0)
+                        sideIndex = sideIndices[random.Next(sideIndices.Count)] - 1;
+                }
+                if (PlayerAIQuickOptionsPanel.RandomAIColor)
+                {
+                    var colorIndices = PlayerAIQuickOptionsPanel.GetColorRandomIndices();
+                    if (colorIndices.Count > 0)
+                        colorIndex = colorIndices[random.Next(colorIndices.Count)] - 1;
+                }
+                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 1)
+                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount - 1);
 
-                aiPlayer.AILevel = difficultyLevel;
-                aiPlayer.SideId = sideIndex;
-                aiPlayer.ColorId = colorIndex;
-                aiPlayer.TeamId = teamId;
+                // Only apply properties that are not "Don't Set" (-1); leave the rest unchanged on existing AI.
+                if (difficultyLevel >= 0)
+                    aiPlayer.AILevel = difficultyLevel;
+                if (sideIndex >= 0)
+                    aiPlayer.SideId = sideIndex;
+                if (colorIndex >= 0)
+                    aiPlayer.ColorId = colorIndex;
+                if (teamId >= 0)
+                    aiPlayer.TeamId = teamId;
 
                 if (autoAssignAIStarts && GameModeMap != null)
                 {

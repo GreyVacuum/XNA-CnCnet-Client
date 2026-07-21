@@ -1,9 +1,10 @@
-﻿using Rampastring.XNAUI.XNAControls;
+using Rampastring.XNAUI.XNAControls;
 using Rampastring.XNAUI;
 using Rampastring.Tools;
 using System;
 using ClientCore;
 using ClientCore.Extensions;
+using Microsoft.Xna.Framework;
 
 namespace ClientGUI
 {
@@ -22,6 +23,13 @@ namespace ClientGUI
                 else
                     _initialToolTipText = value;
             }
+        }
+
+        private string _overrideText;
+        public string OverrideText
+        {
+            get => _overrideText;
+            set => _overrideText = value;
         }
 
         public XNAClientDropDown(WindowManager windowManager) : base(windowManager) { }
@@ -48,7 +56,6 @@ namespace ClientGUI
 
         public override void OnMouseLeftDown(InputEventArgs inputEventArgs)
         {
-            // no need to set Handled to true since we're not "consuming" the event here, just augmenting
             base.OnMouseLeftDown(inputEventArgs);
             UpdateToolTipBlock();
         }
@@ -65,6 +72,28 @@ namespace ClientGUI
                 ToolTip.Blocked = false;
             else
                 ToolTip.Blocked = true;
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            if (string.IsNullOrEmpty(_overrideText) || SelectedIndex < 0 || SelectedIndex >= Items.Count)
+            {
+                base.Draw(gameTime);
+                return;
+            }
+
+            XNADropDownItem originalItem = Items[SelectedIndex];
+            string originalText = originalItem.Text;
+            originalItem.Text = _overrideText;
+
+            try
+            {
+                base.Draw(gameTime);
+            }
+            finally
+            {
+                originalItem.Text = originalText;
+            }
         }
     }
 }

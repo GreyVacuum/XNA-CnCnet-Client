@@ -439,8 +439,21 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 foreach (var child in PlayerAIQuickOptionsPanel.Children)
                     ReadINIForControl(child);
 
+                // Build the side dropdown items (Don't Set, Random, custom random selectors, concrete sides).
+                // This must be done before LoadDefaults so the SelectedIndex maps to the correct item.
+                string[] sides = ClientConfiguration.Instance.Sides.Split(',').ToArray();
+                SideCount = sides.Length;
+                List<string> selectorNames = new();
+                RandomSelectors.Clear();
+                GetRandomSelectors(selectorNames, RandomSelectors);
+                RandomSelectorCount = RandomSelectors.Count + 1;
+                if (MapPreviewBox != null)
+                    MapPreviewBox.RandomSelectorCount = RandomSelectorCount;
+                PlayerAIQuickOptionsPanel.SetSideItems(sides, selectorNames);
+
                 PlayerAIQuickOptionsPanel.SetMPColors(MPColors);
                 PlayerAIQuickOptionsPanel.LoadDefaults(GameOptionsIni);
+                PlayerAIQuickOptionsPanel.UpdateFormatPainterPlayerCount(AIPlayers.Count);
                 PlayerAIQuickOptionsPanel.Disable();
 
                 PlayerAIQuickOptionsPanel.AddAIRequested += BtnAddAIQuick_LeftClick;
@@ -448,6 +461,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 PlayerAIQuickOptionsPanel.FillAllAIRequested += BtnAIQuickFillAll_LeftClick;
                 PlayerAIQuickOptionsPanel.RemoveAllAIRequested += BtnAIQuickRemoveAll_LeftClick;
                 PlayerAIQuickOptionsPanel.OptionsChanged += PlayerAIQuickOptions_OptionsChanged;
+                PlayerAIQuickOptionsPanel.FormatPainterApplyRequested += PlayerAIQuickOptionsPanel_FormatPainterApplyRequested;
+                PlayerAIQuickOptionsPanel.ResetRequested += PlayerAIQuickOptionsPanel_ResetRequested;
 
                 btnPlayerAIQuickOptionsOpen.LeftClick += BtnPlayerAIQuickOptions_LeftClick;
             }
@@ -579,6 +594,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 return;
 
             AIPlayers.Clear();
+            UpdateFormatPainterPlayerCount();
             CopyPlayerDataToUI();
             BroadcastPlayerOptions();
         }
@@ -586,6 +602,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         private void AddAIPlayer()
         {
             AddAIPlayerInternal();
+            UpdateFormatPainterPlayerCount();
             CopyPlayerDataToUI();
             BroadcastPlayerOptions();
         }
@@ -596,25 +613,42 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             int aiNameIndex = AIPlayers.Count % aiNames.Length;
             string aiName = aiNames[aiNameIndex];
 
+            // Logical values: -1 means "Don't Set" (skip forcing this property); 0+ = real option index.
             int difficultyLevel = PlayerAIQuickOptionsPanel?.AIDifficultyLevel ?? 2;
             int sideIndex = PlayerAIQuickOptionsPanel?.AISideIndex ?? 0;
             int colorIndex = PlayerAIQuickOptionsPanel?.AIColorIndex ?? 0;
             int teamId = PlayerAIQuickOptionsPanel?.AITeamId ?? 0;
 
-            // Apply per-AI randomization when the corresponding checkbox is checked
+            // Apply per-AI randomization when the corresponding checkbox is checked.
+            // Random must skip the leading "Don't Set" (logical -1) entry. For Side and Color, the
+            // "Random" entry (logical 0) is also skipped because picking it would duplicate the
+            // effect of the Random checkbox itself. Difficulty and Team have no "Random" entry,
+            // so only "Don't Set" is skipped.
             if (PlayerAIQuickOptionsPanel != null)
             {
-                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty)
-                    difficultyLevel = random.Next(0, 3);
+                // Difficulty dropdown layout: [Don't Set, Easy, Medium, Hard] → logical values [-1, 0, 1, 2]
+                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty && PlayerAIQuickOptionsPanel.DifficultyItemCount > 1)
+                    difficultyLevel = random.Next(0, PlayerAIQuickOptionsPanel.DifficultyItemCount - 1);
 
-                if (PlayerAIQuickOptionsPanel.RandomAISide && PlayerAIQuickOptionsPanel.SideItemCount > 0)
-                    sideIndex = random.Next(0, PlayerAIQuickOptionsPanel.SideItemCount);
+                // Side dropdown layout: [Don't Set, Random, selectors..., sides...] → logical values [-1, 0, 1, ...]
+                if (PlayerAIQuickOptionsPanel.RandomAISide)
+                {
+                    var sideIndices = PlayerAIQuickOptionsPanel.GetSideRandomIndices();
+                    if (sideIndices.Count > 0)
+                        sideIndex = sideIndices[random.Next(sideIndices.Count)] - 1;
+                }
 
-                if (PlayerAIQuickOptionsPanel.RandomAIColor && PlayerAIQuickOptionsPanel.ColorItemCount > 0)
-                    colorIndex = random.Next(0, PlayerAIQuickOptionsPanel.ColorItemCount);
+                // Color dropdown layout: [Don't Set, Random, color1, ...] → logical values [-1, 0, 1, ...]
+                if (PlayerAIQuickOptionsPanel.RandomAIColor)
+                {
+                    var colorIndices = PlayerAIQuickOptionsPanel.GetColorRandomIndices();
+                    if (colorIndices.Count > 0)
+                        colorIndex = colorIndices[random.Next(colorIndices.Count)] - 1;
+                }
 
-                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 0)
-                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount);
+                // Team dropdown layout: [Don't Set, -, A, B, ...] → logical values [-1, 0, 1, ...]
+                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 1)
+                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount - 1);
             }
 
             int startingLocation = 0;
@@ -641,13 +675,22 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             {
                 Name = aiName,
                 IsAI = true,
-                AILevel = difficultyLevel,
-                SideId = sideIndex,
-                ColorId = colorIndex,
-                TeamId = teamId,
                 StartingLocation = startingLocation,
-                Index = Players.Count + AIPlayers.Count
+                Index = Players.Count + AIPlayers.Count,
+                // Keep the default SideId at 0 (Random). "Don't Set" in the AI quick
+                // options means we do not force a side; the PlayerInfo default is used.
+                SideId = 0
             };
+
+            // Only apply properties that are not "Don't Set" (-1); leave the rest unchanged.
+            if (difficultyLevel >= 0)
+                aiPlayer.AILevel = difficultyLevel;
+            if (sideIndex >= 0)
+                aiPlayer.SideId = sideIndex;
+            if (colorIndex >= 0)
+                aiPlayer.ColorId = colorIndex;
+            if (teamId >= 0)
+                aiPlayer.TeamId = teamId;
 
             AIPlayers.Add(aiPlayer);
         }
@@ -657,6 +700,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (AIPlayers.Count > 0)
             {
                 AIPlayers.RemoveAt(AIPlayers.Count - 1);
+                UpdateFormatPainterPlayerCount();
                 CopyPlayerDataToUI();
                 BroadcastPlayerOptions();
             }
@@ -673,6 +717,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 AddAIPlayerInternal();
             }
 
+            UpdateFormatPainterPlayerCount();
             CopyPlayerDataToUI();
             BroadcastPlayerOptions();
         }
@@ -1352,7 +1397,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             string[] sides = ClientConfiguration.Instance.Sides.Split(',').ToArray();
             SideCount = sides.Length;
 
+            // Rebuild random selector info (InitializePlayerAIQuickOptionsPanel may have already
+            // populated RandomSelectors, so clear first to avoid duplicates).
             List<string> selectorNames = new();
+            RandomSelectors.Clear();
             GetRandomSelectors(selectorNames, RandomSelectors);
             RandomSelectorCount = RandomSelectors.Count + 1;
             MapPreviewBox.RandomSelectorCount = RandomSelectorCount;
@@ -1574,10 +1622,26 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     AddNotice(newOptions.RandomDifficulty
                         ? "The game host has enabled random AI difficulty.".L10N("Client:Main:HostEnabledRandomAIDifficulty")
                         : "The game host has disabled random AI difficulty.".L10N("Client:Main:HostDisabledRandomAIDifficulty"));
+                if (oldOptions.RandomSide != newOptions.RandomSide)
+                    AddNotice(newOptions.RandomSide
+                        ? "The game host has enabled random AI sides.".L10N("Client:Main:HostEnabledRandomAISide")
+                        : "The game host has disabled random AI sides.".L10N("Client:Main:HostDisabledRandomAISide"));
+                if (oldOptions.RandomColor != newOptions.RandomColor)
+                    AddNotice(newOptions.RandomColor
+                        ? "The game host has enabled random AI colors.".L10N("Client:Main:HostEnabledRandomAIColor")
+                        : "The game host has disabled random AI colors.".L10N("Client:Main:HostDisabledRandomAIColor"));
+                if (oldOptions.RandomTeam != newOptions.RandomTeam)
+                    AddNotice(newOptions.RandomTeam
+                        ? "The game host has enabled random AI teams.".L10N("Client:Main:HostEnabledRandomAITeam")
+                        : "The game host has disabled random AI teams.".L10N("Client:Main:HostDisabledRandomAITeam"));
                 if (oldOptions.AutoAssignStarts != newOptions.AutoAssignStarts)
                     AddNotice(newOptions.AutoAssignStarts
                         ? "The game host has enabled auto-assign AI starts.".L10N("Client:Main:HostEnabledAutoAssignAIStarts")
                         : "The game host has disabled auto-assign AI starts.".L10N("Client:Main:HostDisabledAutoAssignAIStarts"));
+
+                // Ensure the format-painter AI-player checkboxes stay in sync with
+                // the actual AI player count after applying host's quick options.
+                UpdateFormatPainterPlayerCount();
             }
         }
 
@@ -1585,6 +1649,87 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         protected virtual void PlayerAIQuickOptions_OptionsChanged(object sender, EventArgs e)
         {
+            BroadcastAIQuickOptions();
+        }
+
+        private void PlayerAIQuickOptionsPanel_FormatPainterApplyRequested(object sender, List<int> selectedIndices)
+        {
+            if (!AllowPlayerOptionsChange() || selectedIndices == null || selectedIndices.Count == 0)
+                return;
+
+            var usedLocations = new HashSet<int>();
+            foreach (PlayerInfo p in Players)
+                usedLocations.Add(p.StartingLocation);
+
+            bool autoAssignAIStarts = PlayerAIQuickOptionsPanel?.AutoAssignAIStarts ?? false;
+
+            for (int i = 0; i < AIPlayers.Count; i++)
+            {
+                if (!selectedIndices.Contains(i))
+                    continue;
+
+                PlayerInfo aiPlayer = AIPlayers[i];
+
+                int difficultyLevel = PlayerAIQuickOptionsPanel.AIDifficultyLevel;
+                int sideIndex = PlayerAIQuickOptionsPanel.AISideIndex;
+                int colorIndex = PlayerAIQuickOptionsPanel.AIColorIndex;
+                int teamId = PlayerAIQuickOptionsPanel.AITeamId;
+
+                if (PlayerAIQuickOptionsPanel.RandomAIDifficulty && PlayerAIQuickOptionsPanel.DifficultyItemCount > 1)
+                    difficultyLevel = random.Next(0, PlayerAIQuickOptionsPanel.DifficultyItemCount - 1);
+                if (PlayerAIQuickOptionsPanel.RandomAISide)
+                {
+                    var sideIndices = PlayerAIQuickOptionsPanel.GetSideRandomIndices();
+                    if (sideIndices.Count > 0)
+                        sideIndex = sideIndices[random.Next(sideIndices.Count)] - 1;
+                }
+                if (PlayerAIQuickOptionsPanel.RandomAIColor)
+                {
+                    var colorIndices = PlayerAIQuickOptionsPanel.GetColorRandomIndices();
+                    if (colorIndices.Count > 0)
+                        colorIndex = colorIndices[random.Next(colorIndices.Count)] - 1;
+                }
+                if (PlayerAIQuickOptionsPanel.RandomAITeam && PlayerAIQuickOptionsPanel.TeamItemCount > 1)
+                    teamId = random.Next(0, PlayerAIQuickOptionsPanel.TeamItemCount - 1);
+
+                if (difficultyLevel >= 0)
+                    aiPlayer.AILevel = difficultyLevel;
+                if (sideIndex >= 0)
+                    aiPlayer.SideId = sideIndex;
+                if (colorIndex >= 0)
+                    aiPlayer.ColorId = colorIndex;
+                if (teamId >= 0)
+                    aiPlayer.TeamId = teamId;
+
+                if (autoAssignAIStarts && GameModeMap != null)
+                {
+                    foreach (int loc in GameModeMap.AllowedStartingLocations)
+                    {
+                        if (!usedLocations.Contains(loc))
+                        {
+                            aiPlayer.StartingLocation = loc;
+                            usedLocations.Add(loc);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            CopyPlayerDataToUI();
+            BroadcastPlayerOptions();
+        }
+
+        protected void UpdateFormatPainterPlayerCount()
+        {
+            PlayerAIQuickOptionsPanel?.UpdateFormatPainterPlayerCount(AIPlayers.Count);
+        }
+
+        private void PlayerAIQuickOptionsPanel_ResetRequested(object sender, EventArgs e)
+        {
+            if (!AllowPlayerOptionsChange())
+                return;
+
+            PlayerAIQuickOptionsPanel?.LoadDefaults(GameOptionsIni);
             BroadcastAIQuickOptions();
         }
 
@@ -2603,6 +2748,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 AIPlayers.Add(aiPlayer);
             }
 
+            UpdateFormatPainterPlayerCount();
             CopyPlayerDataToUI();
             btnLaunchGame.SetRank(GetRank());
 
@@ -2966,6 +3112,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             MapPreviewBox.GameModeMap = GameModeMap;
             CopyPlayerDataToUI();
+            PlayerAIQuickOptionsPanel?.UpdateFormatPainterPlayerCount(AIPlayers.Count);
 
             disableGameOptionUpdateBroadcast = false;
 
