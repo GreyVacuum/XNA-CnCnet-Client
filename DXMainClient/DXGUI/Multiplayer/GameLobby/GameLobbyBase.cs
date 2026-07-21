@@ -1015,6 +1015,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             SetPlayerExtraOptions(playerExtraOptions);
             UpdateMapPreviewBoxEnabledStatus();
+
+            // Ensure non-host players immediately see forced options reflected
+            // in the player option drop-downs after receiving host's settings.
+            CopyPlayerDataToUI();
+            RefreshBtnPlayerExtraOptionsOpenTexture();
         }
 
         private void AddPlayerExtraOptionForcedNotice(bool disabled, string type)
