@@ -1113,19 +1113,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (color < 0 || color > MPColors.Count)
                 return;
 
-            var disallowedSides = GetDisallowedSides();
-
-            if (side > 0 && side <= SideCount && disallowedSides[side - 1])
+            if (!IsSideIdAllowedForPlayer(side, start, true))
                 return;
 
-            if (GameModeMap.CoopInfo != null)
-            {
-                if (GameModeMap.CoopInfo.DisallowedPlayerSides.Contains(side - 1) || side == SideCount + RandomSelectorCount)
-                    return;
-
-                if (GameModeMap.CoopInfo.DisallowedPlayerColors.Contains(color - 1))
-                    return;
-            }
+            if (!IsColorIdAllowedForPlayer(color, start))
+                return;
 
             if (!(start == 0 || (GameModeMap?.AllowedStartingLocations?.Contains(start) ?? true)))
                 return;

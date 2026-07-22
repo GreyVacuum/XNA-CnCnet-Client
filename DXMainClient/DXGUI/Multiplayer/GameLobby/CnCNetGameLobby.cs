@@ -1015,26 +1015,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (color < 0 || color > MPColors.Count)
                 return;
 
-            // Disallowed sides from client, maps, or game modes do not take random selectors into account
-            // So, we need to insert "false" for each random at the beginning of this list AFTER getting them
-            // from client, maps, or game modes.
-            var randomDisallowedSides = new List<bool>(RandomSelectorCount);
-            for (int i = 0; i < RandomSelectorCount; i++)
-                randomDisallowedSides.Add(false);
-
-            var disallowedSides = randomDisallowedSides.Concat(GetDisallowedSides()).ToArray();
-
-            if (0 < side && side < SideCount && disallowedSides[side])
+            if (!IsSideIdAllowedForPlayer(side, start, true))
                 return;
 
-            if (GameModeMap?.CoopInfo != null)
-            {
-                if (GameModeMap.CoopInfo.DisallowedPlayerSides.Contains(side - 1) || side == SideCount + RandomSelectorCount)
-                    return;
-
-                if (GameModeMap.CoopInfo.DisallowedPlayerColors.Contains(color - 1))
-                    return;
-            }
+            if (!IsColorIdAllowedForPlayer(color, start))
+                return;
 
             if (!(start == 0 || (GameModeMap?.AllowedStartingLocations?.Contains(start) ?? true)))
                 return;

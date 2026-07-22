@@ -54,6 +54,25 @@ namespace DTAClient.Domain.Multiplayer
         /// </summary>
         public List<int> DisallowedComputerPlayerSides = new List<int>();
 
+        /// <summary>
+        /// List of color indices players cannot select in this game mode.
+        /// </summary>
+        public List<int> DisallowedPlayerColors = new List<int>();
+
+        public const int START_LOCATION_COUNT = 8;
+
+        /// <summary>
+        /// Lists of side indices players cannot select when they have selected a specific starting location.
+        /// Each index corresponds to a raw starting location (0-7).
+        /// </summary>
+        public List<int>[] DisallowedPlayerSidesByStart = new List<int>[START_LOCATION_COUNT];
+
+        /// <summary>
+        /// Lists of color indices players cannot select when they have selected a specific starting location.
+        /// Each index corresponds to a raw starting location (0-7).
+        /// </summary>
+        public List<int>[] DisallowedPlayerColorsByStart = new List<int>[START_LOCATION_COUNT];
+
         /// </summary>
         /// Override for minimum amount of players needed to play any map in this game mode.
         /// Priority sequences: GameMode.MinPlayersOverride, Map.MinPlayers, GameMode.MinPlayers.
@@ -82,6 +101,14 @@ namespace DTAClient.Domain.Multiplayer
             clone.DisallowedPlayerSides = [.. clone.DisallowedPlayerSides];
             clone.DisallowedHumanPlayerSides = [.. clone.DisallowedHumanPlayerSides];
             clone.DisallowedComputerPlayerSides = [.. clone.DisallowedComputerPlayerSides];
+            clone.DisallowedPlayerColors = [.. clone.DisallowedPlayerColors];
+            clone.DisallowedPlayerSidesByStart = new List<int>[START_LOCATION_COUNT];
+            clone.DisallowedPlayerColorsByStart = new List<int>[START_LOCATION_COUNT];
+            for (int i = 0; i < START_LOCATION_COUNT; i++)
+            {
+                clone.DisallowedPlayerSidesByStart[i] = [.. clone.DisallowedPlayerSidesByStart[i]];
+                clone.DisallowedPlayerColorsByStart[i] = [.. clone.DisallowedPlayerColorsByStart[i]];
+            }
             clone.ForcedCheckBoxValues = [.. clone.ForcedCheckBoxValues];
             clone.ForcedDropDownValues = [.. clone.ForcedDropDownValues];
             clone.ForcedSpawnIniOptions = [.. clone.ForcedSpawnIniOptions];
@@ -110,13 +137,34 @@ namespace DTAClient.Domain.Multiplayer
             randomizedMapCodeININames = section.GetStringValue("RandomizedMapCodeIniNames", section.GetStringValue("RandomizedMapCodeININames", string.Empty)).Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
             randomizedMapCodesCount = section.GetIntValue("RandomizedMapCodesCount", 1);
 
+            InitializeStartSpecificDisallowedLists();
+
             DisallowedPlayerSides = section.GetListValue("DisallowedPlayerSides", ',', int.Parse);
             DisallowedHumanPlayerSides = section.GetListValue("DisallowedHumanPlayerSides", ',', int.Parse);
             DisallowedComputerPlayerSides = section.GetListValue("DisallowedComputerPlayerSides", ',', int.Parse);
+            DisallowedPlayerColors = section.GetListValue("DisallowedPlayerColors", ',', int.Parse);
+
+            for (int i = 0; i < START_LOCATION_COUNT; i++)
+            {
+                var startSpecificSides = section.GetListValue($"DisallowedPlayerSides.Start{i}", ',', int.Parse);
+                DisallowedPlayerSidesByStart[i] = DisallowedPlayerSides.Union(startSpecificSides).Distinct().ToList();
+
+                var startSpecificColors = section.GetListValue($"DisallowedPlayerColors.Start{i}", ',', int.Parse);
+                DisallowedPlayerColorsByStart[i] = DisallowedPlayerColors.Union(startSpecificColors).Distinct().ToList();
+            }
 
             ParseForcedOptions(forcedOptionsIni);
 
             ParseSpawnIniOptions(forcedOptionsIni);
+        }
+
+        private void InitializeStartSpecificDisallowedLists()
+        {
+            for (int i = 0; i < START_LOCATION_COUNT; i++)
+            {
+                DisallowedPlayerSidesByStart[i] = new List<int>();
+                DisallowedPlayerColorsByStart[i] = new List<int>();
+            }
         }
 
         private void ParseForcedOptions(IniFile forcedOptionsIni)
