@@ -43,16 +43,29 @@ namespace DTAClient.Domain.Multiplayer
         public void RandomizeSide(PlayerInfo pInfo, int sideCount, Random random,
             bool[] disallowedSideArray, List<int[]> randomSelectors, int randomCount)
         {
-            if (pInfo.SideId == 0 || pInfo.SideId == sideCount + randomCount)
+            int PickRandomAllowedSide()
             {
-                // The player has selected Random or Spectator
+                int allowedCount = 0;
+                for (int s = 0; s < sideCount; s++)
+                {
+                    if (!disallowedSideArray[s])
+                        allowedCount++;
+                }
+
+                if (allowedCount == 0)
+                    return 0;
 
                 int sideId;
-
                 do sideId = random.Next(0, sideCount);
                 while (disallowedSideArray[sideId]);
 
-                SideIndex = sideId;
+                return sideId;
+            }
+
+            if (pInfo.SideId == 0 || pInfo.SideId == sideCount + randomCount)
+            {
+                // The player has selected Random or Spectator
+                SideIndex = PickRandomAllowedSide();
             }
             else
             {
@@ -61,14 +74,41 @@ namespace DTAClient.Domain.Multiplayer
                 {
                     int[] randomsides = randomSelectors[pInfo.SideId - 1];
                     int count = randomsides.Length;
+
+                    int allowedCount = 0;
+                    foreach (int side in randomsides)
+                    {
+                        if (!disallowedSideArray[side])
+                            allowedCount++;
+                    }
+
+                    if (allowedCount == 0)
+                    {
+                        SideIndex = randomsides[0];
+                        return;
+                    }
+
                     int sideId;
-                    
                     do sideId = randomsides[random.Next(0, count)];
                     while (disallowedSideArray[sideId]);
 
                     SideIndex = sideId;
                 }
-                else SideIndex = pInfo.SideId - randomCount; // The player has selected a side
+                else
+                {
+                    // The player has selected a side
+                    int selectedSideIndex = pInfo.SideId - randomCount;
+
+                    if (selectedSideIndex >= 0 && selectedSideIndex < sideCount && !disallowedSideArray[selectedSideIndex])
+                    {
+                        SideIndex = selectedSideIndex;
+                    }
+                    else
+                    {
+                        // Selected side is disallowed; fall back to random among allowed sides
+                        SideIndex = PickRandomAllowedSide();
+                    }
+                }
             }
         }
 
@@ -96,8 +136,22 @@ namespace DTAClient.Domain.Multiplayer
             }
             else
             {
-                ColorIndex = mpColors[pInfo.ColorId - 1].GameColorIndex;
-                freeColors.Remove(pInfo.ColorId - 1);
+                int selectedColorId = pInfo.ColorId - 1;
+
+                if (freeColors.Contains(selectedColorId))
+                {
+                    ColorIndex = mpColors[selectedColorId].GameColorIndex;
+                    freeColors.Remove(selectedColorId);
+                }
+                else
+                {
+                    // Selected color is unavailable (disallowed or already taken); fall back to random
+                    int randomizedColorIndex = random.Next(0, freeColors.Count);
+                    int actualColorId = freeColors[randomizedColorIndex];
+
+                    ColorIndex = mpColors[actualColorId].GameColorIndex;
+                    freeColors.RemoveAt(randomizedColorIndex);
+                }
             }
         }
 

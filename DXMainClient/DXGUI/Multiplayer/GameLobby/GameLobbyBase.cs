@@ -964,6 +964,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected virtual void OnGameOptionChanged()
         {
             CheckDisallowedSides();
+            CheckDisallowedColors();
+            CopyPlayerDataToUI();
 
             btnLaunchGame.SetRank(GetRank());
         }
@@ -1819,125 +1821,93 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         /// </summary>
         protected void CheckDisallowedSidesForGroup(bool forHumanPlayers)
         {
-            var disallowedSideArray = GetDisallowedSidesForGroup(forHumanPlayers);
             var playerInfos = forHumanPlayers ? Players : AIPlayers;
-            int defaultSide = 0;
-            int allowedSideCount = disallowedSideArray.Count(b => b == false);
 
-            if (allowedSideCount == 1)
+            foreach (PlayerInfo pInfo in playerInfos)
             {
-                // Disallow Random
+                bool[] disallowedSideArray = GetDisallowedSidesForPlayer(pInfo);
+                int defaultSide = 0;
+                int allowedSideCount = disallowedSideArray.Count(b => b == false);
+                var dd = ddPlayerSides[pInfo.Index];
 
-                for (int i = 0; i < disallowedSideArray.Length; i++)
+                if (allowedSideCount == 1)
                 {
-                    if (!disallowedSideArray[i])
-                        defaultSide = i + RandomSelectorCount;
-                }
+                    // Disallow Random
 
-                foreach (PlayerInfo pInfo in playerInfos)
-                {
-                    var dd = ddPlayerSides[pInfo.Index];
+                    for (int i = 0; i < disallowedSideArray.Length; i++)
+                    {
+                        if (!disallowedSideArray[i])
+                            defaultSide = i + RandomSelectorCount;
+                    }
+
                     for (int i = 0; i < RandomSelectorCount; i++)
                         dd.Items[i].Selectable = false;
                 }
-            }
-            else
-            {
-                foreach (PlayerInfo pInfo in playerInfos)
+                else
                 {
-                    var dd = ddPlayerSides[pInfo.Index];
                     for (int i = 0; i < RandomSelectorCount; i++)
                         dd.Items[i].Selectable = true;
                 }
-            }
 
-            // Disable custom random groups if all or all except one of included sides are unavailable.
-            int c = 0;
-            foreach (int[] randomSides in RandomSelectors)
-            {
-                int disableCount = 0;
-
-                foreach (int side in randomSides)
+                // Disable custom random groups if all or all except one of included sides are unavailable.
+                int c = 0;
+                foreach (int[] randomSides in RandomSelectors)
                 {
-                    if (disallowedSideArray[side])
-                        disableCount++;
-                }
+                    int disableCount = 0;
 
-                bool disabled = disableCount >= randomSides.Length - 1;
+                    foreach (int side in randomSides)
+                    {
+                        if (disallowedSideArray[side])
+                            disableCount++;
+                    }
 
-                foreach (PlayerInfo pInfo in playerInfos)
-                {
-                    var dd = ddPlayerSides[pInfo.Index];
+                    bool disabled = disableCount >= randomSides.Length - 1;
+
                     dd.Items[1 + c].Selectable = !disabled;
 
                     if (pInfo.SideId == 1 + c && disabled)
                         pInfo.SideId = defaultSide;
+
+                    c++;
                 }
 
-                c++;
-            }
-
-            // Go over the side array and either disable or enable the side
-            // dropdown options depending on whether the side is available
-            for (int i = 0; i < disallowedSideArray.Length; i++)
-            {
-                bool disabled = disallowedSideArray[i];
-
-                if (disabled)
+                // Go over the side array and either disable or enable the side
+                // dropdown options depending on whether the side is available
+                for (int i = 0; i < disallowedSideArray.Length; i++)
                 {
-                    // Change the sides of players that use the disabled
-                    // side to the default side
-                    foreach (PlayerInfo pInfo in playerInfos)
+                    bool disabled = disallowedSideArray[i];
+
+                    if (disabled)
                     {
-                        var dd = ddPlayerSides[pInfo.Index];
+                        // Change the sides of players that use the disabled
+                        // side to the default side
                         dd.Items[i + RandomSelectorCount].Selectable = false;
 
                         if (pInfo.SideId == i + RandomSelectorCount)
                             pInfo.SideId = defaultSide;
                     }
-                }
-                else
-                {
-                    foreach (PlayerInfo pInfo in playerInfos)
+                    else
                     {
-                        var dd = ddPlayerSides[pInfo.Index];
                         dd.Items[i + RandomSelectorCount].Selectable = true;
                     }
                 }
-            }
 
-            // If only 1 side is allowed, change all players' sides to that
-            if (allowedSideCount == 1)
-            {
-                foreach (PlayerInfo pInfo in playerInfos)
+                // If only 1 side is allowed, change the player's side to that
+                if (allowedSideCount == 1 && pInfo.SideId == 0)
+                    pInfo.SideId = defaultSide;
+
+                if (GameModeMap != null && GameModeMap.CoopInfo != null)
                 {
-                    if (pInfo.SideId == 0)
-                        pInfo.SideId = defaultSide;
-                }
-            }
+                    // Disallow spectator
 
-            if (GameModeMap != null && GameModeMap.CoopInfo != null)
-            {
-                // Disallow spectator
-
-                foreach (PlayerInfo pInfo in playerInfos)
-                {
                     if (pInfo.SideId == GetSpectatorSideIndex())
                         pInfo.SideId = defaultSide;
-                }
 
-                foreach (PlayerInfo pInfo in playerInfos)
-                {
-                    var dd = ddPlayerSides[pInfo.Index];
                     if (dd.Items.Count > GetSpectatorSideIndex())
                         dd.Items[SideCount + RandomSelectorCount].Selectable = false;
                 }
-            }
-            else
-            {
-                foreach (PlayerInfo pInfo in playerInfos)
+                else
                 {
-                    var dd = ddPlayerSides[pInfo.Index];
                     if (dd.Items.Count > SideCount + RandomSelectorCount)
                         dd.Items[SideCount + RandomSelectorCount].Selectable = true;
                 }
@@ -1952,6 +1922,58 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         {
             CheckDisallowedSidesForGroup(forHumanPlayers: false);
             CheckDisallowedSidesForGroup(forHumanPlayers: true);
+        }
+
+        /// <summary>
+        /// Applies disallowed color indexes to the color option drop-downs
+        /// and player options for human or computer players.
+        /// </summary>
+        protected void CheckDisallowedColorsForGroup(bool forHumanPlayers)
+        {
+            var playerInfos = forHumanPlayers ? Players : AIPlayers;
+
+            foreach (PlayerInfo pInfo in playerInfos)
+            {
+                List<int> disallowedColors = GetDisallowedColorsForPlayer(pInfo);
+                var dd = ddPlayerColors[pInfo.Index];
+                int allowedColorCount = MPColors.Count - disallowedColors.Count;
+                int defaultColorId = 0;
+
+                if (allowedColorCount == 1)
+                {
+                    for (int i = 0; i < MPColors.Count; i++)
+                    {
+                        if (!disallowedColors.Contains(i))
+                        {
+                            defaultColorId = i + 1;
+                            break;
+                        }
+                    }
+                }
+
+                for (int i = 0; i < MPColors.Count; i++)
+                {
+                    bool disabled = disallowedColors.Contains(i);
+                    dd.Items[i + 1].Selectable = !disabled;
+                    dd.SetItemColorEnabled(i + 1, !disabled);
+
+                    if (disabled && pInfo.ColorId == i + 1)
+                        pInfo.ColorId = defaultColorId;
+                }
+
+                if (allowedColorCount == 1 && pInfo.ColorId == 0)
+                    pInfo.ColorId = defaultColorId;
+            }
+        }
+
+        /// <summary>
+        /// Applies disallowed color indexes to the color option drop-downs
+        /// and player options.
+        /// </summary>
+        protected void CheckDisallowedColors()
+        {
+            CheckDisallowedColorsForGroup(forHumanPlayers: false);
+            CheckDisallowedColorsForGroup(forHumanPlayers: true);
         }
 
         /// <summary>
@@ -1997,6 +2019,165 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 checkBox.ApplyDisallowedSideIndex(returnValue);
 
             return returnValue;
+        }
+
+        /// <summary>
+        /// Gets a list of side indexes that are disallowed for the specified player,
+        /// taking their selected starting location into account.
+        /// </summary>
+        /// <param name="pInfo">The player.</param>
+        /// <returns>A list of disallowed side indexes.</returns>
+        protected bool[] GetDisallowedSidesForPlayer(PlayerInfo pInfo)
+        {
+            bool[] returnValue = GetDisallowedSidesForGroup(!pInfo.IsAI);
+
+            int startIndex = pInfo.StartingLocation - 1;
+            if (startIndex < 0 || startIndex >= GameMode.START_LOCATION_COUNT)
+                return returnValue;
+
+            if (GameModeMap?.CoopInfo != null)
+            {
+                foreach (int disallowedSideIndex in GameModeMap.CoopInfo.DisallowedPlayerSidesByStart[startIndex])
+                    returnValue[disallowedSideIndex] = true;
+            }
+
+            if (GameMode != null)
+            {
+                foreach (int disallowedSideIndex in GameMode.DisallowedPlayerSidesByStart[startIndex])
+                    returnValue[disallowedSideIndex] = true;
+            }
+
+            return returnValue;
+        }
+
+        /// <summary>
+        /// Gets a list of color indexes that are disallowed for the specified player,
+        /// taking their selected starting location into account.
+        /// </summary>
+        /// <param name="pInfo">The player.</param>
+        /// <returns>A list of disallowed color indexes.</returns>
+        protected List<int> GetDisallowedColorsForPlayer(PlayerInfo pInfo)
+        {
+            var returnValue = new List<int>();
+
+            if (GameModeMap?.CoopInfo != null)
+                returnValue.AddRange(GameModeMap.CoopInfo.DisallowedPlayerColors);
+
+            if (GameMode != null)
+                returnValue.AddRange(GameMode.DisallowedPlayerColors);
+
+            int startIndex = pInfo.StartingLocation - 1;
+            if (startIndex < 0 || startIndex >= GameMode.START_LOCATION_COUNT)
+                return returnValue.Distinct().ToList();
+
+            if (GameModeMap?.CoopInfo != null)
+                returnValue.AddRange(GameModeMap.CoopInfo.DisallowedPlayerColorsByStart[startIndex]);
+
+            if (GameMode != null)
+                returnValue.AddRange(GameMode.DisallowedPlayerColorsByStart[startIndex]);
+
+            return returnValue.Distinct().ToList();
+        }
+
+        /// <summary>
+        /// Gets a list of side indexes that are disallowed for a hypothetical starting location.
+        /// </summary>
+        /// <param name="startingLocation">The 1-based starting location.</param>
+        /// <param name="forHumanPlayers">Whether to use human or AI disallowed sides.</param>
+        /// <returns>A list of disallowed side indexes.</returns>
+        protected bool[] GetDisallowedSidesForPlayer(int startingLocation, bool forHumanPlayers)
+        {
+            bool[] returnValue = GetDisallowedSidesForGroup(forHumanPlayers);
+
+            int startIndex = startingLocation - 1;
+            if (startIndex < 0 || startIndex >= GameMode.START_LOCATION_COUNT)
+                return returnValue;
+
+            if (GameModeMap?.CoopInfo != null)
+            {
+                foreach (int disallowedSideIndex in GameModeMap.CoopInfo.DisallowedPlayerSidesByStart[startIndex])
+                    returnValue[disallowedSideIndex] = true;
+            }
+
+            if (GameMode != null)
+            {
+                foreach (int disallowedSideIndex in GameMode.DisallowedPlayerSidesByStart[startIndex])
+                    returnValue[disallowedSideIndex] = true;
+            }
+
+            return returnValue;
+        }
+
+        /// <summary>
+        /// Gets a list of color indexes that are disallowed for a hypothetical starting location.
+        /// </summary>
+        /// <param name="startingLocation">The 1-based starting location.</param>
+        /// <returns>A list of disallowed color indexes.</returns>
+        protected List<int> GetDisallowedColorsForPlayer(int startingLocation)
+        {
+            var returnValue = new List<int>();
+
+            if (GameModeMap?.CoopInfo != null)
+                returnValue.AddRange(GameModeMap.CoopInfo.DisallowedPlayerColors);
+
+            if (GameMode != null)
+                returnValue.AddRange(GameMode.DisallowedPlayerColors);
+
+            int startIndex = startingLocation - 1;
+            if (startIndex < 0 || startIndex >= GameMode.START_LOCATION_COUNT)
+                return returnValue.Distinct().ToList();
+
+            if (GameModeMap?.CoopInfo != null)
+                returnValue.AddRange(GameModeMap.CoopInfo.DisallowedPlayerColorsByStart[startIndex]);
+
+            if (GameMode != null)
+                returnValue.AddRange(GameMode.DisallowedPlayerColorsByStart[startIndex]);
+
+            return returnValue.Distinct().ToList();
+        }
+
+        /// <summary>
+        /// Determines whether a side id is allowed for the specified player and starting location.
+        /// </summary>
+        /// <param name="sideId">The side id (0 = Random, 1..RandomSelectorCount = random selectors, etc.).</param>
+        /// <param name="startingLocation">The 1-based starting location.</param>
+        /// <param name="forHumanPlayers">Whether to use human or AI disallowed sides.</param>
+        /// <returns>True if allowed, otherwise false.</returns>
+        protected bool IsSideIdAllowedForPlayer(int sideId, int startingLocation, bool forHumanPlayers)
+        {
+            if (sideId == 0 || sideId == SideCount + RandomSelectorCount)
+                return true;
+
+            if (sideId < 0 || sideId > SideCount + RandomSelectorCount)
+                return false;
+
+            bool[] disallowedSides = GetDisallowedSidesForPlayer(startingLocation, forHumanPlayers);
+
+            if (sideId <= RandomSelectorCount)
+            {
+                int[] randomSides = RandomSelectors[sideId - 1];
+                return randomSides.Any(side => !disallowedSides[side]);
+            }
+
+            return !disallowedSides[sideId - RandomSelectorCount];
+        }
+
+        /// <summary>
+        /// Determines whether a color id is allowed for the specified starting location.
+        /// </summary>
+        /// <param name="colorId">The color id (0 = Random).</param>
+        /// <param name="startingLocation">The 1-based starting location.</param>
+        /// <returns>True if allowed, otherwise false.</returns>
+        protected bool IsColorIdAllowedForPlayer(int colorId, int startingLocation)
+        {
+            if (colorId == 0)
+                return true;
+
+            if (colorId < 0 || colorId > MPColors.Count)
+                return false;
+
+            List<int> disallowedColors = GetDisallowedColorsForPlayer(startingLocation);
+            return !disallowedColors.Contains(colorId - 1);
         }
 
         /// <summary>
@@ -2061,32 +2242,46 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             foreach (var teamStartMapping in teamStartMappings.Where(mapping => mapping.IsBlock))
                 freeStartingLocations.Remove(teamStartMapping.StartingWaypoint);
 
+            bool overrideGameRandomLocations = teamStartMappings.Any()
+                || GameModeMap.AllowedStartingLocations.Max() > GameModeMap.MaxPlayers; // non-sequential AllowedStartingLocations
+
             // Randomize options
 
             for (int i = 0; i < totalPlayerCount; i++)
             {
                 PlayerInfo pInfo;
                 PlayerHouseInfo pHouseInfo = houseInfos[i];
-                bool[] disallowedSides;
 
                 if (i < Players.Count)
-                {
                     pInfo = Players[i];
-                    disallowedSides = GetDisallowedSidesForGroup(forHumanPlayers: true);
-                }
                 else
-                {
                     pInfo = AIPlayers[i - Players.Count];
-                    disallowedSides = GetDisallowedSidesForGroup(forHumanPlayers: false);
-                }
+
+                int originalStartingLocation = pInfo.StartingLocation;
+
+                // Resolve the starting location first, so side/color can respect the actual location.
+                pHouseInfo.RandomizeStart(pInfo, pseudoRandom, freeStartingLocations, takenStartingLocations, overrideGameRandomLocations);
+
+                int actualWaypoint = pHouseInfo.StartingWaypoint;
+                if (actualWaypoint >= 0 && actualWaypoint < GameMode.START_LOCATION_COUNT)
+                    pInfo.StartingLocation = actualWaypoint + 1;
+
+                bool[] disallowedSides = GetDisallowedSidesForPlayer(pInfo);
 
                 pHouseInfo.RandomizeSide(pInfo, SideCount, pseudoRandom, disallowedSides, RandomSelectors, RandomSelectorCount);
 
-                pHouseInfo.RandomizeColor(pInfo, freeColors, MPColors, pseudoRandom);
+                List<int> disallowedColors = GetDisallowedColorsForPlayer(pInfo);
+                List<int> playerFreeColors = freeColors.Where(c => !disallowedColors.Contains(c)).ToList();
+                if (playerFreeColors.Count == 0)
+                    playerFreeColors = freeColors;
 
-                bool overrideGameRandomLocations = teamStartMappings.Any()
-                    || GameModeMap.AllowedStartingLocations.Max() > GameModeMap.MaxPlayers; // non-sequential AllowedStartingLocations
-                pHouseInfo.RandomizeStart(pInfo, pseudoRandom, freeStartingLocations, takenStartingLocations, overrideGameRandomLocations);
+                pHouseInfo.RandomizeColor(pInfo, playerFreeColors, MPColors, pseudoRandom);
+
+                int actualColorId = MPColors.FindIndex(c => c.GameColorIndex == pHouseInfo.ColorIndex);
+                if (actualColorId >= 0)
+                    freeColors.Remove(actualColorId);
+
+                pInfo.StartingLocation = originalStartingLocation;
             }
 
             return houseInfos;
@@ -2725,6 +2920,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
 
             UpdateFormatPainterPlayerCount();
+            CopyPlayerDataToUI();
+            CheckDisallowedSides();
+            CheckDisallowedColors();
             CopyPlayerDataToUI();
             btnLaunchGame.SetRank(GetRank());
 
