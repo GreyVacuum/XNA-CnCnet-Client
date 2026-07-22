@@ -118,7 +118,29 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
 
     public int InputBoxIntegerScrollStep { get; private set; } = 1;
 
+    public int InputBoxIntegerScrollMouseStep { get; private set; } = 1;
+
+    public int InputBoxIntegerScrollKeyBoardStep { get; private set; } = 1;
+
     public bool InputBoxIntegerAllowNegative { get; private set; } = false;
+
+    public bool InputBoxIntegerAllowPositive { get; private set; } = true;
+
+    /// <summary>
+    /// 是否在输入过程中强制检查 MinInputBoxInteger / MaxInputBoxInteger。
+    /// 默认 false，允许中间值；设为 true 则输入过程中超出范围即被拒绝。
+    /// </summary>
+    public bool InputBoxIntegerStrict { get; private set; } = false;
+
+    /// <summary>
+    /// 是否在显示正整数时添加 + 前缀（如 *+10）。默认 false，显示为 *10。
+    /// </summary>
+    public bool InputBoxIntegerShowPositive { get; private set; } = false;
+
+    /// <summary>
+    /// 是否在显示负整数时添加 - 前缀（如 *-10）。默认 true。
+    /// </summary>
+    public bool InputBoxIntegerShowNegative { get; private set; } = true;
 
     public int MinInputBoxInteger { get; private set; } = int.MinValue;
 
@@ -321,9 +343,51 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                 return;
             case "InputBoxIntegerScroll.Integer":
                 InputBoxIntegerScrollStep = Conversions.IntFromString(value, 1);
+                InputBoxIntegerScrollMouseStep = InputBoxIntegerScrollStep;
+                InputBoxIntegerScrollKeyBoardStep = InputBoxIntegerScrollStep;
+                return;
+            case "InputBoxIntegerScroll.MouseInteger":
+                InputBoxIntegerScrollMouseStep = Conversions.IntFromString(value, InputBoxIntegerScrollStep);
+                return;
+            case "InputBoxIntegerScroll.KeyBoardInteger":
+                InputBoxIntegerScrollKeyBoardStep = Conversions.IntFromString(value, InputBoxIntegerScrollStep);
+                return;
+            case "InputBoxIntegerStrict":
+                InputBoxIntegerStrict = Conversions.BooleanFromString(value, false);
                 return;
             case "InputBoxIntegerRange":
-                InputBoxIntegerAllowNegative = value.Trim() == "-";
+                {
+                    string trimmed = value.Trim();
+                    bool hasNeg = trimmed.Contains('-');
+                    bool hasPos = trimmed.Contains('+');
+                    if (hasNeg && hasPos)
+                    {
+                        InputBoxIntegerAllowNegative = true;
+                        InputBoxIntegerAllowPositive = true;
+                    }
+                    else if (hasNeg)
+                    {
+                        InputBoxIntegerAllowNegative = true;
+                        InputBoxIntegerAllowPositive = false;
+                    }
+                    else if (hasPos)
+                    {
+                        InputBoxIntegerAllowNegative = false;
+                        InputBoxIntegerAllowPositive = true;
+                    }
+                    else
+                    {
+                        // 未识别的值，保持默认：不允许负数，允许正数
+                        InputBoxIntegerAllowNegative = false;
+                        InputBoxIntegerAllowPositive = true;
+                    }
+                }
+                return;
+            case "InputBoxIntegerRangeShow.Positive":
+                InputBoxIntegerShowPositive = Conversions.BooleanFromString(value, false);
+                return;
+            case "InputBoxIntegerRangeShow.Negative":
+                InputBoxIntegerShowNegative = Conversions.BooleanFromString(value, true);
                 return;
             case "MinInputBoxInteger":
                 MinInputBoxInteger = Conversions.IntFromString(value, int.MinValue);
@@ -723,6 +787,30 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
 
         if (string.IsNullOrEmpty(value))
             return label.Replace("{0}", "").Trim();
+
+        // INTEGER 模式下，根据 InputBoxIntegerShowPositive/Negative 决定是否显示符号前缀
+        if (InputBoxDataMode == InputBoxDataMode.INTEGER && int.TryParse(value, out int intVal))
+        {
+            if (intVal > 0 && InputBoxIntegerShowPositive)
+            {
+                // 正数且需要显示 + 前缀
+                return label.Replace("{0}", "+" + intVal.ToString());
+            }
+            else if (intVal < 0)
+            {
+                if (InputBoxIntegerShowNegative)
+                {
+                    // 负数且需要显示 - 前缀（保留原有的负号）
+                    return label.Replace("{0}", intVal.ToString());
+                }
+                else
+                {
+                    // 负数但不显示 - 前缀（显示为绝对值）
+                    return label.Replace("{0}", Math.Abs(intVal).ToString());
+                }
+            }
+        }
+
         return label.Replace("{0}", value);
     }
 
@@ -779,6 +867,11 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                         else
                             startIndex = 1;
                     }
+                    else if (text[0] == '+')
+                    {
+                        // 允许前导+号，跳过它
+                        startIndex = 1;
+                    }
 
                     if (valid)
                     {
@@ -799,13 +892,24 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                             if (text[startIndex] == '0' && text.Length > (startIndex + 1))
                                 valid = false;
                         }
+                        else if (startIndex > 0)
+                        {
+                            // 只有符号没有数字（如 "-" 或 "+"），允许继续输入
+                        }
                     }
 
-                    if (valid)
+                    // MinInputBoxInteger / MaxInputBoxInteger 是否在输入过程中强制验证
+                    // 取决于 InputBoxIntegerStrict。
+                    if (valid && text.Length > startIndex)
                     {
                         if (int.TryParse(text, out int intValue))
                         {
-                            if (intValue < MinInputBoxInteger || intValue > MaxInputBoxInteger)
+                            // 检查正/负范围限制（硬性约束）
+                            if (intValue > 0 && !InputBoxIntegerAllowPositive)
+                                valid = false;
+
+                            // 严格模式下，输入过程中也检查 Min/Max
+                            if (InputBoxIntegerStrict && (intValue < MinInputBoxInteger || intValue > MaxInputBoxInteger))
                                 valid = false;
                         }
                     }
@@ -836,8 +940,18 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
 
         if (string.IsNullOrEmpty(text))
         {
-            // Clear the custom slot being edited
-            if (editingCustomSlot >= 0 && editingCustomSlot < customValues.Length)
+            // 空输入：将最小值作为默认值。
+            // 若禁用负数且最小值为负，则使用 0 作为下限。
+            if (InputBoxDataMode == InputBoxDataMode.INTEGER && editingCustomSlot >= 0 && editingCustomSlot < customValues.Length)
+            {
+                int defaultValue = MinInputBoxInteger;
+                if (!InputBoxIntegerAllowNegative && defaultValue < 0)
+                    defaultValue = 0;
+                if (defaultValue > MaxInputBoxInteger) defaultValue = MaxInputBoxInteger;
+                text = defaultValue.ToString();
+                inputTextBox.Text = text;
+            }
+            else if (editingCustomSlot >= 0 && editingCustomSlot < customValues.Length)
             {
                 customValues[editingCustomSlot] = string.Empty;
                 RefreshCustomItemText(editingCustomSlot);
@@ -847,8 +961,40 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
         {
             if (InputBoxDataMode == InputBoxDataMode.INTEGER)
             {
-                if (!int.TryParse(text, out _))
-                    text = "0";
+                if (!int.TryParse(text, out int intVal))
+                {
+                    // 解析失败：使用最小值作为默认值
+                    int fallback = MinInputBoxInteger;
+                    if (!InputBoxIntegerAllowNegative && fallback < 0)
+                        fallback = 0;
+                    if (fallback > MaxInputBoxInteger) fallback = MaxInputBoxInteger;
+                    text = fallback.ToString();
+                    inputTextBox.Text = text;
+                }
+                else
+                {
+                    // 确认时强制检查正/负限制
+                    if (intVal > 0 && !InputBoxIntegerAllowPositive)
+                    {
+                        intVal = 0;
+                        text = "0";
+                        inputTextBox.Text = text;
+                    }
+
+                    // 最终值夹紧到 [MinInputBoxInteger, MaxInputBoxInteger]
+                    if (intVal < MinInputBoxInteger)
+                    {
+                        intVal = MinInputBoxInteger;
+                        text = intVal.ToString();
+                        inputTextBox.Text = text;
+                    }
+                    else if (intVal > MaxInputBoxInteger)
+                    {
+                        intVal = MaxInputBoxInteger;
+                        text = intVal.ToString();
+                        inputTextBox.Text = text;
+                    }
+                }
             }
 
             if (editingCustomSlot >= 0 && editingCustomSlot < customValues.Length)
@@ -926,7 +1072,7 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
         if (isInputBoxMode && InputBoxDataMode == InputBoxDataMode.INTEGER && InputBoxIntegerScroll && InputBoxIntegerScrollMouse)
         {
             inputEventArgs.Handled = true;
-            AdjustIntegerValue(Cursor.ScrollWheelValue > 0 ? 1 : -1);
+            AdjustIntegerValue(Cursor.ScrollWheelValue > 0 ? 1 : -1, InputBoxIntegerScrollMouseStep);
             return;
         }
 
@@ -955,11 +1101,11 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
             {
                 if (Keyboard.IsKeyHeldDown(Keys.Up))
                 {
-                    HandleScrollKeyDown(gameTime, () => AdjustIntegerValue(1));
+                    HandleScrollKeyDown(gameTime, () => AdjustIntegerValue(1, InputBoxIntegerScrollKeyBoardStep));
                 }
                 else if (Keyboard.IsKeyHeldDown(Keys.Down))
                 {
-                    HandleScrollKeyDown(gameTime, () => AdjustIntegerValue(-1));
+                    HandleScrollKeyDown(gameTime, () => AdjustIntegerValue(-1, InputBoxIntegerScrollKeyBoardStep));
                 }
                 else
                 {
@@ -1000,7 +1146,7 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
         }
     }
 
-    private void AdjustIntegerValue(int direction)
+    private void AdjustIntegerValue(int direction, int step)
     {
         int currentValue = 0;
         if (!string.IsNullOrEmpty(inputTextBox.Text))
@@ -1009,7 +1155,7 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                 currentValue = 0;
         }
 
-        int newValue = currentValue + direction * InputBoxIntegerScrollStep;
+        int newValue = currentValue + direction * step;
         newValue = Math.Clamp(newValue, MinInputBoxInteger, MaxInputBoxInteger);
         inputTextBox.Text = newValue.ToString();
         inputTextBox.InputPosition = inputTextBox.Text.Length;
