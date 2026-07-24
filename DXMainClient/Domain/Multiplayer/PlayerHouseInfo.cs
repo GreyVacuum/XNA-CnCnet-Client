@@ -43,16 +43,29 @@ namespace DTAClient.Domain.Multiplayer
         public void RandomizeSide(PlayerInfo pInfo, int sideCount, Random random,
             bool[] disallowedSideArray, List<int[]> randomSelectors, int randomCount)
         {
-            if (pInfo.SideId == 0 || pInfo.SideId == sideCount + randomCount)
+            int PickRandomAllowedSide()
             {
-                // The player has selected Random or Spectator
+                int allowedCount = 0;
+                for (int s = 0; s < sideCount; s++)
+                {
+                    if (!disallowedSideArray[s])
+                        allowedCount++;
+                }
+
+                if (allowedCount == 0)
+                    return 0;
 
                 int sideId;
-
                 do sideId = random.Next(0, sideCount);
                 while (disallowedSideArray[sideId]);
 
-                SideIndex = sideId;
+                return sideId;
+            }
+
+            if (pInfo.SideId == 0 || pInfo.SideId == sideCount + randomCount)
+            {
+                // The player has selected Random or Spectator
+                SideIndex = PickRandomAllowedSide();
             }
             else
             {
@@ -61,14 +74,41 @@ namespace DTAClient.Domain.Multiplayer
                 {
                     int[] randomsides = randomSelectors[pInfo.SideId - 1];
                     int count = randomsides.Length;
+
+                    int allowedCount = 0;
+                    foreach (int side in randomsides)
+                    {
+                        if (!disallowedSideArray[side])
+                            allowedCount++;
+                    }
+
+                    if (allowedCount == 0)
+                    {
+                        SideIndex = randomsides[0];
+                        return;
+                    }
+
                     int sideId;
-                    
                     do sideId = randomsides[random.Next(0, count)];
                     while (disallowedSideArray[sideId]);
 
                     SideIndex = sideId;
                 }
-                else SideIndex = pInfo.SideId - randomCount; // The player has selected a side
+                else
+                {
+                    // The player has selected a side
+                    int selectedSideIndex = pInfo.SideId - randomCount;
+
+                    if (selectedSideIndex >= 0 && selectedSideIndex < sideCount && !disallowedSideArray[selectedSideIndex])
+                    {
+                        SideIndex = selectedSideIndex;
+                    }
+                    else
+                    {
+                        // Selected side is disallowed; fall back to random among allowed sides
+                        SideIndex = PickRandomAllowedSide();
+                    }
+                }
             }
         }
 
@@ -81,23 +121,42 @@ namespace DTAClient.Domain.Multiplayer
         /// <param name="freeColors">The list of available (un-used) colors.</param>
         /// <param name="mpColors">The list of all multiplayer colors.</param>
         /// <param name="random">Random number generator.</param>
-        public void RandomizeColor(PlayerInfo pInfo, List<int> freeColors, 
+        public void RandomizeColor(PlayerInfo pInfo, List<int> freeColors,
             List<MultiplayerColor> mpColors, Random random)
         {
-            if (pInfo.ColorId == 0)
+            int selectedColorId = pInfo.ColorId - 1;
+            bool selectedColorValid = selectedColorId >= 0 && selectedColorId < mpColors.Count;
+
+            if (pInfo.ColorId == 0 || !selectedColorValid)
             {
-                // The player has selected Random for their color
+                // The player has selected Random for their color, or their selected color index is invalid.
+                // Pick a random color from the pool of still-available colors.
+                if (freeColors.Count > 0)
+                {
+                    int randomizedColorIndex = random.Next(0, freeColors.Count);
+                    int actualColorId = freeColors[randomizedColorIndex];
 
-                int randomizedColorIndex = random.Next(0, freeColors.Count);
-                int actualColorId = freeColors[randomizedColorIndex];
-
-                ColorIndex = mpColors[actualColorId].GameColorIndex;
-                freeColors.RemoveAt(randomizedColorIndex);
+                    ColorIndex = mpColors[actualColorId].GameColorIndex;
+                    freeColors.RemoveAt(randomizedColorIndex);
+                }
+                else if (selectedColorValid)
+                {
+                    // No free colors left, but the player's explicit selection is valid; use it.
+                    ColorIndex = mpColors[selectedColorId].GameColorIndex;
+                }
+                else
+                {
+                    // No free colors and no valid explicit selection; fall back to a random color from the full list.
+                    ColorIndex = mpColors[random.Next(0, mpColors.Count)].GameColorIndex;
+                }
             }
             else
             {
-                ColorIndex = mpColors[pInfo.ColorId - 1].GameColorIndex;
-                freeColors.Remove(pInfo.ColorId - 1);
+                // The player has selected a specific color. Always honor that choice
+                // (GameLobbyBase.Randomize has already removed it from the global pool,
+                // so it may not appear in the local freeColors list passed here).
+                ColorIndex = mpColors[selectedColorId].GameColorIndex;
+                freeColors.Remove(selectedColorId);
             }
         }
 
