@@ -67,6 +67,12 @@ namespace DTAClient.Domain.Multiplayer
                 // The player has selected Random or Spectator
                 SideIndex = PickRandomAllowedSide();
             }
+
+            if (pInfo.SideId == 0 || pInfo.SideId == sideCount + randomCount)
+            {
+                // The player has selected Random or Spectator
+                SideIndex = PickRandomAllowedSide();
+            }
             else
             {
                 // Use custom random selector.
@@ -121,37 +127,42 @@ namespace DTAClient.Domain.Multiplayer
         /// <param name="freeColors">The list of available (un-used) colors.</param>
         /// <param name="mpColors">The list of all multiplayer colors.</param>
         /// <param name="random">Random number generator.</param>
-        public void RandomizeColor(PlayerInfo pInfo, List<int> freeColors, 
+        public void RandomizeColor(PlayerInfo pInfo, List<int> freeColors,
             List<MultiplayerColor> mpColors, Random random)
         {
-            if (pInfo.ColorId == 0)
+            int selectedColorId = pInfo.ColorId - 1;
+            bool selectedColorValid = selectedColorId >= 0 && selectedColorId < mpColors.Count;
+
+            if (pInfo.ColorId == 0 || !selectedColorValid)
             {
-                // The player has selected Random for their color
-
-                int randomizedColorIndex = random.Next(0, freeColors.Count);
-                int actualColorId = freeColors[randomizedColorIndex];
-
-                ColorIndex = mpColors[actualColorId].GameColorIndex;
-                freeColors.RemoveAt(randomizedColorIndex);
-            }
-            else
-            {
-                int selectedColorId = pInfo.ColorId - 1;
-
-                if (freeColors.Contains(selectedColorId))
+                // The player has selected Random for their color, or their selected color index is invalid.
+                // Pick a random color from the pool of still-available colors.
+                if (freeColors.Count > 0)
                 {
-                    ColorIndex = mpColors[selectedColorId].GameColorIndex;
-                    freeColors.Remove(selectedColorId);
-                }
-                else
-                {
-                    // Selected color is unavailable (disallowed or already taken); fall back to random
                     int randomizedColorIndex = random.Next(0, freeColors.Count);
                     int actualColorId = freeColors[randomizedColorIndex];
 
                     ColorIndex = mpColors[actualColorId].GameColorIndex;
                     freeColors.RemoveAt(randomizedColorIndex);
                 }
+                else if (selectedColorValid)
+                {
+                    // No free colors left, but the player's explicit selection is valid; use it.
+                    ColorIndex = mpColors[selectedColorId].GameColorIndex;
+                }
+                else
+                {
+                    // No free colors and no valid explicit selection; fall back to a random color from the full list.
+                    ColorIndex = mpColors[random.Next(0, mpColors.Count)].GameColorIndex;
+                }
+            }
+            else
+            {
+                // The player has selected a specific color. Always honor that choice
+                // (GameLobbyBase.Randomize has already removed it from the global pool,
+                // so it may not appear in the local freeColors list passed here).
+                ColorIndex = mpColors[selectedColorId].GameColorIndex;
+                freeColors.Remove(selectedColorId);
             }
         }
 
