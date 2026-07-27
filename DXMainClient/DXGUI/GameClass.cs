@@ -171,9 +171,10 @@ namespace DTAClient.DXGUI
             {
                 wm.EnableResizing(true);
                 // Set minimum window size to prevent window from being too small to display UI properly.
-                wm.SetMinimumSize(
-                    ClientConfiguration.Instance.MinimumRenderWidth,
-                    ClientConfiguration.Instance.MinimumRenderHeight);
+                if (!ClientConfiguration.Instance.AllowClientMinimumRenderIndefinitely)
+                    wm.SetMinimumSize(
+                        ClientConfiguration.Instance.MinimumRenderWidth,
+                        ClientConfiguration.Instance.MinimumRenderHeight);
             }
 
             // The IME text input rectangle needs to follow the window size
