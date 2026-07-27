@@ -804,11 +804,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 // new player, and it also sends an options broadcast message
                 //CopyPlayerDataToUI(); This is also called by ChangeMap()
                 ChangeMap(GameModeMap);
-                BroadcastPlayerOptions();
                 BroadcastPlayerExtraOptions();
                 BroadcastPlayerNameOptions();
                 BroadcastAIQuickOptions();
                 BroadcastDropDownCustomValues();
+                BroadcastPlayerOptions();
                 UpdateDiscordPresence();
             }
             else
