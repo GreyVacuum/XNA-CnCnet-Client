@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ClientCore;
 using ClientGUI;
 using ClientCore.Extensions;
@@ -38,6 +39,7 @@ namespace DTAClient.DXGUI.Multiplayer
         private bool _hasReceivedHostState = false;
 
         public EventHandler OptionsChanged;
+        public EventHandler<List<string>> SameNameDetected;
 
         private XNAClientCheckBox chkAllowCustomNames;
         private XNAClientCheckBox chkEnableCustomName;
@@ -53,6 +55,8 @@ namespace DTAClient.DXGUI.Multiplayer
         /// </summary>
         private Dictionary<string, string> otherCustomNames = new Dictionary<string, string>();
         private Dictionary<string, bool> otherCustomNameEnabled = new Dictionary<string, bool>();
+
+        private List<string> currentPlayerNames = new List<string>();
 
         public PlayerNameOptionsPanel(WindowManager windowManager) : base(windowManager)
         {
@@ -90,6 +94,42 @@ namespace DTAClient.DXGUI.Multiplayer
                 !string.IsNullOrEmpty(customName))
                 return customName;
             return lobbyName;
+        }
+
+        /// <summary>
+        /// Checks for duplicate player names among all players including local player.
+        /// Returns a list of duplicate names if any are found.
+        /// </summary>
+        /// <param name="playerNames">List of lobby names of all players in the game</param>
+        /// <returns>List of duplicate names, or empty list if no duplicates</returns>
+        public List<string> CheckForDuplicateNames(List<string> playerNames)
+        {
+            if (!ClientConfiguration.Instance.UseNetPlayerSameNameRecognition)
+                return new List<string>();
+
+            var effectiveNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var duplicates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string lobbyName in playerNames)
+            {
+                string effectiveName = lobbyName == ProgramConstants.PLAYERNAME
+                    ? GetEffectiveLocalName()
+                    : GetEffectivePlayerName(lobbyName);
+
+                if (string.IsNullOrEmpty(effectiveName))
+                    continue;
+
+                if (effectiveNames.ContainsKey(effectiveName))
+                {
+                    duplicates.Add(effectiveName);
+                }
+                else
+                {
+                    effectiveNames[effectiveName] = 1;
+                }
+            }
+
+            return duplicates.ToList();
         }
 
         public override void Initialize()
@@ -287,6 +327,8 @@ namespace DTAClient.DXGUI.Multiplayer
             if (otherPlayerTextBoxes == null || otherPlayerSlots == null)
                 return;
 
+            currentPlayerNames = playerNames.ToList();
+
             int idx = 0;
             foreach (string name in playerNames)
             {
@@ -317,6 +359,19 @@ namespace DTAClient.DXGUI.Multiplayer
             }
 
             UpdateSlotWidths();
+            DetectDuplicateNames();
+        }
+
+        private void DetectDuplicateNames()
+        {
+            if (!ClientConfiguration.Instance.UseNetPlayerSameNameRecognition)
+                return;
+
+            var duplicates = CheckForDuplicateNames(currentPlayerNames);
+            if (duplicates.Count > 0)
+            {
+                SameNameDetected?.Invoke(this, duplicates);
+            }
         }
 
         /// <summary>
