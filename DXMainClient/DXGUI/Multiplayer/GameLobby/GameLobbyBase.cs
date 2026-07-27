@@ -504,6 +504,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 PlayerNameOptionsPanel.Disable();
 
                 PlayerNameOptionsPanel.OptionsChanged += PlayerNameOptions_OptionsChanged;
+                PlayerNameOptionsPanel.SameNameDetected += PlayerNameOptionsPanel_SameNameDetected;
                 btnPlayerNameOptionsOpen.LeftClick += BtnPlayerNameOptions_LeftClick;
             }
         }
@@ -519,6 +520,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         protected virtual void PlayerNameOptions_OptionsChanged(object sender, EventArgs e)
         {
             BroadcastPlayerNameOptions();
+        }
+
+        private void PlayerNameOptionsPanel_SameNameDetected(object sender, List<string> duplicateNames)
+        {
+            AddNotice(string.Format("Duplicate player names detected: {0}. Multiplayer game may not work properly.".L10N("Client:Main:DuplicatePlayerNameWarning"), string.Join(", ", duplicateNames)), Color.Yellow);
         }
 
         protected virtual void BroadcastPlayerNameOptions() { }

@@ -518,6 +518,8 @@ namespace ClientCore
         /// </summary>
         public bool ShowDevelopmentBuildWarnings => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(ShowDevelopmentBuildWarnings), true);
 
+        public bool UseNetPlayerSameNameRecognition => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(UseNetPlayerSameNameRecognition), true);
+
         #endregion
 
         #region Network definitions

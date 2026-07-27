@@ -906,6 +906,20 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             }
 
+            // Check for duplicate player names (host only)
+            if (ClientConfiguration.Instance.UseNetPlayerSameNameRecognition && PlayerNameOptionsPanel != null)
+            {
+                var duplicates = PlayerNameOptionsPanel.CheckForDuplicateNames(Players.ConvertAll(p => p.Name));
+                if (duplicates.Count > 0)
+                {
+                    XNAMessageBox.Show(WindowManager,
+                        "Duplicate Player Names".L10N("Client:Main:DuplicatePlayerNamesTitle"),
+                        string.Format("Duplicate player names detected: {0}. Multiplayer game may not work properly. Please change the names before starting the game.".L10N("Client:Main:DuplicatePlayerNamesMessage"),
+                            string.Join(", ", duplicates)));
+                    return;
+                }
+            }
+
             HostLaunchGame();
         }
 
