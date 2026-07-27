@@ -22,6 +22,7 @@ namespace ClientCore
         public const string COMPATIBILITY = "Compatibility";
         public const string GAME_FILTERS = "GameFilters";
         public const string GAME_OPTION_FILTERS = "GameOptionFilters";
+        public const string PHOBOS = "Phobos";
         private const string FAVORITE_MAPS = "FavoriteMaps";
 
         private const bool DEFAULT_SHOW_FRIENDS_ONLY_GAMES = false;
@@ -173,6 +174,7 @@ namespace ClientCore
             Difficulty = new IntSetting(iniFile, OPTIONS, "Difficulty", 1);
             ScrollDelay = new IntSetting(iniFile, OPTIONS, "ScrollDelay", 4);
             GameSpeed = new IntSetting(iniFile, OPTIONS, "GameSpeed", 1);
+            CampaignDefaultGameSpeed = new IntSetting(iniFile, PHOBOS, "CampaignDefaultGameSpeed", 4);
             ForceLowestDetailLevel = new BoolSetting(iniFile, VIDEO, "ForceLowestDetailLevel", false);
             MinimizeWindowsOnGameStart = new BoolSetting(iniFile, OPTIONS, "MinimizeWindowsOnGameStart", true);
             AutoRemoveUnderscoresFromName = new BoolSetting(iniFile, OPTIONS, "AutoRemoveUnderscoresFromName", true);
@@ -344,6 +346,8 @@ namespace ClientCore
         public IntSetting Difficulty { get; private set; }
 
         public IntSetting GameSpeed { get; private set; }
+
+        public IntSetting CampaignDefaultGameSpeed { get; private set; }
 
         public IntSetting ScrollDelay { get; private set; }
 

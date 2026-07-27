@@ -520,6 +520,11 @@ namespace ClientCore
         /// </summary>
         public bool ShowDevelopmentBuildWarnings => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(ShowDevelopmentBuildWarnings), true);
 
+        /// <summary>
+        /// Enables the game speed slider (1-7) in the campaign selector.
+        /// </summary>
+        public bool CampaignGameSpeedControlEnable => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(CampaignGameSpeedControlEnable), false);
+
         public bool UseNetPlayerSameNameRecognition => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(UseNetPlayerSameNameRecognition), true);
 
         #endregion
