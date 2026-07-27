@@ -1141,7 +1141,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (!IsHost || PlayerAIQuickOptionsPanel == null)
                 return;
             var options = GetAIQuickOptions();
-            channel.SendCTCPMessage(options.ToCncnetMessage(), QueuedMessageType.GAME_PLAYERS_MESSAGE, 11, true);
+            channel.SendCTCPMessage(options.ToCncnetMessage(), QueuedMessageType.GAME_AI_QUICK_OPTIONS_MESSAGE, 11, true);
         }
 
         private void ApplyAIQuickOptionsHandler(string sender, string message)
@@ -1163,7 +1163,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 return;
 
             string message = $"{PlayerNameOptionsMessageKey} {PlayerNameOptionsPanel.ToMessage()}";
-            channel.SendCTCPMessage(message, QueuedMessageType.GAME_PLAYERS_MESSAGE, 11, true);
+            channel.SendCTCPMessage(message, QueuedMessageType.GAME_PLAYERS_NAME_MESSAGE, 11, true);
         }
 
         private void ApplyPlayerNameOptionsHandler(string sender, string message)

@@ -1,4 +1,4 @@
-﻿namespace DTAClient.Online
+namespace DTAClient.Online
 {
     /// <summary>
     /// The type of a CnCNet IRC network message.
@@ -20,5 +20,7 @@
         WHOIS_MESSAGE,
         INSTANT_MESSAGE,
         GAME_PLAYERS_EXTRA_MESSAGE,
+        GAME_PLAYERS_NAME_MESSAGE,
+        GAME_AI_QUICK_OPTIONS_MESSAGE,
     }
 }
