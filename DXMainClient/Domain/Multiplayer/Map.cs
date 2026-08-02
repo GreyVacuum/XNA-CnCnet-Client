@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -103,6 +103,28 @@ namespace DTAClient.Domain.Multiplayer
         /// </summary>
         [JsonInclude]
         public string SpawnIniBriefing { get; private set; }
+
+        /// <summary>
+        /// When enabled, writes the [Campaigns] and [SpawnCooperative] sections
+        /// into spawn.ini so the spawner treats the multiplayer map as a
+        /// cooperative campaign scenario. Default is disabled (No).
+        /// </summary>
+        [JsonInclude]
+        public bool CooperativeLoadScreenEnabled { get; private set; }
+
+        /// <summary>
+        /// Optional load screen file path written to spawn.ini as
+        /// CampaignLoadScreen under [SpawnCooperative]. Empty by default.
+        /// </summary>
+        [JsonInclude]
+        public string CooperativeLoadScreen { get; private set; } = string.Empty;
+
+        /// <summary>
+        /// Optional load screen palette file path written to spawn.ini as
+        /// CampaignLoadScreenPallet under [SpawnCooperative]. Empty by default.
+        /// </summary>
+        [JsonInclude]
+        public string CooperativeLoadScreenPallet { get; private set; } = string.Empty;
 
         /// <summary>
         /// The author of the map.
@@ -275,6 +297,11 @@ namespace DTAClient.Domain.Multiplayer
                 // Read spawn.ini briefing if present (do not L10N - spawn.ini expects csf tags/raw text)
                 SpawnIniBriefing = section.GetStringValue("SpawnIniBriefing", string.Empty)
                     .FromIniString();
+
+                // Read cooperative load screen settings (do not L10N - spawn.ini expects raw text)
+                CooperativeLoadScreenEnabled = section.GetBooleanValue("CooperativeLoadScreenSettings", false);
+                CooperativeLoadScreen = section.GetStringValue("CooperativeLoadScreen", string.Empty);
+                CooperativeLoadScreenPallet = section.GetStringValue("CooperativeLoadScreenPallet", string.Empty);
 
                 CalculateSHA();
 
@@ -514,6 +541,11 @@ namespace DTAClient.Domain.Multiplayer
                 SpawnIniBriefing = basicSection.GetStringValue("SpawnIniBriefing", string.Empty)
                     .FromIniString();
 
+                // Read cooperative load screen settings from custom map INI (do not L10N - spawn.ini expects raw text)
+                CooperativeLoadScreenEnabled = basicSection.GetBooleanValue("CooperativeLoadScreenSettings", false);
+                CooperativeLoadScreen = basicSection.GetStringValue("CooperativeLoadScreen", string.Empty);
+                CooperativeLoadScreenPallet = basicSection.GetStringValue("CooperativeLoadScreenPallet", string.Empty);
+
                 CalculateSHA();
 
                 InitializeBaseSettingsFromIniSection(basicSection, isCustomMap: true);
@@ -655,7 +687,7 @@ namespace DTAClient.Domain.Multiplayer
                 {
                     Logger.Log($"MissionSpawnMapIniOptions source section \"{sourceSection}\" not found in map {BaseFilePath}");
                     continue;
-                }
+        }
 
                 var option = new MissionSpawnMapIniOption
                 {
@@ -808,6 +840,25 @@ namespace DTAClient.Domain.Multiplayer
 
             if (Bases > -1)
                 spawnIni.SetBooleanValue("Settings", "Bases", Convert.ToBoolean(Bases));
+
+            // Write cooperative campaign load screen sections so the spawner
+            // treats the multiplayer map as a cooperative campaign scenario.
+            // Enabled via CooperativeLoadScreenSettings=Yes in MPMaps.ini or
+            // custom map INI [Basic].
+            if (CooperativeLoadScreenEnabled)
+            {
+                spawnIni.SetStringValue("Campaigns", "Campaigns", "SpawnCooperative");
+
+                spawnIni.SetIntValue("SpawnCooperative", "NumberOfCampaignMaps", 1);
+                spawnIni.SetStringValue("SpawnCooperative", "Map1",
+                    FormattableString.Invariant($"{ProgramConstants.SPAWNMAP_INI},{ProgramConstants.SPAWNMAP_INI},{ProgramConstants.SPAWNMAP_INI}"));
+
+                if (!string.IsNullOrWhiteSpace(CooperativeLoadScreen))
+                    spawnIni.SetStringValue("SpawnCooperative", "CampaignLoadScreen", CooperativeLoadScreen);
+
+                if (!string.IsNullOrWhiteSpace(CooperativeLoadScreenPallet))
+                    spawnIni.SetStringValue("SpawnCooperative", "CampaignLoadScreenPallet", CooperativeLoadScreenPallet);
+            }
         }
 
         private static string HouseAllyIndexToString(int index)
