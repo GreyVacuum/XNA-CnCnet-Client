@@ -10,11 +10,10 @@
     <Product>CnCNet Client</Product>
     <Copyright>Copyright © CnCNet, Rampastring 2011-2026</Copyright>
     <Trademark>CnCNet</Trademark>
-    <!-- GitVersion will rewrite the informational version anyway -->
+    <Version>1.0.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-
-    <!-- There is a race condition in GitVersion. Disable writing version info should help a bit -->
-    <WriteVersionInfoToBuildLog>false</WriteVersionInfoToBuildLog>
   </PropertyGroup>
 
   <PropertyGroup>
