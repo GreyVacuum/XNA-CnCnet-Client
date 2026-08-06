@@ -1,7 +1,9 @@
-﻿using ClientCore;
+using ClientCore;
+using ClientCore.I18N;
 using Rampastring.Tools;
 using Rampastring.XNAUI;
 using Rampastring.XNAUI.XNAControls;
+using System;
 using System.Linq;
 
 namespace ClientGUI
@@ -43,21 +45,68 @@ namespace ClientGUI
 
         protected virtual void ReadChildControlAttributes(IniFile iniFile)
         {
+            bool iniFeaturesEnabled = ClientConfiguration.Instance.AllowedAllAspectsWindowINItializable;
+
+            if (iniFeaturesEnabled)
+            {
+                ProcessExpressionAttributes(iniFile, this);
+            }
+
             foreach (XNAControl child in Children)
             {
                 if (!(typeof(XNAWindowBase).IsAssignableFrom(child.GetType())))
                     child.GetAttributes(iniFile);
             }
+
+            if (iniFeaturesEnabled)
+            {
+                ProcessExpressionAttributes(iniFile, this);
+            }
         }
 
-        /// <summary>
-        /// Creates a control with a given name, using the specified GUI creator
-        /// and control type name.
-        /// </summary>
-        /// <param name="guiCreator">The <see cref="GUICreator"/> to use.</param>
-        /// <param name="controlTypeName">The name of the control's type.</param>
-        /// <param name="controlName">The name of the created control.</param>
-        /// <returns>The created control.</returns>
+        private void ProcessExpressionAttributes(IniFile iniFile, XNAControl control)
+        {
+            if (Parser.Instance == null)
+                _ = new Parser(WindowManager);
+
+            Parser.Instance.SetPrimaryControl(this);
+
+            ProcessControlExpressionAttributes(iniFile, control);
+        }
+
+        private static void ProcessControlExpressionAttributes(IniFile iniFile, XNAControl control)
+        {
+            var section = iniFile.GetSection(control.Name);
+            if (section != null)
+            {
+                foreach (var kvp in section.Keys)
+                {
+                    switch (kvp.Key)
+                    {
+                        case "$X":
+                            control.X = Parser.Instance.GetExprValue(
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                            break;
+                        case "$Y":
+                            control.Y = Parser.Instance.GetExprValue(
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                            break;
+                        case "$Width":
+                            control.Width = Parser.Instance.GetExprValue(
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                            break;
+                        case "$Height":
+                            control.Height = Parser.Instance.GetExprValue(
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                            break;
+                    }
+                }
+            }
+
+            foreach (var child in control.Children)
+                ProcessControlExpressionAttributes(iniFile, child);
+        }
+
         protected virtual XNAControl CreateControl(GUICreator guiCreator, string controlTypeName, string controlName)
         {
             var control = guiCreator.CreateControl(WindowManager, controlTypeName);
