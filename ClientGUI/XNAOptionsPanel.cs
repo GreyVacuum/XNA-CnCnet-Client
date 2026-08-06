@@ -24,6 +24,14 @@ namespace ClientGUI
 
         private readonly List<IUserSetting> userSettings = new List<IUserSetting>();
 
+        private XNAScrollPanel scrollPanel;
+
+        /// <summary>
+        /// Gets or sets whether the panel should use a scrollable container.
+        /// Can be set via INI: EnableScrolling=Yes
+        /// </summary>
+        public bool EnableScrolling { get; set; } = true;
+
         public override void Initialize()
         {
             ClientRectangle = new Rectangle(12, 47,
@@ -34,7 +42,39 @@ namespace ClientGUI
 
             base.Initialize();
 
+            if (EnableScrolling)
+            {
+                scrollPanel = new XNAScrollPanel(WindowManager);
+                scrollPanel.Name = Name + "_ScrollPanel";
+                scrollPanel.AllowScroll = (false, true);
+                scrollPanel.DrawBorders = false;
+                scrollPanel.ClientRectangle = new Rectangle(0, 0, Width, Height);
+                AddChild(scrollPanel);
+            }
+
             GameProcessLogic.GameProcessExited += GameProcessExited_Callback;
+        }
+
+        protected override void OnClientRectangleUpdated()
+        {
+            base.OnClientRectangleUpdated();
+
+            if (scrollPanel != null)
+            {
+                scrollPanel.ClientRectangle = new Rectangle(0, 0, Width, Height);
+            }
+        }
+
+        protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
+        {
+            switch (key)
+            {
+                case "EnableScrolling":
+                    EnableScrolling = Conversions.BooleanFromString(value, true);
+                    return;
+            }
+
+            base.ParseControlINIAttribute(iniFile, key, value);
         }
 
         private void GameProcessExited_Callback()
@@ -62,11 +102,21 @@ namespace ClientGUI
             GetAttributes(iniFile);
             ParseExtraControls(iniFile, Name + "ExtraControls");
             ReadChildControlAttributes(iniFile);
+
+            if (scrollPanel != null)
+                scrollPanel.RefreshScrollbars();
         }
 
         public override void AddChild(XNAControl child)
         {
-            base.AddChild(child);
+            if (EnableScrolling && scrollPanel != null && child != scrollPanel)
+            {
+                scrollPanel.AddContentChild(child);
+            }
+            else
+            {
+                base.AddChild(child);
+            }
 
             if (child is IUserSetting setting)
                 userSettings.Add(setting);
