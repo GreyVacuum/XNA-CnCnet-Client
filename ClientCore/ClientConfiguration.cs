@@ -307,6 +307,8 @@ namespace ClientCore
 
         public bool ShowGameIconInGameList => clientDefinitionsIni.GetBooleanValue(SETTINGS, "ShowGameIconInGameList", true);
 
+        public bool AllowedAllAspectsWindowINItializable => clientDefinitionsIni.GetBooleanValue(SETTINGS, "AllowedAllAspectsWindow.INItializable", true);
+
         public (string Name, string Path) GetThemeInfoFromIndex(int themeIndex) => clientDefinitionsIni.GetStringValue("Themes", themeIndex.ToString(), ",").Split(',').AsTuple2();
 
         /// <summary>
@@ -689,3 +691,5 @@ namespace ClientCore
         }
     }
 }
+
+
