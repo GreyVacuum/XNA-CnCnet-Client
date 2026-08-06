@@ -55,6 +55,33 @@ namespace ClientGUI
             GameProcessLogic.GameProcessExited += GameProcessExited_Callback;
         }
 
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
+
+            if (scrollPanel != null)
+            {
+                bool hasOpenDropDown = false;
+                CheckDropDownStates(this, ref hasOpenDropDown);
+                scrollPanel.CanHandleScrollWheel = !hasOpenDropDown;
+            }
+        }
+
+        private static void CheckDropDownStates(XNAControl control, ref bool hasOpenDropDown)
+        {
+            if (hasOpenDropDown)
+                return;
+
+            if (control is XNADropDown dd && dd.DropDownState != DropDownState.CLOSED)
+            {
+                hasOpenDropDown = true;
+                return;
+            }
+
+            foreach (var child in control.Children)
+                CheckDropDownStates(child, ref hasOpenDropDown);
+        }
+
         protected override void OnClientRectangleUpdated()
         {
             base.OnClientRectangleUpdated();
