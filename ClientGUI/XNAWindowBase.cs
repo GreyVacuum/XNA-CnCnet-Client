@@ -29,7 +29,7 @@ namespace ClientGUI
                 return;
             foreach (var kvp in section.Keys)
             {
-                string[] parts = kvp.Value.Split(':'c);
+                string[] parts = kvp.Value.Split(':');
                 if (parts.Length != 2)
                     throw new ClientConfigurationException("Invalid ExtraControl specified in " + Name + ": " + kvp.Value);
                 if (!Children.Any(child => child.Name == parts[0]))
