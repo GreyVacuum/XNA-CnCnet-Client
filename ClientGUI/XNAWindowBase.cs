@@ -1,10 +1,13 @@
 using ClientCore;
 using ClientCore.I18N;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using Rampastring.Tools;
 using Rampastring.XNAUI;
 using Rampastring.XNAUI.XNAControls;
 using System;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace ClientGUI
 {
@@ -15,11 +18,11 @@ namespace ClientGUI
             PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.TILED;
         }
 
-        /// <summary>
-        /// Reads extra control information from a specific section of an INI file.
-        /// </summary>
-        /// <param name="iniFile">The INI file.</param>
-        /// <param name="sectionName">The section.</param>
+        protected virtual IEnumerable<XNAControl> GetChildrenForINIProcessing()
+        {
+            return Children;
+        }
+
         protected virtual void ParseExtraControls(IniFile iniFile, string sectionName)
         {
             var section = iniFile.GetSection(sectionName);
@@ -99,11 +102,42 @@ namespace ClientGUI
                             control.Height = Parser.Instance.GetExprValue(
                                 Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
                             break;
+                        case "$TextAnchor":
+                            if (control is XNALabel label)
+                                label.TextAnchor = (LabelTextAnchorInfo)Enum.Parse(typeof(LabelTextAnchorInfo),
+                                    Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false));
+                            break;
+                        case "$AnchorPoint":
+                            if (control is XNALabel anchorLabel)
+                            {
+                                string[] parts = Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false).Split(',');
+                                if (parts.Length != 2)
+                                    throw new FormatException("Invalid format for AnchorPoint: " + kvp.Value);
+                                anchorLabel.AnchorPoint = new Vector2(
+                                    Parser.Instance.GetExprValue(parts[0], control),
+                                    Parser.Instance.GetExprValue(parts[1], control));
+                            }
+                            break;
+                        case "$LeftClickAction":
+                            string actionValue = Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false);
+                            if (actionValue == "Disable")
+                                control.LeftClick += (s, e) => control.Disable();
+                            break;
                     }
                 }
             }
 
-            foreach (var child in control.Children)
+            IEnumerable<XNAControl> children;
+            if (control is XNAOptionsPanel optionsPanel)
+                children = optionsPanel.GetChildrenForINIProcessing();
+            else if (control is XNAWindowBase windowBase)
+                children = windowBase.GetChildrenForINIProcessing();
+            else if (control is XNAScrollPanel scrollPanel)
+                children = scrollPanel.GetChildrenForINIProcessing();
+            else
+                children = control.Children;
+
+            foreach (var child in children)
                 ProcessControlExpressionAttributes(iniFile, child);
         }
 
