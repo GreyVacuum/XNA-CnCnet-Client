@@ -7,6 +7,7 @@ using Rampastring.XNAUI;
 using Rampastring.XNAUI.XNAControls;
 using System;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace ClientGUI
 {
@@ -25,13 +26,16 @@ namespace ClientGUI
         protected virtual void ParseExtraControls(IniFile iniFile, string sectionName)
         {
             var section = iniFile.GetSection(sectionName);
+
             if (section == null)
                 return;
+
             foreach (var kvp in section.Keys)
             {
                 string[] parts = kvp.Value.Split(':');
                 if (parts.Length != 2)
                     throw new ClientConfigurationException("Invalid ExtraControl specified in " + Name + ": " + kvp.Value);
+
                 if (!Children.Any(child => child.Name == parts[0]))
                 {
                     XNAControl control = ClientGUICreator.GetXnaControl(parts[1]);
@@ -45,15 +49,18 @@ namespace ClientGUI
         protected virtual void ReadChildControlAttributes(IniFile iniFile)
         {
             bool iniFeaturesEnabled = ClientConfiguration.Instance.AllowedAllAspectsWindowINItializable;
+
             if (iniFeaturesEnabled)
             {
                 ProcessExpressionAttributes(iniFile, this);
             }
+
             foreach (XNAControl child in Children)
             {
                 if (!(typeof(XNAWindowBase).IsAssignableFrom(child.GetType())))
                     child.GetAttributes(iniFile);
             }
+
             if (iniFeaturesEnabled)
             {
                 ProcessExpressionAttributes(iniFile, this);
@@ -64,7 +71,9 @@ namespace ClientGUI
         {
             if (Parser.Instance == null)
                 _ = new Parser(WindowManager);
+
             Parser.Instance.SetPrimaryControl(this);
+
             ProcessControlExpressionAttributes(iniFile, control);
         }
 
@@ -112,7 +121,7 @@ namespace ClientGUI
                         case "$LeftClickAction":
                             string actionValue = Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false);
                             if (actionValue == "Disable")
-                                control.LeftClick += (s, e) => Disable();
+                                control.LeftClick += (s, e) => control.Disable();
                             break;
                     }
                 }
