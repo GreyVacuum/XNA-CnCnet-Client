@@ -26,6 +26,12 @@ namespace ClientGUI
 
         private XNAScrollPanel scrollPanel;
 
+        /// <summary>
+        /// Gets or sets whether the panel should use a scrollable container.
+        /// Can be set via INI: EnableScrolling=Yes
+        /// </summary>
+        public bool EnableScrolling { get; set; } = true;
+
         public override void Initialize()
         {
             ClientRectangle = new Rectangle(12, 47,
@@ -36,12 +42,15 @@ namespace ClientGUI
 
             base.Initialize();
 
-            scrollPanel = new XNAScrollPanel(WindowManager);
-            scrollPanel.Name = Name + "_ScrollPanel";
-            scrollPanel.AllowScroll = (false, true);
-            scrollPanel.DrawBorders = false;
-            scrollPanel.ClientRectangle = new Rectangle(0, 0, Width, Height);
-            AddChild(scrollPanel);
+            if (EnableScrolling)
+            {
+                scrollPanel = new XNAScrollPanel(WindowManager);
+                scrollPanel.Name = Name + "_ScrollPanel";
+                scrollPanel.AllowScroll = (false, true);
+                scrollPanel.DrawBorders = false;
+                scrollPanel.ClientRectangle = new Rectangle(0, 0, Width, Height);
+                AddChild(scrollPanel);
+            }
 
             GameProcessLogic.GameProcessExited += GameProcessExited_Callback;
         }
@@ -50,7 +59,22 @@ namespace ClientGUI
         {
             base.OnClientRectangleUpdated();
 
-            scrollPanel.ClientRectangle = new Rectangle(0, 0, Width, Height);
+            if (scrollPanel != null)
+            {
+                scrollPanel.ClientRectangle = new Rectangle(0, 0, Width, Height);
+            }
+        }
+
+        protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
+        {
+            switch (key)
+            {
+                case "EnableScrolling":
+                    EnableScrolling = Conversions.BooleanFromString(value, true);
+                    return;
+            }
+
+            base.ParseControlINIAttribute(iniFile, key, value);
         }
 
         private void GameProcessExited_Callback()
@@ -79,12 +103,13 @@ namespace ClientGUI
             ParseExtraControls(iniFile, Name + "ExtraControls");
             ReadChildControlAttributes(iniFile);
 
-            scrollPanel.RefreshScrollbars();
+            if (scrollPanel != null)
+                scrollPanel.RefreshScrollbars();
         }
 
         public override void AddChild(XNAControl child)
         {
-            if (child != scrollPanel)
+            if (EnableScrolling && scrollPanel != null && child != scrollPanel)
             {
                 scrollPanel.AddContentChild(child);
             }
