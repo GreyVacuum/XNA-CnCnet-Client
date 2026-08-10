@@ -72,7 +72,12 @@ namespace ClientGUI
                 case "EnableScrolling":
                     EnableScrolling = Conversions.BooleanFromString(value, true);
                     if (!EnableScrolling && scrollPanel != null)
+                    {
+                        var children = scrollPanel.ExtractContentChildren();
+                        foreach (var child in children)
+                            base.AddChildWithoutInitialize(child);
                         scrollPanel.Visible = false;
+                    }
                     return;
             }
 
@@ -122,6 +127,14 @@ namespace ClientGUI
 
             if (child is IUserSetting setting)
                 userSettings.Add(setting);
+        }
+
+        protected override IEnumerable<XNAControl> GetChildrenForINIProcessing()
+        {
+            if (EnableScrolling && scrollPanel != null && scrollPanel.Visible)
+                return scrollPanel.GetChildrenForINIProcessing();
+
+            return Children;
         }
 
         protected UserINISettings IniSettings { get; private set; }
