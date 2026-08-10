@@ -71,6 +71,8 @@ namespace ClientGUI
             {
                 case "EnableScrolling":
                     EnableScrolling = Conversions.BooleanFromString(value, true);
+                    if (!EnableScrolling && scrollPanel != null)
+                        scrollPanel.Visible = false;
                     return;
             }
 
