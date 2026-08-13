@@ -42,7 +42,7 @@ namespace ClientCore
         /// <summary>
         /// The locale code that corresponds to the language the hardcoded client strings are in.
         /// </summary>
-        public const string HARDCODED_LOCALE_CODE = "en";
+        public const string HARDCODED_LOCALE_CODE = "zh";
 
         /// <summary>
         /// Used to denote <see cref="Environment.NewLine"/> in the INI files.
