@@ -147,7 +147,9 @@ namespace DTAClient.DXGUI.Campaign
 
             tbMissionDescription = new XNATextBlock(WindowManager);
             tbMissionDescription.Name = nameof(tbMissionDescription);
-            int descriptionHeight = pnlMissionPreviewEnabled ? 430 - 200 - 12 : 430;
+            int previewHeight = pnlMissionPreviewEnabled ? 200 : 0;
+            int previewGap = pnlMissionPreviewEnabled ? 12 : 0;
+            int descriptionHeight = 430 - previewHeight - previewGap;
             if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable)
                 descriptionHeight -= 100;
             tbMissionDescription.ClientRectangle = new Rectangle(
@@ -160,6 +162,26 @@ namespace DTAClient.DXGUI.Campaign
             tbMissionDescription.BackgroundTexture = AssetLoader.CreateTexture(AssetLoader.GetColorFromString(ClientConfiguration.Instance.AltUIBackgroundColor),
                 tbMissionDescription.Width, tbMissionDescription.Height);
 
+            pnlMissionPreview = new XNAPanel(WindowManager);
+            pnlMissionPreview.Name = nameof(pnlMissionPreview);
+            pnlMissionPreview.ClientRectangle = new Rectangle(
+                tbMissionDescription.X,
+                tbMissionDescription.Bottom + previewGap,
+                tbMissionDescription.Width,
+                previewHeight);
+            pnlMissionPreview.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
+
+            if (pnlMissionPreviewEnabled)
+            {
+                pnlMissionPreview.BackgroundTexture = CreateLetterboxedTexture(
+                    AssetLoader.LoadTextureUncached(defaultMissionPreviewPath),
+                    pnlMissionPreview.Width,
+                    pnlMissionPreview.Height);
+                pnlMissionPreviewBackgroundTextureNeedsDispose = true;
+            }
+
+            int nextControlY = pnlMissionPreview.Bottom + 12;
+
             var lblDifficultyLevel = new XNALabel(WindowManager);
             lblDifficultyLevel.Name = nameof(lblDifficultyLevel);
             lblDifficultyLevel.Text = "DIFFICULTY LEVEL".L10N("Client:Main:DifficultyLevel");
@@ -167,7 +189,7 @@ namespace DTAClient.DXGUI.Campaign
             Vector2 textSize = Renderer.GetTextDimensions(lblDifficultyLevel.Text, lblDifficultyLevel.FontIndex);
             lblDifficultyLevel.ClientRectangle = new Rectangle(
                 tbMissionDescription.X + (tbMissionDescription.Width - (int)textSize.X) / 2,
-                tbMissionDescription.Bottom + 12, (int)textSize.X, (int)textSize.Y);
+                nextControlY, (int)textSize.X, (int)textSize.Y);
 
             trbDifficultySelector = new XNATrackbar(WindowManager);
             trbDifficultySelector.Name = nameof(trbDifficultySelector);
@@ -270,26 +292,6 @@ namespace DTAClient.DXGUI.Campaign
             btnCancel.Text = "Cancel".L10N("Client:Main:ButtonCancel");
             btnCancel.LeftClick += BtnCancel_LeftClick;
 
-            if (pnlMissionPreviewEnabled)
-            {
-                pnlMissionPreview = new XNAPanel(WindowManager);
-                pnlMissionPreview.Name = nameof(pnlMissionPreview);
-                pnlMissionPreview.ClientRectangle = new Rectangle(
-                    tbMissionDescription.X,
-                    tbMissionDescription.Bottom + 12,
-                    tbMissionDescription.Width,
-                    200);
-
-                pnlMissionPreview.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
-
-                pnlMissionPreview.BackgroundTexture = CreateLetterboxedTexture(AssetLoader.LoadTextureUncached(defaultMissionPreviewPath), pnlMissionPreview.Width, pnlMissionPreview.Height);
-                pnlMissionPreviewBackgroundTextureNeedsDispose = true;
-            }
-            else
-            {
-                pnlMissionPreview = null;
-            }
-
             AddChild(lblSelectCampaign);
             AddChild(lblMissionDescriptionHeader);
             AddChild(lbCampaignList);
@@ -301,9 +303,7 @@ namespace DTAClient.DXGUI.Campaign
             AddChild(lblEasy);
             AddChild(lblNormal);
             AddChild(lblHard);
-
-            if (pnlMissionPreview != null)
-                AddChild(pnlMissionPreview);
+            AddChild(pnlMissionPreview);
 
             if (ClientConfiguration.Instance.CampaignTagSelectorEnabled)
             {
@@ -1012,7 +1012,7 @@ namespace DTAClient.DXGUI.Campaign
 
         private void UpdateMissionPreview(string missionPreviewFileName)
         {
-            if (pnlMissionPreview == null)
+            if (pnlMissionPreview == null || !pnlMissionPreviewEnabled)
                 return;
 
             if (pnlMissionPreviewBackgroundTextureNeedsDispose)
