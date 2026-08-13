@@ -62,7 +62,10 @@ namespace DTAClient.DXGUI.Campaign
         private XNAClientButton btnLaunch;
         private XNAClientButton btnCancel;
         private XNAClientButton btnReturn;
+        private XNAScrollPanel spnMissionDescription;
+        private XNATextRenderer trMissionDescription;
         private XNATextBlock tbMissionDescription;
+        private bool useScrollableMissionDescription;
         private XNATrackbar trbDifficultySelector;
         private XNATrackbar trbGameSpeedSelector;
         private List<IUserSetting> userSettings = new List<IUserSetting>();
@@ -145,29 +148,64 @@ namespace DTAClient.DXGUI.Campaign
                 lblSelectCampaign.Y, 0, 0);
             lblMissionDescriptionHeader.Text = "MISSION DESCRIPTION:".L10N("Client:Main:MissionDescription");
 
-            tbMissionDescription = new XNATextBlock(WindowManager);
-            tbMissionDescription.Name = nameof(tbMissionDescription);
             int previewHeight = pnlMissionPreviewEnabled ? 200 : 0;
             int previewGap = pnlMissionPreviewEnabled ? 12 : 0;
             int descriptionHeight = 430 - previewHeight - previewGap;
             if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable)
                 descriptionHeight -= 100;
-            tbMissionDescription.ClientRectangle = new Rectangle(
-                lblMissionDescriptionHeader.X,
-                lblMissionDescriptionHeader.Bottom + 6,
-                Width - 24 - lbCampaignList.Right,
-                descriptionHeight);
-            tbMissionDescription.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
-            tbMissionDescription.Alpha = 1.0f;
-            tbMissionDescription.BackgroundTexture = AssetLoader.CreateTexture(AssetLoader.GetColorFromString(ClientConfiguration.Instance.AltUIBackgroundColor),
-                tbMissionDescription.Width, tbMissionDescription.Height);
+
+            useScrollableMissionDescription = ClientConfiguration.Instance.UseScrollableMissionDescription;
+
+            if (useScrollableMissionDescription)
+            {
+                spnMissionDescription = new XNAScrollPanel(WindowManager);
+                spnMissionDescription.Name = nameof(spnMissionDescription);
+                spnMissionDescription.AllowScroll = (false, true);
+                spnMissionDescription.DrawBorders = false;
+                spnMissionDescription.ClientRectangle = new Rectangle(
+                    lblMissionDescriptionHeader.X,
+                    lblMissionDescriptionHeader.Bottom + 6,
+                    Width - 24 - lbCampaignList.Right,
+                    descriptionHeight);
+                spnMissionDescription.BackgroundTexture = AssetLoader.CreateTexture(
+                    AssetLoader.GetColorFromString(ClientConfiguration.Instance.AltUIBackgroundColor),
+                    spnMissionDescription.Width, spnMissionDescription.Height);
+                spnMissionDescription.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
+
+                // Use XNATextRenderer for multi-line text with scrolling support
+                trMissionDescription = new XNATextRenderer(WindowManager);
+                trMissionDescription.Name = nameof(trMissionDescription);
+                trMissionDescription.Padding = 0;
+                trMissionDescription.SpaceBetweenLines = 2;
+                spnMissionDescription.AddContentChild(trMissionDescription);
+            }
+            else
+            {
+                tbMissionDescription = new XNATextBlock(WindowManager);
+                tbMissionDescription.Name = nameof(tbMissionDescription);
+                tbMissionDescription.FontIndex = 0;
+                tbMissionDescription.ClientRectangle = new Rectangle(
+                    lblMissionDescriptionHeader.X,
+                    lblMissionDescriptionHeader.Bottom + 6,
+                    Width - 24 - lbCampaignList.Right,
+                    descriptionHeight);
+                tbMissionDescription.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
+                tbMissionDescription.Alpha = 1.0f;
+                tbMissionDescription.BackgroundTexture = AssetLoader.CreateTexture(
+                    AssetLoader.GetColorFromString(ClientConfiguration.Instance.AltUIBackgroundColor),
+                    tbMissionDescription.Width, tbMissionDescription.Height);
+            }
+
+            // Helper to get the mission description control bounds
+            XNAControl GetMissionDescriptionControl() => useScrollableMissionDescription ? spnMissionDescription : tbMissionDescription;
+            var missionDescControl = GetMissionDescriptionControl();
 
             pnlMissionPreview = new XNAPanel(WindowManager);
             pnlMissionPreview.Name = nameof(pnlMissionPreview);
             pnlMissionPreview.ClientRectangle = new Rectangle(
-                tbMissionDescription.X,
-                tbMissionDescription.Bottom + previewGap,
-                tbMissionDescription.Width,
+                missionDescControl.X,
+                missionDescControl.Bottom + previewGap,
+                missionDescControl.Width,
                 previewHeight);
             pnlMissionPreview.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
 
@@ -188,14 +226,14 @@ namespace DTAClient.DXGUI.Campaign
             lblDifficultyLevel.FontIndex = 1;
             Vector2 textSize = Renderer.GetTextDimensions(lblDifficultyLevel.Text, lblDifficultyLevel.FontIndex);
             lblDifficultyLevel.ClientRectangle = new Rectangle(
-                tbMissionDescription.X + (tbMissionDescription.Width - (int)textSize.X) / 2,
+                missionDescControl.X + (missionDescControl.Width - (int)textSize.X) / 2,
                 nextControlY, (int)textSize.X, (int)textSize.Y);
 
             trbDifficultySelector = new XNATrackbar(WindowManager);
             trbDifficultySelector.Name = nameof(trbDifficultySelector);
             trbDifficultySelector.ClientRectangle = new Rectangle(
-                tbMissionDescription.X, lblDifficultyLevel.Bottom + 6,
-                tbMissionDescription.Width, 30);
+                missionDescControl.X, lblDifficultyLevel.Bottom + 6,
+                missionDescControl.Width, 30);
             trbDifficultySelector.MinValue = 0;
             trbDifficultySelector.MaxValue = 2;
             trbDifficultySelector.BackgroundTexture = AssetLoader.CreateTexture(
@@ -216,7 +254,7 @@ namespace DTAClient.DXGUI.Campaign
             lblNormal.Text = "NORMAL".L10N("Client:Main:DifficultyNormal");
             textSize = Renderer.GetTextDimensions(lblNormal.Text, lblNormal.FontIndex);
             lblNormal.ClientRectangle = new Rectangle(
-                tbMissionDescription.X + (tbMissionDescription.Width - (int)textSize.X) / 2,
+                missionDescControl.X + (missionDescControl.Width - (int)textSize.X) / 2,
                 lblEasy.Y, (int)textSize.X, (int)textSize.Y);
 
             var lblHard = new XNALabel(WindowManager);
@@ -224,7 +262,7 @@ namespace DTAClient.DXGUI.Campaign
             lblHard.FontIndex = 1;
             lblHard.Text = "HARD".L10N("Client:Main:DifficultyHard");
             lblHard.ClientRectangle = new Rectangle(
-                tbMissionDescription.Right - lblHard.Width,
+                missionDescControl.Right - lblHard.Width,
                 lblEasy.Y, 1, 1);
 
             if (ClientConfiguration.Instance.CampaignGameSpeedControlEnable)
@@ -235,11 +273,11 @@ namespace DTAClient.DXGUI.Campaign
                 lblGameSpeed.FontIndex = 1;
                 textSize = Renderer.GetTextDimensions(lblGameSpeed.Text, lblGameSpeed.FontIndex);
                 lblGameSpeed.ClientRectangle = new Rectangle(
-                    tbMissionDescription.X + (tbMissionDescription.Width - (int)textSize.X) / 2,
+                    missionDescControl.X + (missionDescControl.Width - (int)textSize.X) / 2,
                     lblHard.Bottom + 28, (int)textSize.X, (int)textSize.Y);
 
-                int trackbarWidth = tbMissionDescription.Width;
-                int trackbarX = tbMissionDescription.X;
+                int trackbarWidth = missionDescControl.Width;
+                int trackbarX = missionDescControl.X;
                 Texture2D trackbarBtnTex = AssetLoader.LoadTextureUncached("trackbarButton.png");
                 int buttonWidth = trackbarBtnTex.Width;
 
@@ -295,7 +333,10 @@ namespace DTAClient.DXGUI.Campaign
             AddChild(lblSelectCampaign);
             AddChild(lblMissionDescriptionHeader);
             AddChild(lbCampaignList);
-            AddChild(tbMissionDescription);
+            if (useScrollableMissionDescription)
+                AddChild(spnMissionDescription);
+            else
+                AddChild(tbMissionDescription);
             AddChild(lblDifficultyLevel);
             AddChild(btnLaunch);
             AddChild(btnCancel);
@@ -351,7 +392,7 @@ namespace DTAClient.DXGUI.Campaign
         {
             if (lbCampaignList.SelectedIndex == -1)
             {
-                tbMissionDescription.Text = string.Empty;
+                ClearMissionDescription();
 
                 UpdateMissionPreview(string.Empty);
 
@@ -365,12 +406,12 @@ namespace DTAClient.DXGUI.Campaign
 
             if (string.IsNullOrEmpty(mission.Scenario))
             {
-                tbMissionDescription.Text = string.Empty;
+                ClearMissionDescription();
                 btnLaunch.AllowClick = false;
                 return;
             }
 
-            tbMissionDescription.Text = mission.GUIDescription;
+            SetMissionDescription(mission.GUIDescription);
 
             if (!mission.Enabled)
             {
@@ -379,6 +420,72 @@ namespace DTAClient.DXGUI.Campaign
             }
 
             btnLaunch.AllowClick = true;
+        }
+
+        private void ClearMissionDescription()
+        {
+            if (useScrollableMissionDescription)
+            {
+                trMissionDescription.ClearTextParts();
+                trMissionDescription.Height = 0;
+                spnMissionDescription.RefreshScrollbars();
+            }
+            else
+            {
+                tbMissionDescription.Text = string.Empty;
+            }
+        }
+
+        private void SetMissionDescription(string description)
+        {
+            if (useScrollableMissionDescription)
+            {
+                trMissionDescription.ClearTextParts();
+
+                // Calculate text width (account for scrollbar)
+                const int scrollBarWidth = 16;
+                int textWidth = spnMissionDescription.Width - scrollBarWidth;
+                
+                // Set the text renderer position to (0, 0) with the correct width
+                trMissionDescription.ClientRectangle = new Rectangle(0, 0, textWidth, 0);
+
+                // Split by newlines and add each line as a text part
+                // Use AddTextPart for the first line, then AddTextLine for subsequent lines
+                // to avoid adding an empty first line
+                string[] lines = description.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                if (lines.Length == 0)
+                {
+                    // Add at least one empty line to ensure the renderer has height
+                    trMissionDescription.AddTextPart(new XNATextPart(" ", 0, UISettings.ActiveSettings.TextColor));
+                }
+                else
+                {
+                    // First line uses AddTextPart (no leading newline)
+                    trMissionDescription.AddTextPart(new XNATextPart(lines[0], 0, UISettings.ActiveSettings.TextColor));
+                    
+                    // Subsequent lines use AddTextLine (adds leading newline)
+                    for (int i = 1; i < lines.Length; i++)
+                    {
+                        trMissionDescription.AddTextLine(new XNATextPart(lines[i], 0, UISettings.ActiveSettings.TextColor));
+                    }
+                }
+
+                // Prepare text (calculates height based on width and text content)
+                trMissionDescription.PrepareTextParts();
+
+                // Ensure the text renderer is positioned at (0, 0) after PrepareTextParts
+                trMissionDescription.ClientRectangle = new Rectangle(0, 0, textWidth, trMissionDescription.Height);
+
+                // Reset scroll position to top
+                spnMissionDescription.ScrollToTop();
+
+                // Refresh scrollbars based on content size
+                spnMissionDescription.RefreshScrollbars();
+            }
+            else
+            {
+                tbMissionDescription.Text = description;
+            }
         }
 
         // TODO: Modify XNAUI by adding PanelBackgroundImageDrawMode.LETTERBOXED as a new draw mode.
@@ -851,7 +958,7 @@ namespace DTAClient.DXGUI.Campaign
             lbCampaignList.SelectedIndex = -1;
 
             // The following two lines are handled by LbCampaignList_SelectedIndexChanged
-            // tbMissionDescription.Text = string.Empty;
+            // ClearMissionDescription();
             // btnLaunch.AllowClick = false;
 
             // Select missions with the filter
