@@ -45,6 +45,8 @@
     <PlatformTarget Condition="!$(Engine.Contains(XNA))">AnyCPU</PlatformTarget>
     <!-- WinForms Auto Configure -->
     <UseWindowsForms Condition="$(Engine.Contains(Windows))">true</UseWindowsForms>
+    <!-- WPF Auto Configure (required for VideoBackground) -->
+    <UseWPF Condition="$(Engine.Contains(Windows))">true</UseWPF>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'TranslationNotifierGenerator'">

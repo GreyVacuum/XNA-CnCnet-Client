@@ -146,6 +146,7 @@ namespace DTAClient.DXGUI.Generic
         private static readonly object locker = new object();
 
         private bool isMusicFading = false;
+        private bool isExiting = false;
 
         private readonly bool isMediaPlayerAvailable;
 
@@ -162,6 +163,20 @@ namespace DTAClient.DXGUI.Generic
         private XNAClientButton btnStatistics;
         private XNAClientButton btnCredits;
         private XNAClientButton btnExtras;
+
+#if ISWINDOWS
+        private VideoBackground? videoBackground;
+        private float _lastVideoVolume = -1f;
+#endif
+        private float _lastMusicVolume = -1f;
+        private string backgroundVideoFile = string.Empty;
+        private bool backgroundVideoLooping = true;
+        private bool backgroundVideoMuted = false;
+        private float backgroundVideoVolume = 100f;
+        private float backgroundVideoAlpha = 1.0f;
+        private int backgroundVideoFrameInterval = 33;
+        private bool backgroundVideoAutoPlay = true;
+        private string backgroundMusicFile = string.Empty;
 
         /// <summary>
         /// Initializes the main menu's controls.
@@ -299,6 +314,11 @@ namespace DTAClient.DXGUI.Generic
 
             base.Initialize(); // Read control attributes from INI
 
+#if ISWINDOWS
+            // Load video background after INI attributes are read
+            LoadVideoBackground();
+#endif
+
             lblVersion.Text = Updater.GameVersion;
 
             updateQueryWindow.UpdateDeclined += UpdateQueryWindow_UpdateDeclined;
@@ -368,6 +388,84 @@ namespace DTAClient.DXGUI.Generic
             }
         }
 
+        protected override void GetINIAttributes(IniFile iniFile)
+        {
+            base.GetINIAttributes(iniFile);
+
+            backgroundVideoFile = iniFile.GetStringValue(Name, "BackgroundVideo", string.Empty);
+            backgroundVideoLooping = iniFile.GetBooleanValue(Name, "BackgroundVideoLooping", true);
+            backgroundVideoMuted = iniFile.GetBooleanValue(Name, "BackgroundVideoMuted", false);
+            backgroundVideoVolume = iniFile.GetSingleValue(Name, "BackgroundVideoVolume", 100f);
+            backgroundVideoAlpha = iniFile.GetSingleValue(Name, "BackgroundVideoAlpha", 1.0f);
+            backgroundVideoFrameInterval = iniFile.GetIntValue(Name, "BackgroundVideoFrameInterval", 33);
+            backgroundVideoAutoPlay = iniFile.GetBooleanValue(Name, "BackgroundVideoAutoPlay", true);
+            backgroundMusicFile = iniFile.GetStringValue(Name, "BackgroundMusic", string.Empty);
+        }
+
+#if ISWINDOWS
+        private void LoadVideoBackground()
+        {
+            // Check if background video is enabled in user settings (default: off)
+            if (!UserINISettings.Instance.EnableBackgroundVideo.Value)
+                return;
+
+            try
+            {
+                string? videoFilePath = null;
+
+                // Get video path using same priority as MainMenuTheme:
+                // 1. [MainMenu] BackgroundVideo (highest priority)
+                // 2. [General] MainMenuThemePath + mainmenubg.mp4
+                // 3. Default MainMenu/mainmenubg.mp4
+                string videoPath = ClientConfiguration.Instance.GetMainMenuVideoName(
+                    string.IsNullOrWhiteSpace(backgroundVideoFile) ? null : backgroundVideoFile);
+
+                foreach (string searchPath in AssetLoader.AssetSearchPaths)
+                {
+                    var fileInfo = SafePath.GetFile(searchPath, videoPath);
+                    if (fileInfo.Exists)
+                    {
+                        videoFilePath = fileInfo.FullName;
+                        break;
+                    }
+                }
+
+                if (videoFilePath != null)
+                {
+                    int videoWidth = BackgroundTexture.Width;
+                    int videoHeight = BackgroundTexture.Height;
+
+                    // Video volume follows ClientVolume setting, scaled by INI multiplier
+                    float clientVolume = (float)UserINISettings.Instance.ClientVolume;
+                    float iniVolumeScale = Math.Clamp(backgroundVideoVolume / 100f, 0f, 1f);
+                    float volume = Math.Clamp(clientVolume * iniVolumeScale, 0f, 1f);
+
+                    videoBackground = new VideoBackground(
+                        GraphicsDevice,
+                        videoFilePath,
+                        videoWidth,
+                        videoHeight,
+                        backgroundVideoLooping,
+                        IsVideoAudioMuted(),
+                        volume);
+
+                    BackgroundTexture = videoBackground.Texture;
+
+                    // Video has audio and is not muted - it takes priority over background music.
+                    // The PlayMusic() method will check videoBackground and skip music if video audio is active.
+                    if (!backgroundVideoMuted)
+                    {
+                        Logger.Log("Video background loaded with audio. Background music will be suppressed when video audio plays.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Error loading video background: " + ex.ToString());
+            }
+        }
+#endif
+
         private void OptionsWindow_EnabledChanged(object sender, EventArgs e)
         {
             if (!optionsWindow.Enabled)
@@ -418,7 +516,35 @@ namespace DTAClient.DXGUI.Generic
                 {
                     PlayMusic();
                 }
+
+                // Sync music volume with client volume
+                if (MediaPlayer.State == MediaState.Playing)
+                    SetMusicVolume((float)UserINISettings.Instance.ClientVolume);
             }
+
+#if ISWINDOWS
+            // Sync video audio with the main menu music / client volume settings
+            if (videoBackground != null)
+            {
+                // When main menu music is disabled, the background video audio is muted as well
+                videoBackground.SetMuted(IsVideoAudioMuted() || !UserINISettings.Instance.PlayMainMenuMusic);
+                SyncVideoVolume();
+            }
+
+            // Keep the main menu music consistent with the effective background-video audio
+            // state so toggling "Mute Background Video" (or main menu music) takes effect without
+            // a restart: when the video is silent the menu music plays, otherwise it yields priority.
+            bool videoTakesPriority = !IsVideoAudioMuted() && UserINISettings.Instance.PlayMainMenuMusic;
+            if (videoTakesPriority)
+            {
+                if (MediaPlayer.State == MediaState.Playing)
+                    isMusicFading = true;
+            }
+            else if (UserINISettings.Instance.PlayMainMenuMusic && MediaPlayer.State != MediaState.Playing)
+            {
+                PlayMusic();
+            }
+#endif
 
             if (!connectionManager.IsConnected)
                 ProgramConstants.PLAYERNAME = UserINISettings.Instance.PlayerName;
@@ -708,8 +834,13 @@ namespace DTAClient.DXGUI.Generic
 
         private void LoadThemeSong()
         {
+            // Resolve music path with same priority as video:
+            // [MainMenu] BackgroundMusic > [General] MainMenuTheme + themePath > default
+            string musicName = ClientConfiguration.Instance.GetMainMenuMusicName(
+                string.IsNullOrWhiteSpace(backgroundMusicFile) ? null : backgroundMusicFile);
+
 #if XNA
-            themeSong = AssetLoader.LoadSong(ClientConfiguration.Instance.MainMenuMusicName);
+            themeSong = AssetLoader.LoadSong(musicName);
 #else
 
 #if GL
@@ -719,32 +850,35 @@ namespace DTAClient.DXGUI.Generic
 #endif
 
             FileInfo mainMenuMusicFile = SafePath.GetFile(ProgramConstants.GamePath, ProgramConstants.BASE_RESOURCE_PATH,
-                FormattableString.Invariant($"{ClientConfiguration.Instance.MainMenuMusicName}.{songExtension}"));
+                FormattableString.Invariant($"{musicName}.{songExtension}"));
 
             if (!mainMenuMusicFile.Exists)
                 return;
 
             try
             {
-                themeSong = Song.FromUri(ClientConfiguration.Instance.MainMenuMusicName, new Uri(mainMenuMusicFile.FullName));
+                themeSong = Song.FromUri(musicName, new Uri(mainMenuMusicFile.FullName));
             }
             catch (Exception ex)
             {
                 Logger.Log($"Error loading the theme song. Fallback to the legacy method. Have you installed 'Media Feature Pack for Windows 10/11 N'? Exception: {ex.ToString()}");
-                themeSong = AssetLoader.LoadSong(ClientConfiguration.Instance.MainMenuMusicName);
+                themeSong = AssetLoader.LoadSong(musicName);
             }
 #endif
         }
 
         private void RevertSwitchMainMenuMusicFormat()
         {
+            string musicName = ClientConfiguration.Instance.GetMainMenuMusicName(
+                string.IsNullOrWhiteSpace(backgroundMusicFile) ? null : backgroundMusicFile);
+
             FileInfo wmaBackupMainMenuMusicFile = SafePath.GetFile(ProgramConstants.GamePath, ProgramConstants.BASE_RESOURCE_PATH,
-                FormattableString.Invariant($"{ClientConfiguration.Instance.MainMenuMusicName}.bak"));
+                FormattableString.Invariant($"{musicName}.bak"));
 
             if (wmaBackupMainMenuMusicFile.Exists)
             {
                 FileInfo wmaMainMenuMusicFile = SafePath.GetFile(ProgramConstants.GamePath, ProgramConstants.BASE_RESOURCE_PATH,
-                FormattableString.Invariant($"{ClientConfiguration.Instance.MainMenuMusicName}.wma"));
+                    FormattableString.Invariant($"{musicName}.wma"));
 
                 if (wmaMainMenuMusicFile.Exists)
                     wmaMainMenuMusicFile.Delete();
@@ -1035,6 +1169,20 @@ namespace DTAClient.DXGUI.Generic
             if (isMusicFading)
                 FadeMusic(gameTime);
 
+#if ISWINDOWS
+            videoBackground?.Update();
+
+            // Keep the background video volume aligned with the live client volume setting
+            if (videoBackground != null && !videoBackground.IsMuted)
+                SyncVideoVolume();
+#endif
+
+            // Keep the main menu music volume aligned with the live client volume setting.
+            // Skipped while fading out (music off) or during the exit fade to avoid fighting those.
+            if (isMediaPlayerAvailable && !isMusicFading && !isExiting &&
+                MediaPlayer.State == MediaState.Playing)
+                SetMusicVolume((float)UserINISettings.Instance.ClientVolume);
+
             base.Update(gameTime);
         }
 
@@ -1047,7 +1195,49 @@ namespace DTAClient.DXGUI.Generic
         }
 
         /// <summary>
+        /// Sets the main menu music volume and caches the last applied value so that
+        /// the per-frame <see cref="Update"/> sync does not write redundantly.
+        /// </summary>
+        private void SetMusicVolume(float volume)
+        {
+            MediaPlayer.Volume = volume;
+            _lastMusicVolume = volume;
+        }
+
+        /// <summary>
+        /// Keeps the background video audio volume aligned with the current client
+        /// volume setting (read live) multiplied by the per-theme INI scale.
+        /// Only writes to the player when the value actually changes.
+        /// </summary>
+#if ISWINDOWS
+        private void SyncVideoVolume()
+        {
+            if (videoBackground == null)
+                return;
+
+            float clientVolume = (float)UserINISettings.Instance.ClientVolume;
+            float iniVolumeScale = Math.Clamp(backgroundVideoVolume / 100f, 0f, 1f);
+            float volume = Math.Clamp(clientVolume * iniVolumeScale, 0f, 1f);
+
+            if (Math.Abs(_lastVideoVolume - volume) > 0.001f)
+            {
+                videoBackground.SetVolume(volume);
+                _lastVideoVolume = volume;
+            }
+        }
+#endif
+
+        /// <summary>
+        /// Whether the background video audio should be silenced. True when the theme
+        /// has no audio track (BackgroundVideoMuted) or the user muted it (MuteBackgroundVideo).
+        /// </summary>
+        private bool IsVideoAudioMuted() =>
+            backgroundVideoMuted || UserINISettings.Instance.MuteBackgroundVideo.Value;
+
+        /// <summary>
         /// Attempts to start playing the menu music.
+        /// Video audio takes priority over background music:
+        /// if video is loaded and not muted, the video's audio is the primary source.
         /// </summary>
         private void PlayMusic()
         {
@@ -1056,11 +1246,34 @@ namespace DTAClient.DXGUI.Generic
 
             try
             {
+                // Priority check: if video is playing with audio, suppress background music
+#if ISWINDOWS
+                if (videoBackground != null)
+                {
+                    // Effective video mute = theme has no audio track (BackgroundVideoMuted)
+                    // OR the user muted it (MuteBackgroundVideo). When the video is not muted
+                    // and main menu music is enabled, the video takes priority (music suppressed).
+                    // When the video is muted, the menu music plays instead.
+                    if (!IsVideoAudioMuted() && UserINISettings.Instance.PlayMainMenuMusic)
+                    {
+                        // Video audio takes priority over background music - unmute video, don't play music
+                        SyncVideoVolume();
+                        videoBackground.SetMuted(false);
+                        return;
+                    }
+                    else
+                    {
+                        // Video has no audio track, or main menu music is disabled - keep video muted
+                        videoBackground.SetMuted(true);
+                    }
+                }
+#endif
+
                 if (themeSong != null && UserINISettings.Instance.PlayMainMenuMusic)
                 {
                     isMusicFading = false;
                     MediaPlayer.IsRepeating = true;
-                    MediaPlayer.Volume = (float)UserINISettings.Instance.ClientVolume;
+                    SetMusicVolume((float)UserINISettings.Instance.ClientVolume);
 
                     MediaPlayer.Play(themeSong);
                 }
@@ -1087,11 +1300,12 @@ namespace DTAClient.DXGUI.Generic
                 float step = SoundPlayer.Volume * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
                 if (MediaPlayer.Volume > step)
-                    MediaPlayer.Volume -= step;
+                    SetMusicVolume(MediaPlayer.Volume - step);
                 else
                 {
                     MediaPlayer.Stop();
                     isMusicFading = false;
+                    _lastMusicVolume = -1f;
                 }
             }
             catch (Exception ex)
@@ -1105,6 +1319,8 @@ namespace DTAClient.DXGUI.Generic
         /// </summary>
         private void FadeMusicExit()
         {
+            isExiting = true;
+
             if (!isMediaPlayerAvailable || themeSong == null)
             {
                 ExitClient();
@@ -1117,7 +1333,7 @@ namespace DTAClient.DXGUI.Generic
 
                 if (MediaPlayer.Volume > step)
                 {
-                    MediaPlayer.Volume -= step;
+                    SetMusicVolume(MediaPlayer.Volume - step);
                     AddCallback(new Action(FadeMusicExit), null);
                 }
                 else
@@ -1136,6 +1352,13 @@ namespace DTAClient.DXGUI.Generic
         {
             Logger.Log("Exiting.");
             WindowManager.CloseGame();
+
+#if ISWINDOWS
+            // Clean up video background
+            videoBackground?.Dispose();
+            videoBackground = null;
+#endif
+
             themeSong?.Dispose();
         }
 
@@ -1168,6 +1391,14 @@ namespace DTAClient.DXGUI.Generic
                 {
                     isMusicFading = true;
                 }
+
+#if ISWINDOWS
+                // Also mute video audio when music is turned off
+                if (videoBackground != null && !videoBackground.IsMuted)
+                {
+                    videoBackground.SetMuted(true);
+                }
+#endif
             }
             catch (Exception ex)
             {

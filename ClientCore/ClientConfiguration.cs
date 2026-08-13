@@ -98,14 +98,32 @@ namespace ClientCore
 
         #region Client settings
 
+        private string _mainMenuThemePath;
+        public string MainMenuThemePath => _mainMenuThemePath ??= GetMainMenuThemePath();
+        private string GetMainMenuThemePath()
+        {
+            return DTACnCNetClient_ini.GetStringValue(GENERAL, "MainMenuThemePath", string.Empty);
+        }
+
         private string _mainMenuMusicName = null;
         public string MainMenuMusicName => _mainMenuMusicName ??= GetMainMenuMusicName();
-        private string GetMainMenuMusicName()
+
+        /// <summary>
+        /// Gets the main menu music file name with priority:
+        /// [MainMenu] BackgroundMusic override > [General] MainMenuTheme (random pick) > default
+        /// </summary>
+        /// <param name="backgroundMusicOverride">
+        /// Optional override from [MainMenu] section. If set, takes highest priority.
+        /// </param>
+        public string GetMainMenuMusicName(string? backgroundMusicOverride = null)
         {
-            // 读取主题路径前缀，默认空（等价于 Resources 根目录，保持原行为）
-            // 可在 DTACnCNetClient.ini 中配置为子路径（如 "Themes/MyriaDimensionTheme"）
-            // 以便 MainMenuTheme 只需写文件名，减少重复路径书写
-            string themePath = DTACnCNetClient_ini.GetStringValue(GENERAL, "MainMenuThemePath", string.Empty);
+            // If explicitly set in [MainMenu] section, use that directly
+            if (!string.IsNullOrWhiteSpace(backgroundMusicOverride))
+                return backgroundMusicOverride;
+
+            // Read theme path prefix (empty or "Resources" = no prefix, matches original behavior)
+            // Configurable in DTACnCNetClient.ini as a sub-path (e.g. "Themes/MyriaDimensionTheme")
+            string themePath = MainMenuThemePath;
 
             string raw = DTACnCNetClient_ini.GetStringValue(GENERAL, "MainMenuTheme", "mainmenu");
             string[] parts = raw.SplitWithCleanup();
@@ -113,7 +131,6 @@ namespace ClientCore
                 ? parts[new Random().Next(parts.Length)]
                 : "mainmenu";
 
-            // themePath 为空或显式写 "Resources" 时，不添加前缀，行为与原版一致
             if (string.IsNullOrWhiteSpace(themePath) ||
                 themePath.Equals("Resources", StringComparison.OrdinalIgnoreCase))
             {
@@ -121,6 +138,28 @@ namespace ClientCore
             }
 
             return SafePath.CombineFilePath(themePath, chosen);
+        }
+
+        /// <summary>
+        /// Gets the full video file path for the main menu background.
+        /// Priority: [MainMenu] BackgroundVideo override > [General] MainMenuThemePath + mainmenubg.mp4 > default
+        /// </summary>
+        public string GetMainMenuVideoName(string? backgroundVideoOverride = null)
+        {
+            // If explicitly set in [MainMenu] section, use that
+            if (!string.IsNullOrWhiteSpace(backgroundVideoOverride))
+                return backgroundVideoOverride;
+
+            // Otherwise derive from MainMenuTheme path
+            string themePath = MainMenuThemePath;
+
+            if (string.IsNullOrWhiteSpace(themePath) ||
+                themePath.Equals("Resources", StringComparison.OrdinalIgnoreCase))
+            {
+                return "MainMenu/mainmenubg.mp4";
+            }
+
+            return SafePath.CombineFilePath(themePath, "mainmenubg.mp4");
         }
 
         public float DefaultAlphaRate => DTACnCNetClient_ini.GetSingleValue(GENERAL, "AlphaRate", 0.005f);

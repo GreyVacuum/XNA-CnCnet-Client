@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>CnCNet Client UI Library</Description>
   </PropertyGroup>
@@ -12,6 +12,8 @@
     <!--Remove WinForm-->
     <Compile Remove="IME\WinFormsIMEHandler.cs" />
     <None Include="IME\WinFormsIMEHandler.cs" />
+    <!-- Remove WPF video file on non-Windows platforms (UniversalGL) -->
+    <Compile Remove="VideoBackground.cs" Condition="$(Engine.Contains('Universal'))" />
   </ItemGroup>
   <ItemGroup Condition="!$(Configuration.Contains('GL'))">
     <!--Remove SDL-->

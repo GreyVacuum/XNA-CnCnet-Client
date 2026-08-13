@@ -234,6 +234,9 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
         {
             lblClientVolumeValue.Text = trbClientVolume.Value.ToString();
             WindowManager.SoundPlayer.SetVolume(trbClientVolume.Value / (float)VOLUME_SCALE);
+            // Keep the live client volume in sync so the main menu music and
+            // background video react to the slider in real time (实读)
+            IniSettings.ClientVolume.Value = trbClientVolume.Value / (double)VOLUME_SCALE;
         }
 
         public override void Load()

@@ -176,6 +176,8 @@ namespace ClientCore
             GameSpeed = new IntSetting(iniFile, OPTIONS, "GameSpeed", 1);
             CampaignDefaultGameSpeed = new IntSetting(iniFile, PHOBOS, "CampaignDefaultGameSpeed", 4);
             ForceLowestDetailLevel = new BoolSetting(iniFile, VIDEO, "ForceLowestDetailLevel", false);
+            EnableBackgroundVideo = new BoolSetting(iniFile, VIDEO, "EnableBackgroundVideo", false);
+            MuteBackgroundVideo = new BoolSetting(iniFile, VIDEO, "MuteBackgroundVideo", false);
             MinimizeWindowsOnGameStart = new BoolSetting(iniFile, OPTIONS, "MinimizeWindowsOnGameStart", true);
             AutoRemoveUnderscoresFromName = new BoolSetting(iniFile, OPTIONS, "AutoRemoveUnderscoresFromName", true);
             GenerateTranslationStub = new BoolSetting(iniFile, OPTIONS, nameof(GenerateTranslationStub), false);
@@ -222,6 +224,8 @@ namespace ClientCore
         public BoolSetting IntegerScaledClient { get; private set; }
         public IntSetting ClientFPS { get; private set; }
         public BoolSetting DisplayToggleableExtraTextures { get; private set; }
+        public BoolSetting EnableBackgroundVideo { get; private set; }
+        public BoolSetting MuteBackgroundVideo { get; private set; }
 
         /*********/
         /* AUDIO */
