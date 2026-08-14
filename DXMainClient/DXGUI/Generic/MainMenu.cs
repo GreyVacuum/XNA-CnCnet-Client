@@ -534,7 +534,10 @@ namespace DTAClient.DXGUI.Generic
             // Keep the main menu music consistent with the effective background-video audio
             // state so toggling "Mute Background Video" (or main menu music) takes effect without
             // a restart: when the video is silent the menu music plays, otherwise it yields priority.
-            bool videoTakesPriority = !IsVideoAudioMuted() && UserINISettings.Instance.PlayMainMenuMusic;
+            // NOTE: videoBackground may be null when no video file exists even if EnableBackgroundVideo
+            // is checked – in that case the video cannot take priority over music.
+            bool videoTakesPriority = videoBackground != null &&
+                !IsVideoAudioMuted() && UserINISettings.Instance.PlayMainMenuMusic;
             if (videoTakesPriority)
             {
                 if (MediaPlayer.State == MediaState.Playing)
@@ -1229,10 +1232,11 @@ namespace DTAClient.DXGUI.Generic
 
         /// <summary>
         /// Whether the background video audio should be silenced. True when the theme
-        /// has no audio track (BackgroundVideoMuted) or the user muted it (MuteBackgroundVideo).
+        /// has no audio track (BackgroundVideoMuted) or the user has not enabled the
+        /// video's sound (EnableBackgroundVideoSound = false).
         /// </summary>
         private bool IsVideoAudioMuted() =>
-            backgroundVideoMuted || UserINISettings.Instance.MuteBackgroundVideo.Value;
+            backgroundVideoMuted || !UserINISettings.Instance.EnableBackgroundVideoSound.Value;
 
         /// <summary>
         /// Attempts to start playing the menu music.
@@ -1251,9 +1255,9 @@ namespace DTAClient.DXGUI.Generic
                 if (videoBackground != null)
                 {
                     // Effective video mute = theme has no audio track (BackgroundVideoMuted)
-                    // OR the user muted it (MuteBackgroundVideo). When the video is not muted
-                    // and main menu music is enabled, the video takes priority (music suppressed).
-                    // When the video is muted, the menu music plays instead.
+                    // OR the user has not enabled the video sound (EnableBackgroundVideoSound = false).
+                    // When the video is not muted and main menu music is enabled, the video takes
+                    // priority (music suppressed). When the video is muted, the menu music plays instead.
                     if (!IsVideoAudioMuted() && UserINISettings.Instance.PlayMainMenuMusic)
                     {
                         // Video audio takes priority over background music - unmute video, don't play music

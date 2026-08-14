@@ -49,7 +49,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
         private XNAClientDropDown ddClientTheme;
         private XNAClientDropDown ddTranslation;
         private XNAClientCheckBox chkEnableBackgroundVideo;
-        private XNAClientCheckBox chkMuteBackgroundVideo;
+        private XNAClientCheckBox chkEnableBackgroundVideoSound;
 
         private XNALabel lblCompatibilityFixes;
         private XNALabel lblGameCompatibilityFix;
@@ -304,19 +304,19 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
                 When enabled, a video file (mainmenubg.mp4) from the active theme
                 will be played as the main menu background. This may reduce performance.
                 """.L10N("Client:DTAConfig:EnableBackgroundVideoToolTip");
-            chkEnableBackgroundVideo.CheckedChanged += ChkEnableBackgroundVideo_CheckedChanged;
 
-            chkMuteBackgroundVideo = new XNAClientCheckBox(WindowManager);
-            chkMuteBackgroundVideo.Name = nameof(chkMuteBackgroundVideo);
-            chkMuteBackgroundVideo.ClientRectangle = new Rectangle(
+            chkEnableBackgroundVideoSound = new XNAClientCheckBox(WindowManager);
+            chkEnableBackgroundVideoSound.Name = nameof(chkEnableBackgroundVideoSound);
+            chkEnableBackgroundVideoSound.ClientRectangle = new Rectangle(
                 chkEnableBackgroundVideo.X + 36,
                 chkEnableBackgroundVideo.Bottom + 24, 0, 0);
-            chkMuteBackgroundVideo.Text = "Mute Background Video".L10N("Client:DTAConfig:MuteBackgroundVideo");
-            chkMuteBackgroundVideo.ToolTipText =
+            chkEnableBackgroundVideoSound.Text = "Enable Background Video Sound".L10N("Client:DTAConfig:EnableBackgroundVideoSound");
+            chkEnableBackgroundVideoSound.ToolTipText =
                 """
-                When enabled, the background video's audio track is silenced and the
-                main menu music is played instead. Requires the background video to be enabled.
-                """.L10N("Client:DTAConfig:MuteBackgroundVideoToolTip");
+                When enabled, the background video's audio track is played and takes
+                priority over the main menu music. When disabled, the video is silenced
+                and the main menu music is played instead.
+                """.L10N("Client:DTAConfig:EnableBackgroundVideoSoundToolTip");
 
             if (ClientConfiguration.Instance.ClientGameType == ClientType.TS && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -333,7 +333,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             AddChild(lblTranslation);
             AddChild(ddTranslation);
             AddChild(chkEnableBackgroundVideo);
-            AddChild(chkMuteBackgroundVideo);
+            AddChild(chkEnableBackgroundVideoSound);
             AddChild(lblClientResolution);
             AddChild(ddClientResolution);
             AddChild(lblRenderer);
@@ -557,15 +557,6 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             chkBorderlessWindowedMode.Checked = false;
         }
 
-        private void ChkEnableBackgroundVideo_CheckedChanged(object sender, EventArgs e)
-        {
-            // Muting the background video only makes sense when the video is enabled
-            chkMuteBackgroundVideo.AllowChecking = chkEnableBackgroundVideo.Checked;
-
-            if (!chkEnableBackgroundVideo.Checked)
-                chkMuteBackgroundVideo.Checked = false;
-        }
-
         /// <summary>
         /// Loads the user's preferred renderer.
         /// </summary>
@@ -673,9 +664,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             }
 
             chkEnableBackgroundVideo.Checked = IniSettings.EnableBackgroundVideo.Value;
-            chkMuteBackgroundVideo.Checked = IniSettings.MuteBackgroundVideo.Value;
-            // Muting the background video only makes sense when the video is enabled
-            chkMuteBackgroundVideo.AllowChecking = chkEnableBackgroundVideo.Checked;
+            chkEnableBackgroundVideoSound.Checked = IniSettings.EnableBackgroundVideoSound.Value;
         }
 
         public override bool Save()
@@ -799,7 +788,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
             IniSettings.EnableBackgroundVideo.Value = chkEnableBackgroundVideo.Checked;
 
-            IniSettings.MuteBackgroundVideo.Value = chkMuteBackgroundVideo.Checked;
+            IniSettings.EnableBackgroundVideoSound.Value = chkEnableBackgroundVideoSound.Checked;
 
             return restartRequired;
         }
