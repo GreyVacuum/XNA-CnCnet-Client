@@ -43,6 +43,8 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         private XNAClientButton btnCancel;
         private XNAClientButton btnLoadMPGame;
         private XNAClientButton btnDisplayAdvancedOptions;
+        private XNAClientButton btnAutoSelectTunnel;
+        private XNAClientButton btnSaveDefaultTunnel;
 
         private TunnelHandler tunnelHandler;
 
@@ -141,6 +143,28 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             lbTunnelList.Y = lblTunnelServer.Bottom + UIDesignConstants.CONTROL_VERTICAL_MARGIN;
             lbTunnelList.Disable();
             lbTunnelList.ListRefreshed += LbTunnelList_ListRefreshed;
+            lbTunnelList.SelectedIndexChanged += LbTunnelList_SelectedIndexChanged;
+
+            btnAutoSelectTunnel = new XNAClientButton(WindowManager);
+            btnAutoSelectTunnel.Name = nameof(btnAutoSelectTunnel);
+            btnAutoSelectTunnel.ClientRectangle = new Rectangle(UIDesignConstants.EMPTY_SPACE_SIDES +
+                UIDesignConstants.CONTROL_HORIZONTAL_MARGIN, lbTunnelList.Bottom + UIDesignConstants.CONTROL_VERTICAL_MARGIN,
+                UIDesignConstants.BUTTON_WIDTH_121, UIDesignConstants.BUTTON_HEIGHT);
+            btnAutoSelectTunnel.Text = "Auto Select".L10N("Client:Main:AutoSelectTunnel");
+            btnAutoSelectTunnel.LeftClick += BtnAutoSelectTunnel_LeftClick;
+            btnAutoSelectTunnel.Disable();
+            btnAutoSelectTunnel.Visible = false;
+
+            btnSaveDefaultTunnel = new XNAClientButton(WindowManager);
+            btnSaveDefaultTunnel.Name = nameof(btnSaveDefaultTunnel);
+            btnSaveDefaultTunnel.ClientRectangle = new Rectangle(
+                Width - UIDesignConstants.BUTTON_WIDTH_121 - UIDesignConstants.EMPTY_SPACE_SIDES - UIDesignConstants.CONTROL_HORIZONTAL_MARGIN,
+                lbTunnelList.Bottom + UIDesignConstants.CONTROL_VERTICAL_MARGIN,
+                UIDesignConstants.BUTTON_WIDTH_121, UIDesignConstants.BUTTON_HEIGHT);
+            btnSaveDefaultTunnel.Text = "Save as Default".L10N("Client:Main:SaveTunnelAsDefault");
+            btnSaveDefaultTunnel.LeftClick += BtnSaveDefaultTunnel_LeftClick;
+            btnSaveDefaultTunnel.Disable();
+            btnSaveDefaultTunnel.Visible = false;
 
             btnCreateGame = new XNAClientButton(WindowManager);
             btnCreateGame.Name = nameof(btnCreateGame);
@@ -176,6 +200,8 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             AddChild(btnDisplayAdvancedOptions);
             AddChild(lblTunnelServer);
             AddChild(lbTunnelList);
+            AddChild(btnAutoSelectTunnel);
+            AddChild(btnSaveDefaultTunnel);
             AddChild(btnCreateGame);
             if (!ClientConfiguration.Instance.DisableMultiplayerGameLoading)
                 AddChild(btnLoadMPGame);
@@ -199,12 +225,34 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             {
                 btnCreateGame.AllowClick = false;
                 btnLoadMPGame.AllowClick = false;
+                btnSaveDefaultTunnel.AllowClick = false;
+                btnSaveDefaultTunnel.Text = lbTunnelList.GetSaveDefaultButtonText();
             }
             else
             {
                 btnCreateGame.AllowClick = true;
                 btnLoadMPGame.AllowClick = AllowLoadingGame();
+                // Dim "Save as Default" (and show "Saved as Default") when the refreshed
+                // selection already matches the saved default.
+                UpdateSaveDefaultButton();
             }
+        }
+
+        private void LbTunnelList_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (btnSaveDefaultTunnel.Visible)
+                UpdateSaveDefaultButton();
+        }
+
+        /// <summary>
+        /// Refreshes the "Save as Default" button: it dims (and reads "Saved as Default") when the
+        /// current selection already matches the saved default, otherwise it is enabled and reads "Save as Default".
+        /// </summary>
+        private void UpdateSaveDefaultButton()
+        {
+            bool isCurrentDefault = lbTunnelList.IsCurrentSelectionDefault();
+            btnSaveDefaultTunnel.AllowClick = !isCurrentDefault && lbTunnelList.IsValidIndexSelected();
+            btnSaveDefaultTunnel.Text = lbTunnelList.GetSaveDefaultButtonText();
         }
 
         private void Instance_SettingsSaved(object sender, EventArgs e)
@@ -273,25 +321,65 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         {
             Name = "GameCreationWindow_Advanced";
 
+            const int buttonHorizontalGap = UIDesignConstants.CONTROL_HORIZONTAL_MARGIN * 2;
+
+            // Row 1: quick tunnel actions (auto + save), centered above the dialog action buttons.
+            int tunnelButtonWidth = UIDesignConstants.BUTTON_WIDTH_121;
+            int tunnelRowTotalWidth = tunnelButtonWidth * 2 + buttonHorizontalGap;
+            int tunnelRowX = (Width - tunnelRowTotalWidth) / 2;
+            int tunnelRowY = lbTunnelList.Bottom + UIDesignConstants.CONTROL_VERTICAL_MARGIN;
+
+            btnAutoSelectTunnel.ClientRectangle = new Rectangle(tunnelRowX,
+                tunnelRowY, tunnelButtonWidth, UIDesignConstants.BUTTON_HEIGHT);
+            btnAutoSelectTunnel.Enable();
+            btnAutoSelectTunnel.Visible = true;
+
+            btnSaveDefaultTunnel.ClientRectangle = new Rectangle(
+                tunnelRowX + tunnelButtonWidth + buttonHorizontalGap,
+                tunnelRowY, tunnelButtonWidth, UIDesignConstants.BUTTON_HEIGHT);
+            btnSaveDefaultTunnel.Enable();
+            btnSaveDefaultTunnel.Visible = true;
+
+            int actionRowY = tunnelRowY + UIDesignConstants.BUTTON_HEIGHT + UIDesignConstants.CONTROL_VERTICAL_MARGIN * 2;
+
             btnCreateGame.ClientRectangle = new Rectangle(btnCreateGame.X,
-                lbTunnelList.Bottom + UIDesignConstants.CONTROL_VERTICAL_MARGIN * 3,
-                btnCreateGame.Width, btnCreateGame.Height);
+                actionRowY, btnCreateGame.Width, btnCreateGame.Height);
 
             btnCancel.ClientRectangle = new Rectangle(btnCancel.X,
-                btnCreateGame.Y, btnCancel.Width, btnCancel.Height);
+                actionRowY, btnCancel.Width, btnCancel.Height);
 
             btnLoadMPGame.ClientRectangle = new Rectangle(btnLoadMPGame.X,
-                btnCreateGame.Y, btnLoadMPGame.Width, btnLoadMPGame.Height);
+                actionRowY, btnLoadMPGame.Width, btnLoadMPGame.Height);
 
             Height = btnCreateGame.Bottom + UIDesignConstants.CONTROL_VERTICAL_MARGIN + UIDesignConstants.EMPTY_SPACE_BOTTOM;
 
             lblTunnelServer.Enable();
             lbTunnelList.Enable();
+            // Re-apply the saved default tunnel when the list becomes visible, unless the
+            // player already made a manual choice earlier in this session.
+            if (lbTunnelList.ItemCount > 0)
+                lbTunnelList.ApplyPreferredTunnelOnShow();
+
+            // Refresh the button AFTER the default is applied, so it correctly reads
+            // "Saved as Default" (and dims) when the applied selection matches the saved default.
+            UpdateSaveDefaultButton();
             btnDisplayAdvancedOptions.Disable();
 
             SetAttributesFromIni();
 
             CenterOnParent();
+        }
+
+        private void BtnAutoSelectTunnel_LeftClick(object sender, EventArgs e)
+        {
+            lbTunnelList.AutoSelectBestTunnel();
+            UpdateSaveDefaultButton();
+        }
+
+        private void BtnSaveDefaultTunnel_LeftClick(object sender, EventArgs e)
+        {
+            lbTunnelList.SaveCurrentAsDefault();
+            UpdateSaveDefaultButton();
         }
 
         public void Refresh()

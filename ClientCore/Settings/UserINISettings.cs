@@ -163,6 +163,7 @@ namespace ClientCore
             AllowPrivateMessagesFromState = new IntSetting(iniFile, MULTIPLAYER, "AllowPrivateMessagesFromState", (int)AllowPrivateMessagesFromEnum.All);
             EnableMapSharing = new BoolSetting(iniFile, MULTIPLAYER, "EnableMapSharing", true);
             AlwaysDisplayTunnelList = new BoolSetting(iniFile, MULTIPLAYER, "AlwaysDisplayTunnelList", false);
+            PreferredCnCNetTunnel = new StringSetting(iniFile, MULTIPLAYER, "PreferredCnCNetTunnel", string.Empty);
             MapSortState = new IntSetting(iniFile, MULTIPLAYER, "MapSortState", (int)SortDirection.None);
             SearchAllGameModes = new BoolSetting(iniFile, MULTIPLAYER, "SearchAllGameModes", false);
 
@@ -282,6 +283,8 @@ namespace ClientCore
         public BoolSetting EnableMapSharing { get; private set; }
 
         public BoolSetting AlwaysDisplayTunnelList { get; private set; }
+
+        public StringSetting PreferredCnCNetTunnel { get; private set; }
 
         public IntSetting MapSortState { get; private set; }
 

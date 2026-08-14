@@ -1,4 +1,5 @@
 ﻿using DTAClient.Domain.Multiplayer.CnCNet;
+using ClientCore;
 using ClientCore.Extensions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -70,6 +71,17 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         private bool isManuallySelectedTunnel;
         private string manuallySelectedTunnelAddress;
 
+        private bool isPreferredSelectedTunnel;
+
+        private bool ignoreNextSelectionChange;
+
+        /// <summary>
+        /// The saved preferred (default) tunnel address, read directly from user settings.
+        /// Reading from the settings instance keeps all TunnelListBox instances in sync with
+        /// the latest saved default, regardless of which window last changed it.
+        /// </summary>
+        private string PreferredTunnelAddress => UserINISettings.Instance.PreferredCnCNetTunnel.Value;
+
 
         /// <summary>
         /// Selects a tunnel from the list with the given address.
@@ -80,10 +92,47 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             int index = tunnelHandler.Tunnels.FindIndex(t => t.Address == address);
             if (index > -1)
             {
+                ignoreNextSelectionChange = true;
                 SelectedIndex = index;
                 isManuallySelectedTunnel = true;
                 manuallySelectedTunnelAddress = address;
+                isPreferredSelectedTunnel = false;
             }
+        }
+
+        /// <summary>
+        /// Selects the saved preferred (default) tunnel, if it is present in the current
+        /// tunnel list. Used when a window opens so the player's remembered choice is
+        /// honored even if the list was refreshed before this list box existed.
+        /// </summary>
+        public void SelectPreferredTunnel()
+        {
+            string address = PreferredTunnelAddress;
+            if (string.IsNullOrEmpty(address))
+                return;
+
+            int index = tunnelHandler.Tunnels.FindIndex(t => t.Address == address);
+            if (index > -1)
+            {
+                ignoreNextSelectionChange = true;
+                SelectedIndex = index;
+                isPreferredSelectedTunnel = true;
+                isManuallySelectedTunnel = false;
+            }
+        }
+
+        /// <summary>
+        /// Applies the saved preferred (default) tunnel when the list becomes visible,
+        /// unless the player has already made a manual selection earlier in this session.
+        /// Defends against the tunnel list being refreshed before this list box subscribed
+        /// to the refresh event, which would otherwise leave the preference unapplied.
+        /// </summary>
+        public void ApplyPreferredTunnelOnShow()
+        {
+            if (isManuallySelectedTunnel)
+                return;
+
+            SelectPreferredTunnel();
         }
 
         /// <summary>
@@ -93,6 +142,31 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         /// <returns>True if tunnel with given address is selected, otherwise false.</returns>
         public bool IsTunnelSelected(string address) =>
             tunnelHandler.Tunnels.FindIndex(t => t.Address == address) == SelectedIndex;
+
+        /// <summary>
+        /// Gets whether the currently selected tunnel is already the saved preferred (default) tunnel.
+        /// </summary>
+        public bool IsCurrentSelectionDefault()
+        {
+            if (!IsValidIndexSelected())
+                return false;
+
+            string address = PreferredTunnelAddress;
+            if (string.IsNullOrEmpty(address))
+                return false;
+
+            return tunnelHandler.Tunnels[SelectedIndex].Address == address;
+        }
+
+        /// <summary>
+        /// Gets the label for the "Save as Default" button. When the current selection
+        /// already matches the saved default, it reads "Saved as Default" to reflect that no
+        /// further action is needed.
+        /// </summary>
+        public string GetSaveDefaultButtonText() =>
+            IsCurrentSelectionDefault()
+                ? "Saved as Default".L10N("Client:Main:TunnelAlreadyDefault")
+                : "Save as Default".L10N("Client:Main:SaveTunnelAsDefault");
 
         private void TunnelHandler_TunnelsRefreshed(object sender, EventArgs e)
         {
@@ -134,22 +208,42 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
 
             if (tunnelHandler.Tunnels.Count > 0)
             {
-                if (!isManuallySelectedTunnel)
-                {
-                    SelectedIndex = bestTunnelIndex;
-                    isManuallySelectedTunnel = false;
-                }
-                else
+                if (isManuallySelectedTunnel)
                 {
                     int manuallySelectedIndex = tunnelHandler.Tunnels.FindIndex(t => t.Address == manuallySelectedTunnelAddress);
 
                     if (manuallySelectedIndex == -1)
                     {
+                        ignoreNextSelectionChange = true;
                         SelectedIndex = bestTunnelIndex;
                         isManuallySelectedTunnel = false;
                     }
                     else
+                    {
+                        ignoreNextSelectionChange = true;
                         SelectedIndex = manuallySelectedIndex;
+                    }
+                }
+                else if (!string.IsNullOrEmpty(PreferredTunnelAddress))
+                {
+                    int preferredIndex = tunnelHandler.Tunnels.FindIndex(t => t.Address == PreferredTunnelAddress);
+                    if (preferredIndex > -1)
+                    {
+                        ignoreNextSelectionChange = true;
+                        SelectedIndex = preferredIndex;
+                        isPreferredSelectedTunnel = true;
+                    }
+                    else
+                    {
+                        ignoreNextSelectionChange = true;
+                        SelectedIndex = bestTunnelIndex;
+                        isPreferredSelectedTunnel = false;
+                    }
+                }
+                else
+                {
+                    ignoreNextSelectionChange = true;
+                    SelectedIndex = bestTunnelIndex;
                 }
             }
 
@@ -164,24 +258,52 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             if (tunnel.PingInMs == -1)
                 lbItem.Text = "Unknown".L10N("Client:Main:UnknownPing");
             else
-            {
                 lbItem.Text = tunnel.PingInMs + " ms";
-                int rating = GetTunnelRating(tunnel);
 
-                if (isManuallySelectedTunnel)
-                    return;
+            int rating = GetTunnelRating(tunnel);
 
-                if ((tunnel.Recommended || tunnel.Official) && rating < lowestTunnelRating)
-                {
-                    bestTunnelIndex = tunnelIndex;
-                    lowestTunnelRating = rating;
-                    SelectedIndex = tunnelIndex;
-                }
+            // Keep track of the best official/recommended tunnel in the background. This is
+            // used as the automatic fallback when there is no manual or saved-default selection,
+            // and must be updated independently of the current selection.
+            bool isNewBest = (tunnel.Recommended || tunnel.Official) && rating < lowestTunnelRating;
+
+            if (isNewBest)
+            {
+                bestTunnelIndex = tunnelIndex;
+                lowestTunnelRating = rating;
+            }
+
+            // If the saved-default (preferred) tunnel became unreachable, fall back to the best one.
+            if (isPreferredSelectedTunnel && tunnel.Address == PreferredTunnelAddress && tunnel.PingInMs == -1)
+            {
+                isPreferredSelectedTunnel = false;
+                ignoreNextSelectionChange = true;
+                SelectedIndex = bestTunnelIndex;
+                return;
+            }
+
+            // A manually chosen or saved-default (preferred) tunnel must NOT be overridden by
+            // periodic ping updates, even if another official/recommended tunnel reports a
+            // marginally better score. This is what previously discarded the player's saved default.
+            if (isManuallySelectedTunnel || isPreferredSelectedTunnel)
+                return;
+
+            // Pure automatic mode: select the tunnel if it is now the best official/recommended one.
+            if (isNewBest)
+            {
+                ignoreNextSelectionChange = true;
+                SelectedIndex = tunnelIndex;
             }
         }
 
         private int GetTunnelRating(CnCNetTunnel tunnel)
         {
+            if (tunnel.PingInMs < 0)
+                return int.MaxValue;
+
+            if (tunnel.Clients >= tunnel.MaxClients)
+                return int.MaxValue;
+
             double usageRatio = (double)tunnel.Clients / tunnel.MaxClients;
 
             if (usageRatio == 0)
@@ -189,7 +311,13 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
 
             usageRatio *= 100.0;
 
-            return Convert.ToInt32(Math.Pow(tunnel.PingInMs, 2.0) * usageRatio);
+            double rating = Math.Pow(tunnel.PingInMs, 2.0) * usageRatio;
+
+            // Slightly penalize unofficial, non-recommended tunnels because their stability is less guaranteed.
+            if (!tunnel.Official && !tunnel.Recommended)
+                rating *= 1.25;
+
+            return Convert.ToInt32(rating);
         }
 
         private void TunnelListBox_SelectedIndexChanged(object sender, EventArgs e)
@@ -197,8 +325,80 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             if (!IsValidIndexSelected())
                 return;
 
+            if (ignoreNextSelectionChange)
+            {
+                ignoreNextSelectionChange = false;
+                return;
+            }
+
             isManuallySelectedTunnel = true;
+            isPreferredSelectedTunnel = false;
             manuallySelectedTunnelAddress = tunnelHandler.Tunnels[SelectedIndex].Address;
+        }
+
+        /// <summary>
+        /// Automatically selects the currently most stable tunnel server for this session only.
+        /// It does NOT persist the choice to the local settings; use "Save as Default" to remember it.
+        /// </summary>
+        public void AutoSelectBestTunnel()
+        {
+            if (tunnelHandler.Tunnels.Count == 0)
+                return;
+
+            int bestIndex = 0;
+            int lowestRating = int.MaxValue;
+
+            for (int i = 0; i < tunnelHandler.Tunnels.Count; i++)
+            {
+                int rating = GetTunnelRating(tunnelHandler.Tunnels[i]);
+                if (rating < lowestRating)
+                {
+                    lowestRating = rating;
+                    bestIndex = i;
+                }
+            }
+
+            CnCNetTunnel bestTunnel = tunnelHandler.Tunnels[bestIndex];
+            bestTunnelIndex = bestIndex;
+            lowestTunnelRating = lowestRating;
+
+            // Treat the auto-selected server as a temporary, in-session manual choice:
+            // it sticks until the user changes it, but is not written to PreferredCnCNetTunnel.
+            manuallySelectedTunnelAddress = bestTunnel.Address;
+            isManuallySelectedTunnel = true;
+            isPreferredSelectedTunnel = false;
+
+            ignoreNextSelectionChange = true;
+            SelectedIndex = bestIndex;
+        }
+
+        /// <summary>
+        /// Saves the currently selected tunnel server as the preferred (default) tunnel,
+        /// so it is automatically selected on subsequent launches.
+        /// </summary>
+        public void SaveCurrentAsDefault()
+        {
+            if (!IsValidIndexSelected())
+                return;
+
+            CnCNetTunnel tunnel = tunnelHandler.Tunnels[SelectedIndex];
+
+            isPreferredSelectedTunnel = true;
+            isManuallySelectedTunnel = false;
+            bestTunnelIndex = SelectedIndex;
+            ignoreNextSelectionChange = true;
+            SelectedIndex = SelectedIndex;
+
+            SavePreferredTunnel(tunnel);
+        }
+
+        private void SavePreferredTunnel(CnCNetTunnel tunnel)
+        {
+            if (tunnel == null)
+                return;
+
+            UserINISettings.Instance.PreferredCnCNetTunnel.Value = tunnel.Address;
+            UserINISettings.Instance.SaveSettings();
         }
 
         private static Dictionary<string, int> ParseCountryCodeFlagOffsets()
