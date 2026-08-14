@@ -52,6 +52,13 @@ namespace ClientGUI
                     globalConstants.Add(kvp.Key, Conversions.IntFromString(kvp.Value, 0));
             }
 
+            IniSection sameNameSection = ClientConfiguration.Instance.GetSameNameConstants();
+            if (sameNameSection != null)
+            {
+                foreach (var kvp in sameNameSection.Keys)
+                    constantAliases.Add(kvp.Key, kvp.Value);
+            }
+
             _instance = this;
         }
 
@@ -59,6 +66,7 @@ namespace ClientGUI
         public static Parser Instance => _instance;
 
         private static Dictionary<string, int> globalConstants;
+        private static Dictionary<string, string> constantAliases = new Dictionary<string, string>();
 
         public string Input { get; private set; }
 
@@ -95,12 +103,49 @@ namespace ClientGUI
 
         private int GetConstant(string constantName)
         {
-            if (!globalConstants.TryGetValue(constantName, out int value))
-                throw new KeyNotFoundException($"Constant '{constantName}' not found. " +
+            // 1. Canonical [ParserConstants] lookup takes precedence.
+            if (globalConstants.TryGetValue(constantName, out int value))
+                return value;
+
+            // 2. Not a canonical constant — resolve through the [SameNameConstants] alias table
+            //    (supports chained aliases A=B, B=C and detects cyclic definitions).
+            string resolvedName = ResolveConstantName(constantName);
+
+            if (!globalConstants.TryGetValue(resolvedName, out value))
+            {
+                if (resolvedName == constantName)
+                {
+                    throw new KeyNotFoundException($"Constant '{constantName}' not found. " +
+                        $"Please check [ParserConstants] section in either {ClientConfiguration.CLIENT_SETTINGS} file, " +
+                        $"or any possible files that {ClientConfiguration.CLIENT_SETTINGS} depends on, e.g., GlobalThemeSettings.ini.");
+                }
+
+                throw new KeyNotFoundException($"Constant '{resolvedName}' (referenced by alias '{constantName}') not found. " +
                     $"Please check [ParserConstants] section in either {ClientConfiguration.CLIENT_SETTINGS} file, " +
                     $"or any possible files that {ClientConfiguration.CLIENT_SETTINGS} depends on, e.g., GlobalThemeSettings.ini.");
+            }
 
             return value;
+        }
+
+        /// <summary>
+        /// Resolves a constant name through the [SameNameConstants] alias table.
+        /// Supports chained aliases and detects cyclic definitions.
+        /// </summary>
+        private string ResolveConstantName(string name)
+        {
+            string current = name;
+            int guard = 0;
+
+            while (constantAliases.TryGetValue(current, out string target))
+            {
+                if (guard++ > 100)
+                    throw new INIConfigException($"Cyclic alias definition detected for constant '{name}'.");
+
+                current = target;
+            }
+
+            return current;
         }
 
         public void SetPrimaryControl(XNAControl primaryControl)
@@ -171,6 +216,10 @@ namespace ClientGUI
                 {
                     value = GetFunctionValue();
                 }
+                else if (char.IsLetter(c))
+                {
+                    value = GetConstantValue();
+                }
             }
         }
 
@@ -194,6 +243,10 @@ namespace ClientGUI
             else if (char.IsLower(c))
             {
                 return GetFunctionValue();
+            }
+            else if (char.IsLetter(c))
+            {
+                return GetConstantValue();
             }
             else if (c == '(')
             {
