@@ -65,9 +65,9 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
         public override void Initialize()
         {
-            base.Initialize();
-
             Name = "DisplayOptionsPanel";
+
+            base.Initialize();
 
             var lblIngameResolution = new XNALabel(WindowManager);
             lblIngameResolution.Name = nameof(lblIngameResolution);

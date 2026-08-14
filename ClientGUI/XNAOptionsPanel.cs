@@ -92,6 +92,18 @@ namespace ClientGUI
             }
         }
 
+        /// <summary>
+        /// The bottom-most Y coordinate of the panel's scrollable content.
+        /// When scrolling is disabled, falls back to the panel's own bottom.
+        /// </summary>
+        public int ContentBottom => scrollPanel != null ? scrollPanel.ContentBottom : Bottom;
+
+        /// <summary>
+        /// The right-most X coordinate of the panel's scrollable content.
+        /// When scrolling is disabled, falls back to the panel's own right.
+        /// </summary>
+        public int ContentRight => scrollPanel != null ? scrollPanel.ContentRight : Right;
+
         protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
         {
             switch (key)

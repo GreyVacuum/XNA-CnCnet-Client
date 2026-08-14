@@ -24,9 +24,9 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
         public override void Initialize()
         {
-            base.Initialize();
-
             Name = "UpdaterOptionsPanel";
+
+            base.Initialize();
 
             var lblDescription = new XNALabel(WindowManager);
             lblDescription.Name = "lblDescription";

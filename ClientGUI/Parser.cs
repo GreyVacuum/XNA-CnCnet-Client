@@ -282,9 +282,19 @@ namespace ClientGUI
                 case "getHeight":
                     return GetControl(paramName).Height;
                 case "getBottom":
-                    return GetControl(paramName).Bottom;
+                {
+                    var control = GetControl(paramName);
+                    if (control is XNAOptionsPanel optionsPanel)
+                        return optionsPanel.ContentBottom;
+                    return control.Bottom;
+                }
                 case "getRight":
-                    return GetControl(paramName).Right;
+                {
+                    var control = GetControl(paramName);
+                    if (control is XNAOptionsPanel optionsPanel)
+                        return optionsPanel.ContentRight;
+                    return control.Right;
+                }
                 case "horizontalCenterOnParent":
                     parsingControl.CenterOnParentHorizontally();
                     return parsingControl.X;
