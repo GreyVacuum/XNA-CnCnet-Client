@@ -216,6 +216,8 @@ namespace ClientCore
 
         public IniSection GetParserConstants() => DTACnCNetClient_ini.GetSection("ParserConstants");
 
+        public IniSection GetSameNameConstants() => DTACnCNetClient_ini.GetSection("SameNameConstants");
+
         #endregion
 
         #region Tool tip settings
