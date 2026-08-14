@@ -47,9 +47,9 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
         public override void Initialize()
         {
-            base.Initialize();
-
             Name = "AudioOptionsPanel";
+
+            base.Initialize();
 
             var lblScoreVolume = new XNALabel(WindowManager);
             lblScoreVolume.Name = nameof(lblScoreVolume);

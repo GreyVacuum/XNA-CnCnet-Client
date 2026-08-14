@@ -43,8 +43,8 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
         public override void Initialize()
         {
-            base.Initialize();
             Name = "CnCNetOptionsPanel";
+            base.Initialize();
 
             InitOptions();
             InitGameListPanel();

@@ -25,9 +25,9 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
         public override void Initialize()
         {
-            base.Initialize();
-
             Name = "ComponentsPanel";
+
+            base.Initialize();
 
             int componentIndex = 0;
 
