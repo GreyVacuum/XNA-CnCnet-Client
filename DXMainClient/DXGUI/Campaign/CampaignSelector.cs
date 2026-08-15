@@ -451,23 +451,16 @@ namespace DTAClient.DXGUI.Campaign
 
                 // Pre-wrap the description using the same text-fixing logic as XNATextBlock
                 // (tbMissionDescription) so spaces and newlines are handled consistently.
-                // keepBlankLines=true preserves paragraph breaks (@@ in INI).
-                var lines = Renderer.GetFixedTextLines(description, 0, textWidth, splitWords: true, keepBlankLines: true);
-                if (lines.Count == 0)
+                // FixText preserves paragraph breaks (@@ in INI) and leading spaces used for indentation.
+                string fixedText = Renderer.FixText(description, 0, textWidth - trMissionDescription.Padding * 2).Text;
+                if (string.IsNullOrEmpty(fixedText))
                 {
                     // Add at least one empty line to ensure the renderer has height
                     trMissionDescription.AddTextPart(new XNATextPart(" ", 0, UISettings.ActiveSettings.TextColor));
                 }
                 else
                 {
-                    // First line uses AddTextPart (no leading newline)
-                    trMissionDescription.AddTextPart(new XNATextPart(lines[0], 0, UISettings.ActiveSettings.TextColor));
-
-                    // Subsequent lines use AddTextLine (adds leading newline)
-                    for (int i = 1; i < lines.Count; i++)
-                    {
-                        trMissionDescription.AddTextLine(new XNATextPart(lines[i], 0, UISettings.ActiveSettings.TextColor));
-                    }
+                    trMissionDescription.AddTextPart(new XNATextPart(fixedText, 0, UISettings.ActiveSettings.TextColor));
                 }
 
                 // Prepare text (calculates height based on width and text content)
