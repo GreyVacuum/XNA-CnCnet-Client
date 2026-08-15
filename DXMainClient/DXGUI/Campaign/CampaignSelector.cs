@@ -449,11 +449,11 @@ namespace DTAClient.DXGUI.Campaign
                 // Set the text renderer position to (0, 0) with the correct width
                 trMissionDescription.ClientRectangle = new Rectangle(0, 0, textWidth, 0);
 
-                // Split by newlines and add each line as a text part
-                // Use AddTextPart for the first line, then AddTextLine for subsequent lines
-                // to avoid adding an empty first line
-                string[] lines = description.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                if (lines.Length == 0)
+                // Pre-wrap the description using the same text-fixing logic as XNATextBlock
+                // (tbMissionDescription) so spaces and newlines are handled consistently.
+                // keepBlankLines=true preserves paragraph breaks (@@ in INI).
+                var lines = Renderer.GetFixedTextLines(description, 0, textWidth, splitWords: true, keepBlankLines: true);
+                if (lines.Count == 0)
                 {
                     // Add at least one empty line to ensure the renderer has height
                     trMissionDescription.AddTextPart(new XNATextPart(" ", 0, UISettings.ActiveSettings.TextColor));
@@ -462,9 +462,9 @@ namespace DTAClient.DXGUI.Campaign
                 {
                     // First line uses AddTextPart (no leading newline)
                     trMissionDescription.AddTextPart(new XNATextPart(lines[0], 0, UISettings.ActiveSettings.TextColor));
-                    
+
                     // Subsequent lines use AddTextLine (adds leading newline)
-                    for (int i = 1; i < lines.Length; i++)
+                    for (int i = 1; i < lines.Count; i++)
                     {
                         trMissionDescription.AddTextLine(new XNATextPart(lines[i], 0, UISettings.ActiveSettings.TextColor));
                     }
