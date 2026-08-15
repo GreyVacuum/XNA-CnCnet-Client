@@ -543,7 +543,8 @@ namespace DTAClient.DXGUI.Generic
                 if (MediaPlayer.State == MediaState.Playing)
                     isMusicFading = true;
             }
-            else if (UserINISettings.Instance.PlayMainMenuMusic && MediaPlayer.State != MediaState.Playing)
+            else if (UserINISettings.Instance.PlayMainMenuMusic && MediaPlayer.State != MediaState.Playing &&
+                topBar.GetTopMostPrimarySwitchable() == this && topBar.LastSwitchType == SwitchType.PRIMARY)
             {
                 PlayMusic();
             }
