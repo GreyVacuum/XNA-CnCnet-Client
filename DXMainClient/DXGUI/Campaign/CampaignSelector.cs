@@ -200,25 +200,31 @@ namespace DTAClient.DXGUI.Campaign
             XNAControl GetMissionDescriptionControl() => useScrollableMissionDescription ? spnMissionDescription : tbMissionDescription;
             var missionDescControl = GetMissionDescriptionControl();
 
-            pnlMissionPreview = new XNAPanel(WindowManager);
-            pnlMissionPreview.Name = nameof(pnlMissionPreview);
-            pnlMissionPreview.ClientRectangle = new Rectangle(
-                missionDescControl.X,
-                missionDescControl.Bottom + previewGap,
-                missionDescControl.Width,
-                previewHeight);
-            pnlMissionPreview.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
-
+            int nextControlY;
             if (pnlMissionPreviewEnabled)
             {
+                pnlMissionPreview = new XNAPanel(WindowManager);
+                pnlMissionPreview.Name = nameof(pnlMissionPreview);
+                pnlMissionPreview.ClientRectangle = new Rectangle(
+                    missionDescControl.X,
+                    missionDescControl.Bottom + previewGap,
+                    missionDescControl.Width,
+                    previewHeight);
+                pnlMissionPreview.PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.STRETCHED;
                 pnlMissionPreview.BackgroundTexture = CreateLetterboxedTexture(
                     AssetLoader.LoadTextureUncached(defaultMissionPreviewPath),
                     pnlMissionPreview.Width,
                     pnlMissionPreview.Height);
                 pnlMissionPreviewBackgroundTextureNeedsDispose = true;
+                nextControlY = pnlMissionPreview.Bottom + 12;
             }
-
-            int nextControlY = pnlMissionPreview.Bottom + 12;
+            else
+            {
+                // No preview image available (Mission Previews/Default.png missing):
+                // skip creating the panel entirely so a zero-height panel does not
+                // render a stray 1px border line in the layout.
+                nextControlY = missionDescControl.Bottom + 12;
+            }
 
             var lblDifficultyLevel = new XNALabel(WindowManager);
             lblDifficultyLevel.Name = nameof(lblDifficultyLevel);
@@ -344,7 +350,8 @@ namespace DTAClient.DXGUI.Campaign
             AddChild(lblEasy);
             AddChild(lblNormal);
             AddChild(lblHard);
-            AddChild(pnlMissionPreview);
+            if (pnlMissionPreview != null)
+                AddChild(pnlMissionPreview);
 
             if (ClientConfiguration.Instance.CampaignTagSelectorEnabled)
             {
@@ -442,28 +449,33 @@ namespace DTAClient.DXGUI.Campaign
             {
                 trMissionDescription.ClearTextParts();
 
-                // Calculate text width (account for scrollbar)
-                const int scrollBarWidth = 16;
-                int textWidth = spnMissionDescription.Width - scrollBarWidth;
-                
-                // Set the text renderer position to (0, 0) with the correct width
+                // Feed the raw description (GUIDescription already has its @ / @@ tokens
+                // converted to \r\n by Mission.FromIniString, including the leading-space
+                // indentation) directly to XNATextRenderer. PrepareTextParts performs the
+                // line splitting and word-wrapping exactly once and preserves the leading
+                // spaces used for indentation, matching how tbMissionDescription renders.
+                // We deliberately do NOT pre-wrap with Renderer.FixText here: doing so would
+                // re-break the text and orphan the indentation onto its own empty line.
+                string textToRender = string.IsNullOrEmpty(description) ? " " : description;
+                trMissionDescription.AddTextPart(new XNATextPart(textToRender, 0, UISettings.ActiveSettings.TextColor));
+
+                // The scrollbar width depends on the active theme (Default Theme uses 16 px,
+                // MyriaDimension/Nyaruru themes use 18 px). Hard-coding 16 px leaves text
+                // spilling 2 px underneath the scrollbar. Instead, force the vertical scrollbar
+                // to become visible first by laying out with a conservative narrow width, then
+                // query the actual ViewSize.X and re-wrap to that exact viewport.
+                const int conservativeScrollBarWidth = 32;
+                int conservativeWidth = Math.Max(1, spnMissionDescription.Width - conservativeScrollBarWidth);
+                trMissionDescription.ClientRectangle = new Rectangle(0, 0, conservativeWidth, 0);
+                trMissionDescription.PrepareTextParts();
+                spnMissionDescription.RefreshScrollbars();
+
+                // Re-layout to the real visible viewport width, keeping a clear right-hand
+                // gap so the text never touches or slides under the scrollbar.
+                // 14 px gap: text stops well before the scrollbar even with text-shadow
+                // offset (1 px) and sub-pixel measurement differences taken into account.
+                int textWidth = Math.Max(1, spnMissionDescription.ViewSize.X - 14);
                 trMissionDescription.ClientRectangle = new Rectangle(0, 0, textWidth, 0);
-
-                // Pre-wrap the description using the same text-fixing logic as XNATextBlock
-                // (tbMissionDescription) so spaces and newlines are handled consistently.
-                // FixText preserves paragraph breaks (@@ in INI) and leading spaces used for indentation.
-                string fixedText = Renderer.FixText(description, 0, textWidth - trMissionDescription.Padding * 2).Text;
-                if (string.IsNullOrEmpty(fixedText))
-                {
-                    // Add at least one empty line to ensure the renderer has height
-                    trMissionDescription.AddTextPart(new XNATextPart(" ", 0, UISettings.ActiveSettings.TextColor));
-                }
-                else
-                {
-                    trMissionDescription.AddTextPart(new XNATextPart(fixedText, 0, UISettings.ActiveSettings.TextColor));
-                }
-
-                // Prepare text (calculates height based on width and text content)
                 trMissionDescription.PrepareTextParts();
 
                 // Ensure the text renderer is positioned at (0, 0) after PrepareTextParts
@@ -472,7 +484,7 @@ namespace DTAClient.DXGUI.Campaign
                 // Reset scroll position to top
                 spnMissionDescription.ScrollToTop();
 
-                // Refresh scrollbars based on content size
+                // Refresh scrollbars based on the final content size
                 spnMissionDescription.RefreshScrollbars();
             }
             else
