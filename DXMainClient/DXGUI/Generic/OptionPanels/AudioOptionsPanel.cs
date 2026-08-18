@@ -212,7 +212,14 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
         private void ChkMainMenuMusic_CheckedChanged(object sender, EventArgs e)
         {
             chkStopMusicOnMenu.AllowChecking = chkMainMenuMusic.Checked;
-            chkStopMusicOnMenu.Checked = chkMainMenuMusic.Checked;
+
+            // The lobby-music option only has meaning while main menu music is enabled:
+            // uncheck it when the parent is unchecked. Never force-check it when the
+            // parent is checked - the user's independent choice for StopMusicOnMenu
+            // must be preserved (otherwise RefreshSettings -> Load/Save would overwrite
+            // the user's INI value with the parent's state).
+            if (!chkMainMenuMusic.Checked)
+                chkStopMusicOnMenu.Checked = false;
         }
 
         private void TrbScoreVolume_ValueChanged(object sender, EventArgs e)

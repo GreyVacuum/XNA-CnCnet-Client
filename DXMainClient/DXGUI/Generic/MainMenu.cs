@@ -148,6 +148,14 @@ namespace DTAClient.DXGUI.Generic
         private bool isMusicFading = false;
         private bool isExiting = false;
 
+        /// <summary>
+        /// True while the game process is being launched (between GameProcessStarting
+        /// and GameProcessStarted). While it is set, the menu music must never be
+        /// (re)started - RefreshSettings/SaveSettings triggered by the launch flow
+        /// fires SettingsSaved, which must not resurrect the music during launch.
+        /// </summary>
+        private bool isGameProcessStarting = false;
+
         private readonly bool isMediaPlayerAvailable;
 
         private CancellationTokenSource cncnetPlayerCountCancellationSource;
@@ -477,13 +485,19 @@ namespace DTAClient.DXGUI.Generic
 
         /// <summary>
         /// Refreshes settings. Called when the game process is starting.
+        /// The game process must launch with the client fully silent: the menu music
+        /// and background video audio are stopped immediately (not faded), and the
+        /// isGameProcessStarting flag prevents SettingsSaved from restarting music
+        /// during the launch (RefreshSettings -> SaveSettings fires SettingsSaved).
         /// </summary>
         private void SharedUILogic_GameProcessStarting()
         {
-            UserINISettings.Instance.ReloadSettings();
+            isGameProcessStarting = true;
+            StopMusic();
 
             try
             {
+                UserINISettings.Instance.ReloadSettings();
                 optionsWindow.RefreshSettings();
             }
             catch (Exception ex)
@@ -511,7 +525,8 @@ namespace DTAClient.DXGUI.Generic
                     if (!UserINISettings.Instance.PlayMainMenuMusic)
                         isMusicFading = true;
                 }
-                else if (topBar.GetTopMostPrimarySwitchable() == this &&
+                else if (!isGameProcessStarting &&
+                    topBar.GetTopMostPrimarySwitchable() == this &&
                     topBar.LastSwitchType == SwitchType.PRIMARY)
                 {
                     PlayMusic();
@@ -543,7 +558,7 @@ namespace DTAClient.DXGUI.Generic
                 if (MediaPlayer.State == MediaState.Playing)
                     isMusicFading = true;
             }
-            else if (UserINISettings.Instance.PlayMainMenuMusic && MediaPlayer.State != MediaState.Playing &&
+            else if (!isGameProcessStarting && UserINISettings.Instance.PlayMainMenuMusic && MediaPlayer.State != MediaState.Playing &&
                 topBar.GetTopMostPrimarySwitchable() == this && topBar.LastSwitchType == SwitchType.PRIMARY)
             {
                 PlayMusic();
@@ -681,7 +696,11 @@ namespace DTAClient.DXGUI.Generic
 
         private void FirstRunMessageBox_YesClicked(XNAMessageBox messageBox) => optionsWindow.Open();
 
-        private void SharedUILogic_GameProcessStarted() => MusicOff();
+        private void SharedUILogic_GameProcessStarted()
+        {
+            isGameProcessStarting = false;
+            MusicOff();
+        }
 
         private void WindowManager_GameClosing(object sender, EventArgs e) => Clean();
 
@@ -1145,6 +1164,11 @@ namespace DTAClient.DXGUI.Generic
 
         private void HandleGameProcessExited()
         {
+            // Also reset the launch guard here: if the game process failed to start
+            // (StartGameProcess caught an exception and GameProcessStarted never fired),
+            // the flag would otherwise stay stuck and menu music would never resume.
+            isGameProcessStarting = false;
+
             gameLoadingWindow.ListSaves();
             gameLoadingWindow.Disable();
             gameInProgressWindow.Disable();
@@ -1385,6 +1409,34 @@ namespace DTAClient.DXGUI.Generic
         {
             if (UserINISettings.Instance.StopMusicOnMenu)
                 MusicOff();
+        }
+
+        /// <summary>
+        /// Immediately stops the menu music and silences the background video audio.
+        /// Unlike <see cref="MusicOff"/> (which fades the music over ~1 second), this
+        /// is used when the game process is about to launch, so the client is fully
+        /// silent while the game starts - the game must never hear leftover menu
+        /// music, and no music/file resource may stay locked during launch.
+        /// </summary>
+        private void StopMusic()
+        {
+            try
+            {
+                if (isMediaPlayerAvailable && MediaPlayer.State != MediaState.Stopped)
+                    MediaPlayer.Stop();
+
+                isMusicFading = false;
+                _lastMusicVolume = -1f;
+
+#if ISWINDOWS
+                if (videoBackground != null && !videoBackground.IsMuted)
+                    videoBackground.SetMuted(true);
+#endif
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Stopping main menu music failed! Message: " + ex.ToString());
+            }
         }
 
         private void MusicOff()
