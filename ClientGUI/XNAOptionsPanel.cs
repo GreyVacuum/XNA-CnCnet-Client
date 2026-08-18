@@ -27,6 +27,12 @@ namespace ClientGUI
         private XNAScrollPanel scrollPanel;
 
         /// <summary>
+        /// Set to true once the panel has finished initializing, so that
+        /// <see cref="RefreshPanelLayout"/> is only invoked after children exist.
+        /// </summary>
+        private bool layoutInitialized;
+
+        /// <summary>
         /// Gets or sets whether the panel should use a scrollable container.
         /// Can be set via INI: EnableScrolling=Yes
         /// </summary>
@@ -52,7 +58,36 @@ namespace ClientGUI
                 AddChild(scrollPanel);
             }
 
+            layoutInitialized = true;
+
             GameProcessLogic.GameProcessExited += GameProcessExited_Callback;
+        }
+
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
+
+            if (scrollPanel != null)
+            {
+                bool hasOpenDropDown = false;
+                CheckDropDownStates(this, ref hasOpenDropDown);
+                scrollPanel.CanHandleScrollWheel = !hasOpenDropDown;
+            }
+        }
+
+        private static void CheckDropDownStates(XNAControl control, ref bool hasOpenDropDown)
+        {
+            if (hasOpenDropDown)
+                return;
+
+            if (control is XNADropDown dd && dd.DropDownState != DropDownState.CLOSED)
+            {
+                hasOpenDropDown = true;
+                return;
+            }
+
+            foreach (var child in control.Children)
+                CheckDropDownStates(child, ref hasOpenDropDown);
         }
 
         protected override void OnClientRectangleUpdated()
@@ -63,19 +98,22 @@ namespace ClientGUI
             {
                 scrollPanel.ClientRectangle = new Rectangle(0, 0, Width, Height);
             }
+
+            if (layoutInitialized)
+                RefreshPanelLayout();
         }
 
         /// <summary>
         /// The bottom-most Y coordinate of the panel's scrollable content.
         /// When scrolling is disabled, falls back to the panel's own bottom.
         /// </summary>
-        public int ContentBottom => scrollPanel != null ? scrollPanel.ContentBottom : Bottom;
+        public int ContentBottom => (scrollPanel != null && scrollPanel.Visible) ? scrollPanel.ContentBottom : Bottom;
 
         /// <summary>
         /// The right-most X coordinate of the panel's scrollable content.
         /// When scrolling is disabled, falls back to the panel's own right.
         /// </summary>
-        public int ContentRight => scrollPanel != null ? scrollPanel.ContentRight : Right;
+        public int ContentRight => (scrollPanel != null && scrollPanel.Visible) ? scrollPanel.ContentRight : Right;
 
         protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
         {
@@ -124,6 +162,21 @@ namespace ClientGUI
 
             if (scrollPanel != null)
                 scrollPanel.RefreshScrollbars();
+
+            RefreshPanelLayout();
+        }
+
+        /// <summary>
+        /// Re-derives the layout of children that are positioned relative to the
+        /// panel's own <see cref="Width"/>, <see cref="Height"/>, <see cref="Bottom"/>
+        /// or <see cref="Right"/>. Called after the panel's size has been resolved
+        /// from INI and whenever the panel is resized, so panel-relative children
+        /// stay correct even when the panel size is overridden via INI (or when
+        /// scrolling is disabled and the panel's own bounds are used directly).
+        /// Override in subclasses to re-anchor their panel-dependent controls.
+        /// </summary>
+        protected virtual void RefreshPanelLayout()
+        {
         }
 
         public override void AddChild(XNAControl child)
