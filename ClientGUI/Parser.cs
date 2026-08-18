@@ -76,14 +76,37 @@ namespace ClientGUI
 
         private XNAControl GetControl(string controlName)
         {
+            // 1. The primary control itself.
             if (controlName == primaryControl.Name)
                 return primaryControl;
 
+            // 2. Descendants of the primary control (its own subtree).
             var control = Find(primaryControl.Children, controlName);
-            if (control == null)
-                throw new KeyNotFoundException($"Control '{controlName}' not found while parsing input '{Input}'");
+            if (control != null)
+                return control;
 
-            return control;
+            // 3. Walk up the ancestor chain: each ancestor itself and its direct
+            //    children (i.e. sibling controls of the primary control, such as
+            //    the hosting window's tab control or Save/Cancel buttons).
+            //    Only direct children are matched at each level so that a deeply
+            //    nested control of a sibling subtree can never shadow a window
+            //    level control with the same name.
+            XNAControl ancestor = primaryControl.Parent;
+            while (ancestor != null)
+            {
+                if (controlName == ancestor.Name)
+                    return ancestor;
+
+                foreach (XNAControl child in ancestor.Children)
+                {
+                    if (child.Name == controlName)
+                        return child;
+                }
+
+                ancestor = ancestor.Parent;
+            }
+
+            throw new KeyNotFoundException($"Control '{controlName}' not found while parsing input '{Input}'");
         }
 
         private XNAControl Find(IEnumerable<XNAControl> list, string controlName)
@@ -99,6 +122,40 @@ namespace ClientGUI
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Walks up from the given control's parent, skipping the internal
+        /// scroll container (<see cref="XNAScrollPanel"/>) and its content panel,
+        /// so that expressions such as <c>$ParentControl</c> resolve to the actual
+        /// logical parent (the <see cref="XNAOptionsPanel"/>) rather than the
+        /// auto-sized scrollable content.
+        /// </summary>
+        private static XNAControl GetLogicalParent(XNAControl control)
+        {
+            XNAControl parent = control.Parent;
+
+            while (parent != null)
+            {
+                // Skip the scroll panel itself.
+                if (parent is XNAScrollPanel scrollPanel)
+                {
+                    parent = scrollPanel.Parent;
+                    continue;
+                }
+
+                // Skip the scroll panel's content panel, which sits directly
+                // inside the scroll panel.
+                if (parent.Parent is XNAScrollPanel)
+                {
+                    parent = parent.Parent.Parent;
+                    continue;
+                }
+
+                break;
+            }
+
+            return parent;
         }
 
         private int GetConstant(string constantName)
@@ -314,10 +371,11 @@ namespace ClientGUI
 
             if (paramName == "$ParentControl")
             {
-                if (parsingControl.Parent == null)
+                XNAControl logicalParent = GetLogicalParent(parsingControl);
+                if (logicalParent == null)
                     throw new INIConfigException("$ParentControl used for control that has no parent: " + parsingControl.Name);
 
-                paramName = parsingControl.Parent.Name;
+                paramName = logicalParent.Name;
             }
             else if (paramName == "$Self")
             {
@@ -338,14 +396,14 @@ namespace ClientGUI
                 {
                     var control = GetControl(paramName);
                     if (control is XNAOptionsPanel optionsPanel)
-                        return optionsPanel.ContentBottom;
+                        return optionsPanel.Bottom;
                     return control.Bottom;
                 }
                 case "getRight":
                 {
                     var control = GetControl(paramName);
                     if (control is XNAOptionsPanel optionsPanel)
-                        return optionsPanel.ContentRight;
+                        return optionsPanel.Right;
                     return control.Right;
                 }
                 case "horizontalCenterOnParent":
