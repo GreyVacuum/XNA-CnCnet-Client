@@ -334,6 +334,7 @@ namespace DTAClient.DXGUI
                             .AddTransientXnaControl<XNATrackbar>()
                             .AddTransientXnaControl<XNAChatTextBox>()
                             .AddTransientXnaControl<ChatListBox>()
+                            .AddTransientXnaControl<INItializableWindow>()
                             .AddTransientXnaControl<GameLobbyCheckBox>()
                             .AddTransientXnaControl<GameLobbyDropDown>()
                             .AddTransientXnaControl<CampaignCheckBox>()
