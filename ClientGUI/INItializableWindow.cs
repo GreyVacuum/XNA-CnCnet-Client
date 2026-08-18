@@ -31,6 +31,17 @@ namespace ClientGUI
         /// </summary>
         protected string IniNameOverride { get; set; }
 
+        /// <summary>
+        /// Optional external INI source. When set, the window is initialized from
+        /// this INI file instead of loading <c>{Name}.ini</c> from the resource
+        /// folders. This is used when an <see cref="INItializableWindow"/> is
+        /// registered as an extra control from another window's INI (e.g. via the
+        /// <c>[GameOptionsPanelExtraControls]</c> section), so that its
+        /// <c>[Name]</c> section and <c>$CC</c> child controls can be declared in
+        /// the same file that registers the window.
+        /// </summary>
+        public IniFile ExternalIniFile { get; set; }
+
         private static bool AnyChildMatches(IEnumerable<XNAControl> list, Func<XNAControl, bool> isTargetControl)
         {
             foreach (XNAControl child in list)
@@ -123,15 +134,29 @@ namespace ClientGUI
             if (_initialized)
                 throw new InvalidOperationException("INItializableWindow cannot be initialized twice.");
 
-            string configIniPath = GetConfigPath();
+            IniFile sourceIni = ExternalIniFile;
 
-            if (string.IsNullOrEmpty(configIniPath))
+            if (sourceIni == null)
             {
-                base.Initialize();
-                return;
+                string configIniPath = GetConfigPath();
+
+                if (string.IsNullOrEmpty(configIniPath))
+                {
+                    base.Initialize();
+                    return;
+                }
+
+                sourceIni = new CCIniFile(configIniPath);
             }
 
-            ConfigIni = new CCIniFile(configIniPath);
+            ConfigIni = sourceIni as CCIniFile;
+            if (ConfigIni == null)
+            {
+                // The external source was not a CCIniFile (normally the host
+                // window's INI is one); reload the same file from disk so that
+                // the window always has a CCIniFile to work with.
+                ConfigIni = new CCIniFile(sourceIni.FileName);
+            }
 
             if (Parser.Instance == null)
                 _ = new Parser(WindowManager); // Note: Parser.Instance will be set by calling new Parser()

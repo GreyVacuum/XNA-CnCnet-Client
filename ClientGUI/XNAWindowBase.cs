@@ -41,6 +41,15 @@ namespace ClientGUI
                     XNAControl control = ClientGUICreator.GetXnaControl(parts[1]);
                     control.Name = parts[0];
                     control.DrawOrder = -Children.Count;
+
+                    // An INItializableWindow normally loads its configuration from a
+                    // dedicated {Name}.ini file. When it is registered as an extra
+                    // control, initialize it from the host window's INI file instead,
+                    // so its [Name] section and $CC child controls can be declared
+                    // in the same file that registers the window.
+                    if (control is INItializableWindow iniWindow)
+                        iniWindow.ExternalIniFile = iniFile;
+
                     AddChild(control);
                 }
             }
