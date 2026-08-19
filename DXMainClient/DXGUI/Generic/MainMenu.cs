@@ -485,15 +485,16 @@ namespace DTAClient.DXGUI.Generic
 
         /// <summary>
         /// Refreshes settings. Called when the game process is starting.
-        /// The game process must launch with the client fully silent: the menu music
-        /// and background video audio are stopped immediately (not faded), and the
-        /// isGameProcessStarting flag prevents SettingsSaved from restarting music
-        /// during the launch (RefreshSettings -> SaveSettings fires SettingsSaved).
+        /// The menu music is intentionally NOT stopped here: it keeps playing and is
+        /// faded out smoothly by <see cref="SharedUILogic_GameProcessStarted"/> ->
+        /// <see cref="MusicOff"/>, matching the upstream client behavior, so starting
+        /// the game never cuts the music abruptly.
+        /// The isGameProcessStarting flag prevents SettingsSaved from (re)starting the
+        /// music during the launch (RefreshSettings -> SaveSettings fires SettingsSaved).
         /// </summary>
         private void SharedUILogic_GameProcessStarting()
         {
             isGameProcessStarting = true;
-            StopMusic();
 
             try
             {
@@ -1412,33 +1413,12 @@ namespace DTAClient.DXGUI.Generic
         }
 
         /// <summary>
-        /// Immediately stops the menu music and silences the background video audio.
-        /// Unlike <see cref="MusicOff"/> (which fades the music over ~1 second), this
-        /// is used when the game process is about to launch, so the client is fully
-        /// silent while the game starts - the game must never hear leftover menu
-        /// music, and no music/file resource may stay locked during launch.
+        /// Turns off the menu audio. The menu music is faded out smoothly over
+        /// ~1 second (via the isMusicFading flag, processed in <see cref="Update"/>),
+        /// and the background video audio is muted immediately so it can never leak
+        /// into the game process. Called when entering lobbies or when the game
+        /// process has started, matching the upstream client behavior.
         /// </summary>
-        private void StopMusic()
-        {
-            try
-            {
-                if (isMediaPlayerAvailable && MediaPlayer.State != MediaState.Stopped)
-                    MediaPlayer.Stop();
-
-                isMusicFading = false;
-                _lastMusicVolume = -1f;
-
-#if ISWINDOWS
-                if (videoBackground != null && !videoBackground.IsMuted)
-                    videoBackground.SetMuted(true);
-#endif
-            }
-            catch (Exception ex)
-            {
-                Logger.Log("Stopping main menu music failed! Message: " + ex.ToString());
-            }
-        }
-
         private void MusicOff()
         {
             try
