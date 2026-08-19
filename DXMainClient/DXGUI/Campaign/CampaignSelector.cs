@@ -361,7 +361,6 @@ namespace DTAClient.DXGUI.Campaign
                 btnLaunch.Y, UIDesignConstants.BUTTON_WIDTH_133, UIDesignConstants.BUTTON_HEIGHT);
                 btnReturn.Text = "Campaigns".L10N("Client:Main:ButtonReturnToCampaigns");
                 btnReturn.LeftClick += BtnReturn_LeftClick;
-                btnReturn.Disable();
                 AddChild(btnReturn);
             }
 
