@@ -91,6 +91,11 @@ namespace ClientGUI
             {
                 ProcessExpressionAttributes(iniFile, this);
             }
+
+            // Process late attributes ($Toggles / $Opens / $Exits and their indexed
+            // variants $ToggleN / $OpenN / $ExitN) once the full control tree has
+            // been built, so controls can link to controls defined after them.
+            INIControlLinkHelper.ReadLateAttributes(iniFile, this);
         }
 
         private void ProcessExpressionAttributes(IniFile iniFile, XNAControl control)
