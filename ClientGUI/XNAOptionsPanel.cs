@@ -20,6 +20,12 @@ namespace ClientGUI
             UserINISettings iniSettings) : base(windowManager)
         {
             IniSettings = iniSettings;
+
+            // XNAOptionsPanel parses its own [Name]ExtraControls section by
+            // default (see ParseUserOptions); XNAWindowBase itself defaults
+            // to disabled. Can be overridden via the EnabledExtraControls
+            // INI attribute.
+            EnabledExtraControls = true;
         }
 
         private readonly List<IUserSetting> userSettings = new List<IUserSetting>();
@@ -157,7 +163,8 @@ namespace ClientGUI
         public void ParseUserOptions(IniFile iniFile)
         {
             GetAttributes(iniFile);
-            ParseExtraControls(iniFile, Name + "ExtraControls");
+            if (EnabledExtraControls)
+                ParseExtraControls(iniFile, Name + "ExtraControls");
             ReadChildControlAttributes(iniFile);
 
             if (scrollPanel != null)

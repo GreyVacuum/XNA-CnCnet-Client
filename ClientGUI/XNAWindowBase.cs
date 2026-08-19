@@ -18,6 +18,28 @@ namespace ClientGUI
             PanelBackgroundDrawMode = PanelBackgroundImageDrawMode.TILED;
         }
 
+        /// <summary>
+        /// Whether this control parses its own <c>[Name]ExtraControls</c> section
+        /// (and thus can host extra controls defined in the same INI file).
+        /// Defaults to <c>false</c> in <see cref="XNAWindowBase"/>; <see cref="XNAOptionsPanel"/>
+        /// defaults to <c>true</c>. Can be overridden per control via the
+        /// <c>EnabledExtraControls</c> INI attribute (e.g. <c>[PhobosPanel]
+        /// EnabledExtraControls=Yes</c>).
+        /// </summary>
+        public bool EnabledExtraControls { get; set; }
+
+        protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
+        {
+            switch (key)
+            {
+                case "EnabledExtraControls":
+                    EnabledExtraControls = Conversions.BooleanFromString(value, EnabledExtraControls);
+                    return;
+            }
+
+            base.ParseControlINIAttribute(iniFile, key, value);
+        }
+
         protected virtual IEnumerable<XNAControl> GetChildrenForINIProcessing()
         {
             return Children;
@@ -66,8 +88,16 @@ namespace ClientGUI
                     host.AddChild(control);
 
                     // Recursively allow the new extra control to host its own
-                    // extra controls via a [Name]ExtraControls section.
-                    ParseExtraControlsFor(iniFile, control, control.Name + "ExtraControls");
+                    // extra controls via a [Name]ExtraControls section. Enabled
+                    // by default for XNAOptionsPanel-derived controls (which
+                    // already use the same mechanism); other control types
+                    // (XNAPanel, INItializableWindow, ...) default to disabled
+                    // and opt in via [Name]EnabledExtraControls=Yes.
+                    bool extraControlsEnabled = iniFile.GetBooleanValue(
+                        control.Name, "EnabledExtraControls", control is XNAOptionsPanel);
+
+                    if (extraControlsEnabled)
+                        ParseExtraControlsFor(iniFile, control, control.Name + "ExtraControls");
                 }
             }
         }
