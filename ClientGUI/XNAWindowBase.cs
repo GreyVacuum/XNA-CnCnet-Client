@@ -25,6 +25,19 @@ namespace ClientGUI
 
         protected virtual void ParseExtraControls(IniFile iniFile, string sectionName)
         {
+            ParseExtraControlsFor(iniFile, this, sectionName);
+        }
+
+        /// <summary>
+        /// Creates the controls defined in <paramref name="sectionName"/> and adds
+        /// them to <paramref name="host"/>. Recursively processes each newly created
+        /// control's own <c>[Name]ExtraControls</c> section, so extra controls can
+        /// host their own extra controls (e.g. a custom <c>XNAPanel</c> registered
+        /// via <c>[GameOptionsPanelExtraControls]</c> can have its children defined
+        /// in <c>[PhobosPanelExtraControls]</c>).
+        /// </summary>
+        private void ParseExtraControlsFor(IniFile iniFile, XNAControl host, string sectionName)
+        {
             var section = iniFile.GetSection(sectionName);
 
             if (section == null)
@@ -34,13 +47,13 @@ namespace ClientGUI
             {
                 string[] parts = kvp.Value.Split(':');
                 if (parts.Length != 2)
-                    throw new ClientConfigurationException("Invalid ExtraControl specified in " + Name + ": " + kvp.Value);
+                    throw new ClientConfigurationException("Invalid ExtraControl specified in " + host.Name + ": " + kvp.Value);
 
-                if (!Children.Any(child => child.Name == parts[0]))
+                if (!host.Children.Any(child => child.Name == parts[0]))
                 {
                     XNAControl control = ClientGUICreator.GetXnaControl(parts[1]);
                     control.Name = parts[0];
-                    control.DrawOrder = -Children.Count;
+                    control.DrawOrder = -host.Children.Count;
 
                     // An INItializableWindow normally loads its configuration from a
                     // dedicated {Name}.ini file. When it is registered as an extra
@@ -50,7 +63,11 @@ namespace ClientGUI
                     if (control is INItializableWindow iniWindow)
                         iniWindow.ExternalIniFile = iniFile;
 
-                    AddChild(control);
+                    host.AddChild(control);
+
+                    // Recursively allow the new extra control to host its own
+                    // extra controls via a [Name]ExtraControls section.
+                    ParseExtraControlsFor(iniFile, control, control.Name + "ExtraControls");
                 }
             }
         }
