@@ -14,6 +14,7 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
 using Rampastring.Tools;
 using Rampastring.XNAUI;
+using Rampastring.XNAUI.Input;
 using Rampastring.XNAUI.XNAControls;
 using System;
 using System.Collections.Generic;
@@ -175,6 +176,43 @@ namespace DTAClient.DXGUI.Generic
 #if ISWINDOWS
         private VideoBackground? videoBackground;
         private float _lastVideoVolume = -1f;
+        private bool isVideoFading = false;
+
+        /// <summary>
+        /// True while the user has paused the background video manually (via hotkey).
+        /// Automatic pauses (lobby / game start) never set this, and automatic resumes
+        /// skip a video that was paused manually - the user's intent is respected.
+        /// </summary>
+        private bool isVideoPausedByUser = false;
+
+        /// <summary>
+        /// The user's explicit video-audio mute choice made via the mute hotkey.
+        /// Null means "follow the settings-derived mute state". Cleared automatically
+        /// when the underlying video-sound / music settings change.
+        /// </summary>
+        private bool? videoMuteUserOverride;
+
+        private bool _lastVideoSoundSetting;
+        private bool _lastPlayMainMenuMusicSetting;
+        private XNALabel? videoPausedLabel;
+
+        /// <summary>
+        /// Whether the background video hotkeys are enabled at all.
+        /// INI: [MainMenu] BackgroundVideoHotkeys (default true).
+        /// </summary>
+        private bool backgroundVideoHotkeys = true;
+
+        /// <summary>
+        /// Hotkey that toggles the background video pause state.
+        /// INI: [MainMenu] BackgroundVideoPauseHotkey (default P). Keys.None disables it.
+        /// </summary>
+        private Keys backgroundVideoPauseHotkey = Keys.P;
+
+        /// <summary>
+        /// Hotkey that toggles the background video audio mute state.
+        /// INI: [MainMenu] BackgroundVideoMuteHotkey (default V). Keys.None disables it.
+        /// </summary>
+        private Keys backgroundVideoMuteHotkey = Keys.V;
 #endif
         private float _lastMusicVolume = -1f;
         private string backgroundVideoFile = string.Empty;
@@ -360,6 +398,10 @@ namespace DTAClient.DXGUI.Generic
 
             Updater.Restart += Updater_Restart;
 
+#if ISWINDOWS
+            Keyboard.OnKeyPressed += Keyboard_OnKeyPressed;
+#endif
+
             SetButtonHotkeys(!UserINISettings.Instance.DisableMainMenuHotkeys);
         }
 
@@ -408,6 +450,28 @@ namespace DTAClient.DXGUI.Generic
             backgroundVideoFrameInterval = iniFile.GetIntValue(Name, "BackgroundVideoFrameInterval", 33);
             backgroundVideoAutoPlay = iniFile.GetBooleanValue(Name, "BackgroundVideoAutoPlay", true);
             backgroundMusicFile = iniFile.GetStringValue(Name, "BackgroundMusic", string.Empty);
+
+#if ISWINDOWS
+            backgroundVideoHotkeys = iniFile.GetBooleanValue(Name, "BackgroundVideoHotkeys", true);
+            backgroundVideoPauseHotkey = ParseVideoHotkey(iniFile.GetStringValue(Name, "BackgroundVideoPauseHotkey", string.Empty), Keys.P);
+            backgroundVideoMuteHotkey = ParseVideoHotkey(iniFile.GetStringValue(Name, "BackgroundVideoMuteHotkey", string.Empty), Keys.V);
+#endif
+        }
+
+        /// <summary>
+        /// Parses a hotkey value from INI, falling back to <paramref name="defaultValue"/>
+        /// for missing or invalid values. An explicit "None" disables the hotkey.
+        /// </summary>
+        private static Keys ParseVideoHotkey(string value, Keys defaultValue)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return defaultValue;
+
+            if (Enum.TryParse<Keys>(value, true, out Keys key) && key != Keys.None)
+                return key;
+
+            Logger.Log(string.Format("Invalid background video hotkey '{0}'; using default '{1}'.", value, defaultValue));
+            return defaultValue;
         }
 
 #if ISWINDOWS
@@ -455,9 +519,17 @@ namespace DTAClient.DXGUI.Generic
                         videoHeight,
                         backgroundVideoLooping,
                         IsVideoAudioMuted(),
-                        volume);
+                        volume,
+                        frameIntervalMs: backgroundVideoFrameInterval);
 
                     BackgroundTexture = videoBackground.Texture;
+
+                    // Cache the base video-sound settings so that a later settings change
+                    // can clear a user-initiated mute override (set via the mute hotkey).
+                    _lastVideoSoundSetting = UserINISettings.Instance.EnableBackgroundVideoSound.Value;
+                    _lastPlayMainMenuMusicSetting = UserINISettings.Instance.PlayMainMenuMusic;
+
+                    CreateVideoPausedHint();
 
                     // Video has audio and is not muted - it takes priority over background music.
                     // The PlayMusic() method will check videoBackground and skip music if video audio is active.
@@ -539,11 +611,24 @@ namespace DTAClient.DXGUI.Generic
             }
 
 #if ISWINDOWS
-            // Sync video audio with the main menu music / client volume settings
-            if (videoBackground != null)
+            // A user-initiated mute override (set via the mute hotkey) is cleared when the
+            // underlying video-sound / menu-music settings change, so the options take
+            // effect again instead of being stuck behind a stale hotkey choice.
+            if (UserINISettings.Instance.EnableBackgroundVideoSound.Value != _lastVideoSoundSetting ||
+                UserINISettings.Instance.PlayMainMenuMusic != _lastPlayMainMenuMusicSetting)
             {
-                // When main menu music is disabled, the background video audio is muted as well
-                videoBackground.SetMuted(IsVideoAudioMuted() || !UserINISettings.Instance.PlayMainMenuMusic);
+                videoMuteUserOverride = null;
+                _lastVideoSoundSetting = UserINISettings.Instance.EnableBackgroundVideoSound.Value;
+                _lastPlayMainMenuMusicSetting = UserINISettings.Instance.PlayMainMenuMusic;
+            }
+
+            // Sync video audio with the main menu music / client volume settings.
+            // Skipped while the video is fading out, so a settings save (e.g. the
+            // RefreshSettings -> SaveSettings fired during the game launch flow)
+            // cannot resurrect the audio mid-fade.
+            if (videoBackground != null && !isVideoFading)
+            {
+                videoBackground.SetMuted(GetEffectiveVideoMute());
                 SyncVideoVolume();
             }
 
@@ -739,6 +824,10 @@ namespace DTAClient.DXGUI.Generic
         private void Clean()
         {
             Updater.FileIdentifiersUpdated -= Updater_FileIdentifiersUpdated;
+
+#if ISWINDOWS
+            Keyboard.OnKeyPressed -= Keyboard_OnKeyPressed;
+#endif
 
             if (cncnetPlayerCountCancellationSource != null) cncnetPlayerCountCancellationSource.Cancel();
             topBar.Clean();
@@ -1199,10 +1288,14 @@ namespace DTAClient.DXGUI.Generic
                 FadeMusic(gameTime);
 
 #if ISWINDOWS
+            if (isVideoFading)
+                FadeVideo(gameTime);
+
             videoBackground?.Update();
 
-            // Keep the background video volume aligned with the live client volume setting
-            if (videoBackground != null && !videoBackground.IsMuted)
+            // Keep the background video volume aligned with the live client volume setting.
+            // Skipped while the video is fading out so the fade is never fought by the sync.
+            if (videoBackground != null && !videoBackground.IsMuted && !isVideoFading)
                 SyncVideoVolume();
 #endif
 
@@ -1265,6 +1358,133 @@ namespace DTAClient.DXGUI.Generic
             backgroundVideoMuted || !UserINISettings.Instance.EnableBackgroundVideoSound.Value;
 
         /// <summary>
+        /// The mute state that should be applied to the video player: the user's explicit
+        /// choice made via the mute hotkey, or the settings-derived value (which also
+        /// silences the video when the main menu music is disabled).
+        /// </summary>
+#if ISWINDOWS
+        private bool GetEffectiveVideoMute() =>
+            videoMuteUserOverride ?? (IsVideoAudioMuted() || !UserINISettings.Instance.PlayMainMenuMusic);
+
+        /// <summary>
+        /// Handles the configurable background video hotkeys (pause toggle and mute
+        /// toggle). Only fires while the main menu is the active input window and no
+        /// game is running, so the keys never leak into lobbies or the game process.
+        /// </summary>
+        private void Keyboard_OnKeyPressed(object sender, KeyPressEventArgs e)
+        {
+            if (!Enabled || !IsActive || !WindowManager.HasFocus || ProgramConstants.IsInGame ||
+                isGameProcessStarting || videoBackground == null || !backgroundVideoHotkeys)
+                return;
+
+            if (e.PressedKey == backgroundVideoPauseHotkey && backgroundVideoPauseHotkey != Keys.None)
+            {
+                e.Handled = true;
+                ToggleVideoPaused();
+            }
+            else if (e.PressedKey == backgroundVideoMuteHotkey && backgroundVideoMuteHotkey != Keys.None)
+            {
+                e.Handled = true;
+                ToggleVideoMuted();
+            }
+        }
+
+        /// <summary>
+        /// Toggles the background video pause state. A manual pause is remembered
+        /// (isVideoPausedByUser) so that automatic resume on return to the menu does
+        /// not override the user's explicit choice; the pause hotkey also clears it.
+        /// </summary>
+        private void ToggleVideoPaused()
+        {
+            if (videoBackground == null)
+                return;
+
+            if (videoBackground.IsPaused)
+            {
+                isVideoPausedByUser = false;
+                videoBackground.Resume();
+                SetVideoPausedHintVisible(false);
+                Logger.Log("Background video resumed via hotkey.");
+            }
+            else
+            {
+                isVideoPausedByUser = true;
+                videoBackground.Pause();
+                SetVideoPausedHintVisible(true);
+                Logger.Log("Background video paused via hotkey.");
+            }
+        }
+
+        /// <summary>
+        /// Toggles the background video audio mute state. The choice is remembered
+        /// (videoMuteUserOverride) and kept consistent with the music-priority rules:
+        /// muting the video lets the menu music take over, unmuting fades it out.
+        /// </summary>
+        private void ToggleVideoMuted()
+        {
+            if (videoBackground == null)
+                return;
+
+            bool muted = !videoBackground.IsMuted;
+            videoMuteUserOverride = muted;
+            videoBackground.SetMuted(muted);
+
+            if (muted)
+            {
+                // The video is now silent - let the menu music (if enabled) take over.
+                PlayMusic();
+            }
+            else if (isMediaPlayerAvailable && MediaPlayer.State == MediaState.Playing)
+            {
+                // The video audio is back and takes priority - fade the menu music out.
+                isMusicFading = true;
+            }
+
+            Logger.Log(muted
+                ? "Background video audio muted via hotkey."
+                : "Background video audio unmuted via hotkey.");
+        }
+
+        /// <summary>
+        /// Creates the on-screen hint label shown while the video is manually paused.
+        /// The label is created in code (no INI layout dependency) and hidden until
+        /// the first manual pause.
+        /// </summary>
+        private void CreateVideoPausedHint()
+        {
+            videoPausedLabel = new XNALabel(WindowManager)
+            {
+                Name = nameof(videoPausedLabel),
+                Text = string.Format(
+                    ("Video paused - press {0} to resume").L10N("Client:Main:VideoPaused"),
+                    backgroundVideoPauseHotkey)
+            };
+
+            AddChild(videoPausedLabel);
+            videoPausedLabel.Visible = false;
+        }
+
+        /// <summary>
+        /// Shows or hides the video-paused hint label, re-centering it on the main
+        /// menu window whenever it becomes visible (the window size may not be final
+        /// when the label is first created).
+        /// </summary>
+        private void SetVideoPausedHintVisible(bool visible)
+        {
+            if (videoPausedLabel == null)
+                return;
+
+            if (visible)
+            {
+                videoPausedLabel.CenterOnParent();
+                videoPausedLabel.Y = Math.Max(0, Height - videoPausedLabel.Height - 30);
+            }
+
+            videoPausedLabel.Visible = visible;
+        }
+#endif
+
+        /// <summary>
         /// Attempts to start playing the menu music.
         /// Video audio takes priority over background music:
         /// if video is loaded and not muted, the video's audio is the primary source.
@@ -1278,13 +1498,23 @@ namespace DTAClient.DXGUI.Generic
             {
                 // Priority check: if video is playing with audio, suppress background music
 #if ISWINDOWS
+                // (Re)starting the menu audio cancels any in-progress video fade so the
+                // video resumes at its normal volume instead of staying faded out.
+                isVideoFading = false;
+
+                // Resume the video only if it was paused automatically (lobby / game
+                // start); a user-initiated pause is respected until resumed manually.
+                if (videoBackground != null && videoBackground.IsPaused && !isVideoPausedByUser)
+                    videoBackground.Resume();
+
                 if (videoBackground != null)
                 {
-                    // Effective video mute = theme has no audio track (BackgroundVideoMuted)
+                    // Effective video mute = the user's explicit hotkey choice, or the
+                    // settings-derived value: theme has no audio track (BackgroundVideoMuted)
                     // OR the user has not enabled the video sound (EnableBackgroundVideoSound = false).
                     // When the video is not muted and main menu music is enabled, the video takes
                     // priority (music suppressed). When the video is muted, the menu music plays instead.
-                    if (!IsVideoAudioMuted() && UserINISettings.Instance.PlayMainMenuMusic)
+                    if (!GetEffectiveVideoMute() && UserINISettings.Instance.PlayMainMenuMusic)
                     {
                         // Video audio takes priority over background music - unmute video, don't play music
                         SyncVideoVolume();
@@ -1343,6 +1573,55 @@ namespace DTAClient.DXGUI.Generic
                 Logger.Log("Fading music failed! Message: " + ex.ToString());
             }
         }
+
+        /// <summary>
+        /// Lowers the background video audio volume, or mutes it if the volume is
+        /// unaudibly low. Mirrors <see cref="FadeMusic"/>: the per-frame step is
+        /// derived from the target (settings) volume, so the fade takes ~1 second.
+        /// </summary>
+        /// <param name="gameTime">Provides a snapshot of timing values.</param>
+#if ISWINDOWS
+        private void FadeVideo(GameTime gameTime)
+        {
+            if (videoBackground == null || !isVideoFading)
+                return;
+
+            try
+            {
+                float clientVolume = (float)UserINISettings.Instance.ClientVolume;
+                float iniVolumeScale = Math.Clamp(backgroundVideoVolume / 100f, 0f, 1f);
+                float targetVolume = Math.Clamp(clientVolume * iniVolumeScale, 0f, 1f);
+
+                // Fade during 1 second
+                float step = targetVolume * (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+                float current = videoBackground.Volume;
+                if (current > step)
+                {
+                    videoBackground.SetVolume(Math.Max(current - step, 0f));
+                    _lastVideoVolume = videoBackground.Volume;
+                }
+                else
+                {
+                    videoBackground.SetVolume(0f);
+                    videoBackground.SetMuted(true);
+                    // No more audio to fade - pause the video so it stops decoding and
+                    // rendering while the game runs. It is resumed by PlayMusic on return.
+                    videoBackground.Pause();
+                    _lastVideoVolume = 0f;
+                    isVideoFading = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Fading background video audio failed! Message: " + ex.ToString());
+                // Never get stuck fading: mute, pause and stop the fade on failure.
+                videoBackground?.SetMuted(true);
+                videoBackground?.Pause();
+                isVideoFading = false;
+            }
+        }
+#endif
 
         /// <summary>
         /// Exits the client. Quickly fades the music if it's playing.
@@ -1413,11 +1692,14 @@ namespace DTAClient.DXGUI.Generic
         }
 
         /// <summary>
-        /// Turns off the menu audio. The menu music is faded out smoothly over
-        /// ~1 second (via the isMusicFading flag, processed in <see cref="Update"/>),
-        /// and the background video audio is muted immediately so it can never leak
-        /// into the game process. Called when entering lobbies or when the game
-        /// process has started, matching the upstream client behavior.
+        /// Turns off the menu audio. Both the menu music and the background video
+        /// audio are faded out smoothly over ~1 second (via the isMusicFading /
+        /// isVideoFading flags, processed in <see cref="Update"/>), so neither can
+        /// leak into the game process and the transition sounds natural. The video
+        /// is then paused (a silent video is paused right away) so it stops decoding
+        /// while a lobby or the game is active; <see cref="PlayMusic"/> resumes it.
+        /// Called when entering lobbies or when the game process has started, matching
+        /// the upstream client behavior.
         /// </summary>
         private void MusicOff()
         {
@@ -1430,11 +1712,17 @@ namespace DTAClient.DXGUI.Generic
                 }
 
 #if ISWINDOWS
-                // Also mute video audio when music is turned off
-                if (videoBackground != null && !videoBackground.IsMuted)
-                {
-                    videoBackground.SetMuted(true);
-                }
+                // Fade the background video audio out smoothly (like the music) instead
+                // of cutting it instantly. The fade runs in Update() via FadeVideo and
+                // ends by muting and pausing the player.
+                if (videoBackground != null && !videoBackground.IsMuted && !isVideoFading)
+                    isVideoFading = true;
+                // A video that is already silent (no audio track, video sound disabled,
+                // or music taking priority) still decodes and renders frames; pause it
+                // as soon as the menu audio is turned off so it stops consuming resources
+                // while a lobby or the game is active. PlayMusic resumes it on return.
+                else if (videoBackground != null && videoBackground.IsMuted && !videoBackground.IsPaused)
+                    videoBackground.Pause();
 #endif
             }
             catch (Exception ex)
