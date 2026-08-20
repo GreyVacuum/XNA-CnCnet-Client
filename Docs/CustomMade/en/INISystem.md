@@ -1163,7 +1163,12 @@ Background video settings (Windows engines only). All keys are read from the `[M
 [MainMenu]
 BackgroundVideo=                 ; string,  path to the background video file, resolved with the same priority as the
                                  ;          main menu theme ([MainMenu] key > [General] MainMenuThemePath > default
-                                 ;          MainMenu/mainmenubg.mp4).
+                                 ;          MainMenu/mainmenubg.mp4). This only selects the file — the feature is
+                                 ;          enabled/disabled by the user setting `Settings.ini` `[Video]`
+                                 ;          `EnableBackgroundVideo` (default `No`): if that setting is `No`,
+                                 ;          `MainMenu` never starts the video regardless of this key. The feature
+                                 ;          additionally requires the hard gate `AllowMainMenuBackgroundVideo`
+                                 ;          (`ClientDefinitions.ini` `[Settings]`, default `No`).
 BackgroundVideoLooping=true      ; boolean, whether the video loops (default true).
 BackgroundVideoMuted=false       ; boolean, whether the theme's video has no audio track. When true the video can never
                                  ;          take audio priority over the menu music.
@@ -1371,6 +1376,12 @@ SupplementalMapFileExtensions=       ; comma-separated strings (no dots), extens
                                      ;          root renamed to `spawnmap.<ext>`, and records them in the generated
                                      ;          spawnmap.ini under `[Basic]` → `SupplementalFiles` (comma-separated).
                                      ;          Leftover `spawnmap.*` companion files are deleted before the next game.
+AllowMainMenuBackgroundVideo=No   ; boolean, hard gate for the main menu background video feature. Default `No`.
+                                 ;          When `No`, `MainMenu` never starts a background video (regardless of
+                                 ;          `Settings.ini` `[Video]` `EnableBackgroundVideo` or `[MainMenu]`
+                                 ;          `BackgroundVideo`) and the "Enable Background Video" / "Enable
+                                 ;          Background Video Sound" checkboxes in the Display Options panel are
+                                 ;          hidden.
 DiscordAppId=                        ; string,  Discord application ID for Rich Presence. Empty disables it.
 DisableDiscordIntegration=false      ; boolean, (NetworkDefinitions.ini) disables Discord integration.
 SendSleep=2500                       ; integer, network send sleep in milliseconds.
@@ -1573,6 +1584,12 @@ ChatMessageSound=true              ; boolean, play a sound on chat messages. Def
 
 [Video]
 EnableBackgroundVideo=false        ; boolean, master switch for the main menu background video. Default `false`.
+                                   ;          `MainMenu` checks this value before starting playback, so `No`
+                                   ;          disables the feature entirely. It is read and written by the
+                                   ;          "Enable Background Video" checkbox in the Display Options panel;
+                                   ;          changing it requires a client restart. Only effective when the hard
+                                   ;          gate `AllowMainMenuBackgroundVideo` (`ClientDefinitions.ini`
+                                   ;          `[Settings]`, default `No`) is enabled.
 EnableBackgroundVideoSound=false   ; boolean, enables the background video's audio track. Default `false`.
 WindowedMode=                      ; boolean, windowed mode (key name from `WindowedModeKey`, default `Video.Windowed`).
 NoWindowFrame=                     ; boolean, borderless windowed mode.
