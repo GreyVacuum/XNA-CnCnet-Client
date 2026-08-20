@@ -185,15 +185,6 @@ namespace DTAClient.DXGUI.Generic
         /// </summary>
         private bool isVideoPausedByUser = false;
 
-        /// <summary>
-        /// The user's explicit video-audio mute choice made via the mute hotkey.
-        /// Null means "follow the settings-derived mute state". Cleared automatically
-        /// when the underlying video-sound / music settings change.
-        /// </summary>
-        private bool? videoMuteUserOverride;
-
-        private bool _lastVideoSoundSetting;
-        private bool _lastPlayMainMenuMusicSetting;
         private XNALabel? videoPausedLabel;
 
         /// <summary>
@@ -529,11 +520,6 @@ namespace DTAClient.DXGUI.Generic
 
                     BackgroundTexture = videoBackground.Texture;
 
-                    // Cache the base video-sound settings so that a later settings change
-                    // can clear a user-initiated mute override (set via the mute hotkey).
-                    _lastVideoSoundSetting = UserINISettings.Instance.EnableBackgroundVideoSound.Value;
-                    _lastPlayMainMenuMusicSetting = UserINISettings.Instance.PlayMainMenuMusic;
-
                     CreateVideoPausedHint();
 
                     // Video has audio and is not muted - it takes priority over background music.
@@ -616,17 +602,6 @@ namespace DTAClient.DXGUI.Generic
             }
 
 #if ISWINDOWS
-            // A user-initiated mute override (set via the mute hotkey) is cleared when the
-            // underlying video-sound / menu-music settings change, so the options take
-            // effect again instead of being stuck behind a stale hotkey choice.
-            if (UserINISettings.Instance.EnableBackgroundVideoSound.Value != _lastVideoSoundSetting ||
-                UserINISettings.Instance.PlayMainMenuMusic != _lastPlayMainMenuMusicSetting)
-            {
-                videoMuteUserOverride = null;
-                _lastVideoSoundSetting = UserINISettings.Instance.EnableBackgroundVideoSound.Value;
-                _lastPlayMainMenuMusicSetting = UserINISettings.Instance.PlayMainMenuMusic;
-            }
-
             // Sync video audio with the main menu music / client volume settings.
             // Skipped while the video is fading out, so a settings save (e.g. the
             // RefreshSettings -> SaveSettings fired during the game launch flow)
@@ -1363,13 +1338,14 @@ namespace DTAClient.DXGUI.Generic
             backgroundVideoMuted || !UserINISettings.Instance.EnableBackgroundVideoSound.Value;
 
         /// <summary>
-        /// The mute state that should be applied to the video player: the user's explicit
-        /// choice made via the mute hotkey, or the settings-derived value (which also
-        /// silences the video when the main menu music is disabled).
+        /// The mute state that should be applied to the video player, derived from
+        /// the settings: silenced when the theme has no audio track
+        /// (BackgroundVideoMuted), the user disabled the video sound
+        /// (EnableBackgroundVideoSound) or the main menu music is disabled.
         /// </summary>
 #if ISWINDOWS
         private bool GetEffectiveVideoMute() =>
-            videoMuteUserOverride ?? (IsVideoAudioMuted() || !UserINISettings.Instance.PlayMainMenuMusic);
+            IsVideoAudioMuted() || !UserINISettings.Instance.PlayMainMenuMusic;
 
         /// <summary>
         /// Handles the configurable background video hotkeys (pause toggle and mute
@@ -1421,33 +1397,34 @@ namespace DTAClient.DXGUI.Generic
         }
 
         /// <summary>
-        /// Toggles the background video audio mute state. The choice is remembered
-        /// (videoMuteUserOverride) and kept consistent with the music-priority rules:
-        /// muting the video lets the menu music take over, unmuting fades it out.
+        /// Toggles the background video audio via the mute hotkey. The change is
+        /// written to the <c>EnableBackgroundVideoSound</c> setting and persisted, so
+        /// the "Video Sound" checkbox in the options window and the hotkey always
+        /// reflect the same state and the choice survives a restart. Calling
+        /// <see cref="UserINISettings.SaveSettings"/> fires <see cref="SettingsSaved"/>,
+        /// which applies the new mute state to the player and adjusts the menu-music
+        /// priority (the music takes over when the video is muted, and fades out again
+        /// when the video sound is re-enabled).
         /// </summary>
         private void ToggleVideoMuted()
         {
             if (videoBackground == null)
                 return;
 
-            bool muted = !videoBackground.IsMuted;
-            videoMuteUserOverride = muted;
-            videoBackground.SetMuted(muted);
+            // The hotkey flips the current audio state: if the video is currently
+            // muted, enable its sound; if it is playing audio, mute it. The new
+            // "enable sound" value therefore equals the current mute state.
+            bool enableSound = videoBackground.IsMuted;
 
-            if (muted)
-            {
-                // The video is now silent - let the menu music (if enabled) take over.
-                PlayMusic();
-            }
-            else if (isMediaPlayerAvailable && MediaPlayer.State == MediaState.Playing)
-            {
-                // The video audio is back and takes priority - fade the menu music out.
-                isMusicFading = true;
-            }
+            if (UserINISettings.Instance.EnableBackgroundVideoSound.Value == enableSound)
+                return; // Already in the requested state (e.g. silenced by the menu-music gate) - nothing to persist.
 
-            Logger.Log(muted
-                ? "Background video audio muted via hotkey."
-                : "Background video audio unmuted via hotkey.");
+            UserINISettings.Instance.EnableBackgroundVideoSound.Value = enableSound;
+            UserINISettings.Instance.SaveSettings();
+
+            Logger.Log(enableSound
+                ? "Background video sound enabled via hotkey."
+                : "Background video sound disabled via hotkey.");
         }
 
         /// <summary>
