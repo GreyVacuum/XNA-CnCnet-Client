@@ -1480,8 +1480,12 @@ MaxNameLength=16                     ; integer, 玩家名称的最大长度。
 RequiredFiles=                       ; 逗号分隔的字符串，进行游戏必须存在的文件。
 ForbiddenFiles=                      ; 逗号分隔的字符串，阻止游戏运行的文件。
 MapFileExtension=map                 ; string,  主地图文件的扩展名。
-SupplementalMapFileExtensions=       ; 逗号分隔的字符串，创建 spawnmap.ini 时要复制的补充地图文件
-                                     ;          （例如 bin,mix）。
+SupplementalMapFileExtensions=       ; 逗号分隔的字符串（不带点号），创建 spawnmap.ini 时要随地图一起复制的
+                                     ;          配套文件扩展名（例如 bin,mix）。默认：无（不复制任何文件）。
+                                     ;          机制：开局时客户端扫描地图所在目录，找出与地图同基名、且扩展名
+                                     ;          在此列表中的文件，复制到游戏根目录并重命名为 `spawnmap.<扩展名>`，
+                                     ;          再记录到生成的 spawnmap.ini 的 `[Basic]` → `SupplementalFiles`
+                                     ;          （逗号分隔）。下一局开始前会删除残留的 `spawnmap.*` 配套文件。
 DiscordAppId=                        ; string,  用于 Rich Presence 的 Discord 应用 ID。为空时禁用。
 DisableDiscordIntegration=false      ; boolean, （NetworkDefinitions.ini）禁用 Discord 集成。
 SendSleep=2500                       ; integer, 网络发送休眠毫秒数。
@@ -1633,9 +1637,13 @@ MapPreviewNameBackgroundColor=0,0,0,144 ; color, 地图预览名称背景。
 MapPreviewNameBorderColor=128,128,128,128 ; color, 地图预览名称边框。
 StartingLocationHoverColor=255,255,255,128 ; color, 起始位置悬停 remap 颜色。
 StartingLocationsUsePlayerRemapColor=false ; boolean, 起始位置使用玩家的 remap 颜色。
-DropDownScrollBarThumbColor=     ; color,   下拉框滚动条滑块颜色。
-DropDownScrollBarTrackColor=     ; color,   下拉框滚动条轨道颜色。
-DropDownScrollBarBorderColor=    ; color,   下拉框滚动条边框颜色。
+DropDownScrollBarThumbColor=     ; color,   下拉框滚动条滑块颜色。默认：空（未设置），回退到 `AltUIColor`；
+                                 ;          拖动滑块时使用 `ListBoxFocusColor`。控件级覆盖：下拉框上的
+                                 ;          `ScrollBarThumbColor`。
+DropDownScrollBarTrackColor=     ; color,   下拉框滚动条轨道颜色。默认：空（未设置），回退到下拉框控件自身的
+                                 ;          `BackColor`。控件级覆盖：`ScrollBarTrackColor`。
+DropDownScrollBarBorderColor=    ; color,   下拉框滚动条边框颜色。默认：空（未设置），回退到下拉框控件自身的
+                                 ;          `BorderColor`。控件级覆盖：`ScrollBarBorderColor`。
 ToolTipFontIndex=0               ; integer, 提示使用的字体索引。
 ToolTipOffsetX=0                 ; integer, 提示的水平偏移。
 ToolTipOffsetY=0                 ; integer, 提示的垂直偏移。
