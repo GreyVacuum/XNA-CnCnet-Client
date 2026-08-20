@@ -1276,7 +1276,11 @@ RandomBackgroundTexturesPath= ; string, 随机背景纹理的可选子路径前�
 [MainMenu]
 BackgroundVideo=                 ; string,  背景视频文件的路径，解析优先级与主菜单主题相同
                                  ;          （[MainMenu] 键 > [General] MainMenuThemePath > 默认
-                                 ;          MainMenu/mainmenubg.mp4）。
+                                 ;          MainMenu/mainmenubg.mp4）。该键只决定视频文件——功能的启用/禁用
+                                 ;          由用户设置 `Settings.ini` `[Video]` `EnableBackgroundVideo`
+                                 ;          （默认 `No`）控制：该设置为 `No` 时，`MainMenu` 不会启动视频，
+                                 ;          与本键无关。此外还需硬门控 `AllowMainMenuBackgroundVideo`
+                                 ;          （`ClientDefinitions.ini` `[Settings]`，默认 `No`）开启。
 BackgroundVideoLooping=true      ; boolean, 视频是否循环（默认 true）。
 BackgroundVideoMuted=false       ; boolean, 主题视频是否没有音轨。为 true 时视频永远不能
                                  ;          在音频优先级上超过菜单音乐。
@@ -1486,6 +1490,11 @@ SupplementalMapFileExtensions=       ; 逗号分隔的字符串（不带点号�
                                      ;          在此列表中的文件，复制到游戏根目录并重命名为 `spawnmap.<扩展名>`，
                                      ;          再记录到生成的 spawnmap.ini 的 `[Basic]` → `SupplementalFiles`
                                      ;          （逗号分隔）。下一局开始前会删除残留的 `spawnmap.*` 配套文件。
+AllowMainMenuBackgroundVideo=No   ; boolean, 主菜单背景视频功能的硬门控。默认 `No`。为 `No` 时，`MainMenu`
+                                 ;          不会启动背景视频（无论 `Settings.ini` `[Video]` `EnableBackgroundVideo`
+                                 ;          或 `[MainMenu]` `BackgroundVideo` 如何设置），显示选项面板中的
+                                 ;          "Enable Background Video" / "Enable Background Video Sound" 复选框
+                                 ;          也会被隐藏。
 DiscordAppId=                        ; string,  用于 Rich Presence 的 Discord 应用 ID。为空时禁用。
 DisableDiscordIntegration=false      ; boolean, （NetworkDefinitions.ini）禁用 Discord 集成。
 SendSleep=2500                       ; integer, 网络发送休眠毫秒数。
@@ -1688,7 +1697,11 @@ StopGameLobbyMessageAudio=true     ; boolean, 游戏大厅消息时停止音频�
 ChatMessageSound=true              ; boolean, 聊天消息时播放提示音。默认 `true`。
 
 [Video]
-EnableBackgroundVideo=false        ; boolean, 主菜单背景视频的总开关。默认 `false`。
+EnableBackgroundVideo=false        ; boolean, 主菜单背景视频的总开关。默认 `false`。`MainMenu` 在启动播放前
+                                   ;          会检查该值，为 `No` 时整个功能禁用。由显示选项面板中的
+                                   ;          "Enable Background Video" 复选框读写；修改后需要重启客户端。
+                                   ;          仅在硬门控 `AllowMainMenuBackgroundVideo`（`ClientDefinitions.ini`
+                                   ;          `[Settings]`，默认 `No`）启用时生效。
 EnableBackgroundVideoSound=false   ; boolean, 启用背景视频的音轨。默认 `false`。
 WindowedMode=                      ; boolean, 窗口模式（键名来自 `WindowedModeKey`，默认 `Video.Windowed`）。
 NoWindowFrame=                     ; boolean, 无边框窗口模式。
