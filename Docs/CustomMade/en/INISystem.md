@@ -1363,8 +1363,14 @@ MaxNameLength=16                     ; integer, maximum length of player names.
 RequiredFiles=                       ; comma-separated strings, files that must exist to play.
 ForbiddenFiles=                      ; comma-separated strings, files that block the game from running.
 MapFileExtension=map                 ; string,  extension of main map files.
-SupplementalMapFileExtensions=       ; comma-separated strings, supplemental map files to copy when creating
-                                     ;          spawnmap.ini (e.g. bin,mix).
+SupplementalMapFileExtensions=       ; comma-separated strings (no dots), extensions of companion files that are
+                                     ;          copied next to the map when creating spawnmap.ini (e.g. bin,mix).
+                                     ;          Default: none (no files are copied). Mechanism: at game launch the
+                                     ;          client scans the map's directory for files with the same base name
+                                     ;          as the map whose extension is listed here, copies them to the game
+                                     ;          root renamed to `spawnmap.<ext>`, and records them in the generated
+                                     ;          spawnmap.ini under `[Basic]` → `SupplementalFiles` (comma-separated).
+                                     ;          Leftover `spawnmap.*` companion files are deleted before the next game.
 DiscordAppId=                        ; string,  Discord application ID for Rich Presence. Empty disables it.
 DisableDiscordIntegration=false      ; boolean, (NetworkDefinitions.ini) disables Discord integration.
 SendSleep=2500                       ; integer, network send sleep in milliseconds.
@@ -1515,9 +1521,16 @@ MapPreviewNameBackgroundColor=0,0,0,144 ; color, map preview name background.
 MapPreviewNameBorderColor=128,128,128,128 ; color, map preview name border.
 StartingLocationHoverColor=255,255,255,128 ; color, starting location hover remap color.
 StartingLocationsUsePlayerRemapColor=false ; boolean, uses the player's remap color for starting locations.
-DropDownScrollBarThumbColor=     ; color,   dropdown scroll bar thumb color.
-DropDownScrollBarTrackColor=     ; color,   dropdown scroll bar track color.
-DropDownScrollBarBorderColor=    ; color,   dropdown scroll bar border color.
+DropDownScrollBarThumbColor=     ; color,   dropdown scroll bar thumb color. Default: empty (not set), which falls
+                                 ;          back to `AltUIColor`; while the thumb is being dragged it uses
+                                 ;          `ListBoxFocusColor`. Per-control override: `ScrollBarThumbColor` on the
+                                 ;          dropdown control.
+DropDownScrollBarTrackColor=     ; color,   dropdown scroll bar track color. Default: empty (not set), which falls
+                                 ;          back to the dropdown control's own `BackColor`. Per-control override:
+                                 ;          `ScrollBarTrackColor`.
+DropDownScrollBarBorderColor=    ; color,   dropdown scroll bar border color. Default: empty (not set), which falls
+                                 ;          back to the dropdown control's own `BorderColor`. Per-control override:
+                                 ;          `ScrollBarBorderColor`.
 ToolTipFontIndex=0               ; integer, font index used by tooltips.
 ToolTipOffsetX=0                 ; integer, horizontal offset of tooltips.
 ToolTipOffsetY=0                 ; integer, vertical offset of tooltips.
