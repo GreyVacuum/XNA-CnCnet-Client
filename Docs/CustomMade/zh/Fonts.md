@@ -7,6 +7,11 @@
 
 > **重要：** TrueType 与 SpriteFont 字体**不能**在同一回退链中混用。回退只发生在 TrueType 字体之间。SpriteFont 字体索引不能回退到 TrueType 字体，反之亦然。每个字体索引只能完全属于其中一种类型。
 
+> **用户开关：** 玩家可以通过显示选项面板中的 "Use TrueType Fonts" 复选框完全禁用 TrueType 渲染
+> （存储为 `Settings.ini` `[Fonts]` `UseTTFFonts`，默认 `true`）。禁用后，客户端跳过 `Fonts.ini` 搜索，
+> 只加载旧式 `SpriteFontN.xnb` 资源，以降低内存与渲染开销（代价是字体保真度下降）。需要重启客户端生效。
+> 注意：该回退要求随包附带 SpriteFont 资源；若缺失，字体列表将为空。
+
 字体配置通过放置在 `Resources` 目录中的 `Fonts.ini` 完成。
 
 ## Fonts.ini 的位置

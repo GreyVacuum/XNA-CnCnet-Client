@@ -1715,6 +1715,12 @@ ForceLowestDetailLevel=false       ; boolean, 强制最低细节等级。默认 
 UseGraphicsPatch=true              ; boolean,（仅 TS）使用图形补丁。默认 `true`。
 VideoBackBuffer=false              ; boolean,（非 TS）渲染到视频后台缓冲。默认 `false`。
 
+[Fonts]
+UseTTFFonts=true                   ; boolean, 启用来自 `Fonts.ini` 的 TrueType（TTF）字体渲染。默认 `true`。
+                                   ;          为 `false` 时，客户端跳过 `Fonts.ini`，回退使用旧式 `SpriteFontN.xnb`
+                                   ;          资源（降低内存/渲染开销）。由显示选项面板中的 "Use TrueType Fonts"
+                                   ;          复选框切换；需要重启客户端。
+
 [Options]
 GameSpeed=1                        ; integer, 游戏内速度设置。
 DetailLevel=2                      ; integer, 细节等级。默认 `2`。
