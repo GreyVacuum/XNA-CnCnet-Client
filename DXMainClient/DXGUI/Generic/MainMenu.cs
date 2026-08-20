@@ -477,6 +477,11 @@ namespace DTAClient.DXGUI.Generic
 #if ISWINDOWS
         private void LoadVideoBackground()
         {
+            // Hard gate: mods can forbid the background video feature entirely
+            // (ClientDefinitions.ini [Settings] AllowMainMenuBackgroundVideo, default No).
+            if (!ClientConfiguration.Instance.AllowMainMenuBackgroundVideo)
+                return;
+
             // Check if background video is enabled in user settings (default: off)
             if (!UserINISettings.Instance.EnableBackgroundVideo.Value)
                 return;

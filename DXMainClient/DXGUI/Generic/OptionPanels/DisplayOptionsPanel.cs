@@ -310,13 +310,26 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             chkEnableBackgroundVideoSound.ClientRectangle = new Rectangle(
                 chkEnableBackgroundVideo.X + 36,
                 chkEnableBackgroundVideo.Bottom + 24, 0, 0);
-            chkEnableBackgroundVideoSound.Text = "Enable Background Video Sound".L10N("Client:DTAConfig:EnableBackgroundVideoSound");
+            chkEnableBackgroundVideoSound.Text = "Video Sound".L10N("Client:DTAConfig:EnableBackgroundVideoSound");
             chkEnableBackgroundVideoSound.ToolTipText =
                 """
                 When enabled, the background video's audio track is played and takes
                 priority over the main menu music. When disabled, the video is silenced
                 and the main menu music is played instead.
                 """.L10N("Client:DTAConfig:EnableBackgroundVideoSoundToolTip");
+
+            // When the mod forbids the background video feature
+            // (ClientDefinitions.ini [Settings] AllowMainMenuBackgroundVideo, default No),
+            // hide both checkboxes so the user cannot see or enable the feature.
+            if (!ClientConfiguration.Instance.AllowMainMenuBackgroundVideo)
+            {
+                chkEnableBackgroundVideo.Visible = false;
+                chkEnableBackgroundVideo.AllowChecking = false;
+                chkEnableBackgroundVideo.InputEnabled = false;
+                chkEnableBackgroundVideoSound.Visible = false;
+                chkEnableBackgroundVideoSound.AllowChecking = false;
+                chkEnableBackgroundVideoSound.InputEnabled = false;
+            }
 
             if (ClientConfiguration.Instance.ClientGameType == ClientType.TS && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {

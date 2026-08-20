@@ -559,6 +559,15 @@ namespace ClientCore
         public bool DisallowJoiningIncompatibleGames => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(DisallowJoiningIncompatibleGames), false);
 
         /// <summary>
+        /// Whether the main menu background video feature is allowed at all.
+        /// When false, the main menu never starts a background video and the
+        /// "Enable Background Video" / "Enable Background Video Sound" checkboxes
+        /// in the Display Options panel are disabled.
+        /// Default: false (No).
+        /// </summary>
+        public bool AllowMainMenuBackgroundVideo => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(AllowMainMenuBackgroundVideo), false);
+
+        /// <summary>
         /// Activates warnings for development builds of XNA Client
         /// </summary>
         public bool ShowDevelopmentBuildWarnings => clientDefinitionsIni.GetBooleanValue(SETTINGS, nameof(ShowDevelopmentBuildWarnings), true);
