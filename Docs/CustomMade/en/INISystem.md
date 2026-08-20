@@ -38,6 +38,41 @@ Key implementation notes:
 
 ---
 
+## INI Inheritance
+
+INI files used by the client support two forms of inheritance.
+
+### Section inheritance — `BaseSection` / `$BaseSection`
+
+Any section may inherit keys from another section **in the same file**. Keys that are not already defined in the inheriting section are copied from the base section; keys defined by the inheriting section are kept.
+
+- **`BaseSection=<section>`** — applied by the INI preprocessor (`IniPreprocessor`), used for window layout files. Works recursively; if a base section is missing the section is left untouched.
+- **`$BaseSection=<section>`** — the same mechanism applied at load time by `CCIniFile` (the client's INI class). A missing base section only logs a warning.
+
+```ini
+[lbChatMessages_Player]
+BaseSection=lbChatMessages
+```
+
+### File inheritance — `[INISystem] BasedOn`
+
+A `CCIniFile`-based file may chain-merge other files through the `[INISystem]` section:
+
+```ini
+[INISystem]
+BasedOn=GameLobbyBase.ini,MoreSettings.ini
+```
+
+Each listed file is loaded and its sections are consolidated into the including file; sections already present in the including file take precedence. Relative paths are resolved against the including file's directory, and the `$THEME_DIR$` token resolves to the resource path. A missing base file only produces a warning.
+
+Window layout files use both mechanisms together: for example `MultiplayerGameLobby.ini` declares `[INISystem] BasedOn=GameLobbyBase.ini`, and control sections inside it reuse other sections via `BaseSection`.
+
+### Background preprocessing — `INI/Base`
+
+At startup the client runs a background task that preprocesses every `*.ini` file in `INI/Base` (game folder): `BaseSection` inheritance is applied and the result is written to `INI/<name>.ini`. A `ProcessedIniInfo.ini` (user files folder) stores the SHA1 hashes of the source and the processed file, so only outdated files are re-processed. `desktop.ini` is ignored.
+
+---
+
 ## Constants
 
 Constants are **integers** that can be referenced from [dynamic control properties](#dynamic-control-properties-and-expressions). They are resolved at window initialization time by the expression `Parser` (`ClientGUI/Parser.cs`).
@@ -780,20 +815,22 @@ FontIndex=0 ; integer, index of the font loaded from the font list.
 
 The following controls are only available as children of `GameLobbyBase` and derived controls.
 
-In addition, the lobby window itself (`[GameLobbyBase]` / `[SkirmishLobby]` / `[CnCNetGameLobby]` sections, which chain to `GameLobbyBase.ini`) supports these layout keys parsed by `GameLobbyBase.ParseControlINIAttribute`:
+In addition, the lobby window itself (`[GameLobbyBase]` / `[SkirmishLobby]` / `[MultiplayerGameLobby]` / `[CnCNetGameLobby]` sections, which chain to `GameLobbyBase.ini` via `[INISystem] BasedOn`) supports these layout keys, read directly from the window's own INI section with `ConfigIni.GetIntValue` (not via the control attribute parser):
 
 ```ini
 [LOBBY_WINDOW]                 ; GameLobbyBase
-PlayerOptionLocationX=         ; integer, X coordinate of the player option controls.
-PlayerOptionLocationY=         ; integer, Y coordinate of the player option controls.
+PlayerOptionLocationX=25       ; integer, X coordinate of the player option controls.
+PlayerOptionLocationY=24       ; integer, Y coordinate of the player option controls.
 PlayerOptionVerticalMargin=    ; integer, vertical gap between the player option rows.
 PlayerOptionHorizontalMargin=  ; integer, horizontal gap between the player option controls.
-CaptionLocationY=              ; integer, Y coordinate of the option captions.
-PlayerNameWidth=               ; integer, width of the player name control.
-SideWidth=                     ; integer, width of the side selector.
-ColorWidth=                    ; integer, width of the color selector.
-StartWidth=                    ; integer, width of the starting location selector.
-TeamWidth=                     ; integer, width of the team selector.
+PlayerOptionCaptionLocationY=6 ; integer, Y coordinate of the option captions.
+PlayerNameWidth=136            ; integer, width of the player name control.
+SideWidth=91                   ; integer, width of the side selector.
+ColorWidth=79                  ; integer, width of the color selector.
+StartWidth=49                  ; integer, width of the starting location selector.
+TeamWidth=46                   ; integer, width of the team selector.
+PlayerStatusIndicatorX=3       ; integer, X offset of the player status indicator (`[MultiplayerGameLobby]`).
+PlayerStatusIndicatorY=0       ; integer, Y offset of the player status indicator (`[MultiplayerGameLobby]`).
 ```
 
 #### [GameSessionCheckBox](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Generic/GameSessionCheckBox.cs)
@@ -808,12 +845,19 @@ OptionName=                                ; string,  display name of this optio
 SpawnIniOption=                            ; string,  spawn INI option written when the checkbox state changes. Indexed
                                            ;          variants `SpawnIniOption0`, `SpawnIniOption1`, ... are supported.
 SpawnIniProject=Settings                   ; string,  spawn INI section the option is written to. Default `Settings`.
-EnabledSpawnIniValue=True                  ; string,  spawn INI value when checked. Defaults to `True`.
-DisabledSpawnIniValue=False                ; string,  spawn INI value when unchecked. Defaults to `False`.
+                                           ;          Indexed variants `SpawnIniProject0`, `SpawnIniProject1`, ... are
+                                           ;          supported.
+EnabledSpawnIniValue=True                  ; string,  spawn INI value when checked. Defaults to `True`. Indexed variants
+                                           ;          `EnabledSpawnIniValueN` supported.
+DisabledSpawnIniValue=False                ; string,  spawn INI value when unchecked. Defaults to `False`. Indexed
+                                           ;          variants `DisabledSpawnIniValueN` supported.
 CustomIniPath=                             ; string,  custom INI path for map-specific settings (indexed variants supported).
 SpawnWriteCustom=false                     ; boolean, writes the option to the map INI (spawnmap.ini) instead of spawn.ini.
-CustomWriteSpawn=false                     ; boolean, inverse of SpawnWriteCustom (kept for compatibility).
-SpawnIniValueCheck=false                   ; boolean, when `true` an empty value is not written to spawn.ini.
+                                           ;          Indexed variants `SpawnWriteCustomN` supported.
+CustomWriteSpawn=false                     ; boolean, inverse of SpawnWriteCustom (kept for compatibility). Indexed
+                                           ;          variants `CustomWriteSpawnN` supported.
+SpawnIniValueCheck=false                   ; boolean, when `true` an empty value is not written to spawn.ini. Indexed
+                                           ;          variants `SpawnIniValueCheckN` supported.
 Reversed=false                             ; boolean, reverses the checkbox behavior.
 Checked=false                              ; boolean, initial checked state.
 MapScoringMode=Irrelevant                  ; enum (Irrelevant | DenyWhenChecked | DenyWhenUnchecked),
@@ -904,8 +948,11 @@ ItemLabelN=                                ; string, display label of the item a
 SpawnIniOption=                            ; string,  spawn INI option written based on the selected item. Indexed
                                            ;          variants `SpawnIniOption0`, ... are supported.
 SpawnIniProject=Settings                   ; string,  spawn INI section the option is written to. Default `Settings`.
+                                           ;          Indexed variants `SpawnIniProjectN` supported.
 SpawnWriteCustom=false                     ; boolean, writes the option to the map INI (spawnmap.ini) instead of spawn.ini.
-SpawnIniValueCheck=false                   ; boolean, when `true` an empty value is not written to spawn.ini.
+                                           ;          Indexed variants `SpawnWriteCustomN` supported.
+SpawnIniValueCheck=false                   ; boolean, when `true` an empty value is not written to spawn.ini. Indexed
+                                           ;          variants `SpawnIniValueCheckN` supported.
 DefaultIndex=0                             ; integer, default selected item index.
 DataWriteMode=BOOLEAN                      ; enum (INDEX | BOOLEAN | STRING | MAPCODE),
                                            ;          how the value is written to the spawn INI:
@@ -993,8 +1040,9 @@ File-setting checkbox that copies files when its state changes.
 
 ```ini
 [SOMEFILESETTINGCHECKBOX]        ; FileSettingCheckBox
-Checked=false                    ; boolean, initial checked state.
-DefaultValue=false               ; boolean, default state of the checkbox. Used when `Checked` is not set.
+Checked=false                    ; boolean, alias of `DefaultValue`; both keys write the same default-state property
+                                 ;          (no precedence — the last key in the INI wins).
+DefaultValue=false               ; boolean, default state of the checkbox, used when the setting has no saved value.
 SettingSection=CustomSettings    ; string,  section of the settings INI the setting is saved to. Default `CustomSettings`.
 SettingKey=                      ; string,  key of the settings INI the setting is saved to. Defaults to
                                  ;          `CONTROLNAME_Value` when `WriteSettingValue` is set, otherwise
@@ -1011,9 +1059,17 @@ EnabledFileN=                    ; comma-separated strings, files to copy when t
                                  ;          and increments until no value is found. Format:
                                  ;          source path relative to the game root, destination path relative to the game
                                  ;          root, and an optional file operation option (see
-                                 ;          [Appendix: File Operation Options](#appendix-file-operation-options)).
+                                 ;          [Appendix: File Operation Options](#appendix-file-operation-options)). The
+                                 ;          source and destination may omit a shared prefix that is provided by the
+                                 ;          `CopyFilePath` / `PasteFilePath` keys.
 DisabledFileN=                   ; comma-separated strings, files to copy when the checkbox is not checked. Same format
                                  ;          as `EnabledFileN`.
+CopyFilePath=                    ; string,  base source path (relative to the game root) prepended to the source of every
+                                 ;          file entry in this section (`EnabledFileN`, `DisabledFileN`, legacy `FileN`).
+                                 ;          Default: none.
+PasteFilePath=                   ; string,  base destination path (relative to the game root) prepended to the
+                                 ;          destination of every file entry in this section. Independent from
+                                 ;          `CopyFilePath`; either key may be set alone. Default: none.
 ```
 
 #### [SettingDropDown](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DTAConfig/Settings/SettingDropDown.cs)
@@ -1028,7 +1084,7 @@ SettingSection=        ; string,  section of the settings INI the setting is sav
 SettingKey=            ; string,  key of the settings INI the setting is saved to. Defaults to
                        ;          `CONTROLNAME_Value` when `WriteItemValue` is set, otherwise `CONTROLNAME_SelectedIndex`.
 WriteItemValue=false   ; boolean, writes the selected item's value (tag) to the setting INI key instead of the index.
-RestartRequired=true   ; boolean, whether applying this setting requires a client restart.
+RestartRequired=false  ; boolean, whether applying this setting requires a client restart.
 ```
 
 #### [FileSettingDropDown](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DTAConfig/Settings/FileSettingDropDown.cs)
@@ -1048,6 +1104,10 @@ ResetUnavailableValue=false          ; boolean, adjusts the setting value automa
 ItemXFileN=                          ; comma-separated strings, files to copy when dropdown item `X` is selected.
                                      ;          `N` starts from 0 and increments until no value is found. Same format as
                                      ;          `EnabledFileN` (see [Appendix: File Operation Options](#appendix-file-operation-options)).
+CopyFilePath=                        ; string,  base source path (relative to the game root) prepended to the source of
+                                     ;          every `ItemXFileN` entry (all items share the same base). Default: none.
+PasteFilePath=                       ; string,  base destination path (relative to the game root) prepended to the
+                                     ;          destination of every `ItemXFileN` entry. Default: none.
 ```
 
 #### Appendix: File Operation Options
@@ -1061,6 +1121,17 @@ Valid file operation options for the files defined by `FileSettingCheckBox` and 
 | `DontOverwrite` | Never overwrites the destination file if it is already present. |
 | `KeepChanges` | Caches the destination file so that user-made changes survive disabling and re-enabling the option. |
 | `AlwaysOverwrite_LinkAsReadOnly` | Attempts to create a hard link (shared content) to the source file, falling back to a copy if linking fails. Recommended for binary files such as `opengl32.dll`, `d3d9.dll`, `dxgi.dll`; not recommended for text files. While the link exists, both the source and the target are marked read-only. |
+
+The optional `CopyFilePath` and `PasteFilePath` keys reduce repetition when several entries share the same directory: they define section-level base paths (relative to the game root) that are prepended to the source / destination of every entry respectively. The entry format then only contains the path remainder. Example:
+
+```ini
+[ReShadeSelection]
+CopyFilePath=Resources/ReShade Files
+Item0File0=dxgi.dll,dxgi.dll,AlwaysOverwrite_LinkAsReadOnly
+Item1File0=d3d9.dll,d3d9.dll,AlwaysOverwrite_LinkAsReadOnly
+```
+
+This resolves the source of `Item0File0` to `Resources/ReShade Files/dxgi.dll` and its destination to `dxgi.dll` (game root). Both keys are optional, apply to all file entries of the section, and are independent of each other.
 
 ---
 
@@ -1142,7 +1213,9 @@ SideName=                            ; string,  mission icon asset prefix, not a
                                      ;          `GDIicon.png`).
 LongDescription=                     ; string,  mission description text. Supports localization and line breaks via `@`.
 FinalMovie=none                      ; string,  movie to play after mission completion.
-RequiredAddon=false                  ; boolean, whether the mission requires the expansion.
+RequiredAddon=false                  ; boolean, whether the mission requires the expansion. Default: `true` for YR/Ares
+                                     ;          clients (the value is written inverted as `Ra2Mode`), `false` otherwise
+                                     ;          (written as `Firestorm` for TS).
 Enabled=true                         ; boolean, whether the mission is selectable.
 BuildOffAlly=false                   ; boolean, whether the player can build off ally structures.
 PlayerAlwaysOnNormalDifficulty=false ; boolean, forces the human player to Normal difficulty regardless of the
@@ -1151,10 +1224,17 @@ Tags=                                ; comma-separated strings, tags for filteri
                                      ;          missions always get the `CUSTOM` tag.
 PreviewImage=                        ; string,  path relative to `Resources/Mission Previews/` for the mission preview
                                      ;          image.
-ScenarioMapINI=                      ; boolean, overrides `CopyMissionsToSpawnmapINI` for this mission.
-Supplement=                          ; boolean, overrides `CustomMissionSupplementEnable.Battle` for this mission.
-MissionSpawnIniOptions=              ; string,  name of a `Battle.ini` section whose keys are written to
-                                     ;          spawnmap.ini when the mission is played.
+ScenarioMapINI=                      ; string,  parsed as a boolean; overrides the client configuration
+                                     ;          `CopyMissionsToSpawnmapINI` for this mission. Empty (default) falls back
+                                     ;          to the configured value.
+Supplement=                          ; boolean, overrides `CustomMissionSupplementEnable.Battle` for this mission. Default:
+                                     ;          the `CustomMissionSupplementEnable.Battle` configuration value (for custom
+                                     ;          missions: `CustomMissionSupplementEnable.Custom`).
+MissionSpawnIniOptions=              ; string,  name of a section in `INI/Battle.ini`. When the mission is played, every
+                                     ;          key-value pair of that section is written into the `[spawnmap.ini]`
+                                     ;          section of `spawn.ini`. Default: empty (no section applied). For custom
+                                     ;          missions this key is read from `[ClientMissionConfig]`, but the referenced
+                                     ;          section is still resolved from `INI/Battle.ini`, not from the map file.
 ```
 
 The `[Battles]` section of `Battle.ini` maps list entries to mission sections:
@@ -1464,11 +1544,19 @@ See [Constants](#constants).
 
 ### Settings.ini (UserINISettings)
 
-The per-user settings file (`ClientCore/Settings/UserINISettings.cs`), written to `SettingsFile` (default `Settings.ini`) in the resource folder. It persists user options and is the storage used by the `Setting*` controls (see [XNAOptionsPanel Controls](#xnaoptionspanel-controls)). Notable keys:
+The per-user settings file (`ClientCore/Settings/UserINISettings.cs`), written to `SettingsFile` (default `Settings.ini`, key `SettingsFile` in `ClientDefinitions.ini` `[Settings]`) **in the game folder** (`ProgramConstants.GamePath`). It persists user options and is the storage used by the `Setting*` controls (see [XNAOptionsPanel Controls](#xnaoptionspanel-controls)). When a `UserDefaults.ini` exists in the resource folder, it is loaded first as the base and the user file is merged on top of it (user values win). Notable keys:
 
 ```ini
 [Audio]
 PlayMainMenuMusic=true             ; boolean, play the main menu music. Default `true`.
+ScoreVolume=0.7                    ; float,   score volume. Default `0.7`. RA reads `[Options] ScoreVolume`.
+SoundVolume=0.7                    ; float,   sound volume. Default `0.7`. RA reads `[Options] Volume`.
+VoiceVolume=0.7                    ; float,   voice volume. Default `0.7`.
+IsScoreShuffle=true                ; boolean, shuffle the score. Default `true`.
+ClientVolume=1.0                   ; float,   client volume multiplier. Default `1.0`.
+StopMusicOnMenu=true               ; boolean, stop music when returning to the main menu. Default `true`.
+StopGameLobbyMessageAudio=true     ; boolean, stop game lobby message audio. Default `true`.
+ChatMessageSound=true              ; boolean, play a sound on chat messages. Default `true`.
 
 [Video]
 EnableBackgroundVideo=false        ; boolean, master switch for the main menu background video. Default `false`.
@@ -1477,15 +1565,97 @@ WindowedMode=                      ; boolean, windowed mode (key name from `Wind
 NoWindowFrame=                     ; boolean, borderless windowed mode.
 BorderlessWindowedClient=true      ; boolean, default value of the borderless windowed client option.
 IntegerScaledClient=false          ; boolean, default value of the integer scaling option.
+ScreenWidth=1024                   ; integer, in-game screen width. Default `1024`. RA uses `[Options] Width`.
+ScreenHeight=768                   ; integer, in-game screen height. Default `768`. RA uses `[Options] Height`.
+ClientFPS=60                       ; integer, client frame rate. Default `60`.
+DisplayToggleableExtraTextures=true; boolean, show toggleable extra textures. Default `true`.
+ForceLowestDetailLevel=false       ; boolean, force the lowest detail level. Default `false`.
+UseGraphicsPatch=true              ; boolean, (TS only) use the graphics patch. Default `true`.
+VideoBackBuffer=false              ; boolean, (non-TS) render into the video back buffer. Default `false`.
 
 [Options]
 GameSpeed=1                        ; integer, in-game speed setting.
+DetailLevel=2                      ; integer, detail level. Default `2`.
+Translation=                       ; string,  translation locale. Default: the built-in locale.
+TranslationGameFilesVersion=       ; string,  version marker of the translated game files. Default empty.
+ScrollRate=3                       ; integer, map scroll rate. Default `3`.
+DragDistance=4                     ; integer, drag distance. Default `4`.
+CustomDragDistance=0               ; integer, fixed drag distance override in pixels (0 = auto-scaled). Default `0`.
+DoubleTapInterval=30               ; integer, double-tap interval in ms. Default `30`.
+Win8Compat=No                      ; string,  Windows 8 compatibility mode. Default `No`.
+CheckforUpdates=true               ; boolean, check for updates on startup. Default `true`.
+PrivacyPolicyAccepted=false        ; boolean, whether the privacy policy was accepted. Default `false`.
+IsFirstRun=true                    ; boolean, whether this is the first run. Default `true`.
+CustomComponentsDenied=false       ; boolean, whether installing custom components was denied. Default `false`.
+Difficulty=1                       ; integer, campaign difficulty. Default `1`.
+ScrollDelay=4                      ; integer, scroll delay. Default `4`.
+MinimizeWindowsOnGameStart=true    ; boolean, minimize other windows when the game starts. Default `true`.
+AutoRemoveUnderscoresFromName=true ; boolean, remove underscores from player names. Default `true`.
+GenerateTranslationStub=false      ; boolean, generate a translation stub file. Default `false`.
+GenerateOnlyNewValuesInTranslationStub=false ; boolean, only write new values to the translation stub. Default `false`.
+WriteInstallationPathToRegistry=   ; boolean, write the installation path to the registry.
+
+[MultiPlayer]
+Theme=                             ; string,  client theme name. Default: the first available theme.
+Handle=                            ; string,  player handle / name. Default empty.
+CustomPlayerName=                  ; string,  the player's custom in-game name, used when custom names are enabled in
+                                   ;          the game lobby player name options ([PlayerNameOptions]).
+ChatColor=-1                       ; integer, chat color. Default `-1`.
+LANChatColor=-1                    ; integer, LAN chat color. Default `-1`.
+PingCustomTunnels=true             ; boolean, ping unofficial (custom) tunnels. Default `true`.
+PlaySoundOnGameHosted=true         ; boolean, play a sound when hosting a game. Default `true`.
+SkipConnectDialog=false            ; boolean, skip the connect dialog. Default `false`.
+PersistentMode=false               ; boolean, persistent mode. Default `false`.
+AutomaticCnCNetLogin=false         ; boolean, automatic CnCNet login. Default `false`.
+DiscordIntegration=true            ; boolean, enable Discord integration. Default `true`.
+SteamIntegration=true              ; boolean, enable Steam integration. Default `true`.
+AllowGameInvitesFromFriendsOnly=false ; boolean, only allow game invites from friends. Default `false`.
+NotifyOnUserListChange=true        ; boolean, notify when the user list changes. Default `true`.
+DisablePrivateMessagePopups=false  ; boolean, disable private message popups. Default `false`.
+DisableMainMenuHotkeys=true        ; boolean, disable main menu hotkeys. Default `true`.
+AllowPrivateMessagesFromState=0    ; integer, whom private messages are allowed from. Default `0` (everyone).
+EnableMapSharing=true              ; boolean, enable map sharing. Default `true`.
+AlwaysDisplayTunnelList=false      ; boolean, always display the tunnel list. Default `false`.
+PreferredCnCNetTunnel=             ; string,  preferred CnCNet tunnel address (written by the "Save as Default"
+                                   ;          tunnel button).
+MapSortState=0                     ; integer, map list sort state. Default `0`.
+SearchAllGameModes=false           ; boolean, search across all game modes. Default `false`.
+
+[Compatibility]
+Renderer=                          ; string,  renderer override. Default empty.
+
+[Phobos]
+CampaignDefaultGameSpeed=4         ; integer, default campaign game speed. Default `4`.
+
+[GameFilters]
+SortState=0                        ; integer, game list sort state. Default `0`.
+ShowFriendGamesOnly=false          ; boolean, show only friend games. Default `false`.
+HideLockedGames=false              ; boolean, hide locked games. Default `false`.
+HidePasswordedGames=false          ; boolean, hide passworded games. Default `false`.
+HideIncompatibleGames=false        ; boolean, hide incompatible games. Default `false`.
+MaxPlayerCount=8                   ; integer, maximum player count filter (2-8). Default `8`.
+
+[GameOptionFilters]
+ControlName=1                      ; integer, per-option filter (key = game lobby control name). For checkboxes
+                                   ;          0 = Off, 1 = On; for dropdowns the selected option index. An absent
+                                   ;          key means "All" (no filter).
+
+[Channels]
+ChannelName=Yes                    ; boolean, whether the channel / game is followed (key = channel name).
+
+[FavoriteMaps]
+0=MAPSHA1:GAMEMODE                 ; string,  favorite map entry (`mapSHA1:gameMode`). Legacy name-based entries are
+                                   ;          migrated to SHA1-based entries when used.
 ```
 
 `SettingCheckBox`/`SettingDropDown` controls save under `[CustomSettings]` (see `SettingSection`) with keys
 `CONTROLNAME_Checked` / `CONTROLNAME_Value` / `CONTROLNAME_SelectedIndex` depending on the write mode.
 
+Game type differences: for RA, the screen size keys (`Width`/`Height`) and the volume keys (`ScoreVolume`/`Volume`) live under `[Options]` instead of `[Video]`/`[Audio]`, and saving writes an extra `[Options] MultiplayerScoreVolume` mirror; for TS, the back-buffer key is `UseGraphicsPatch` instead of `VideoBackBuffer`. The `[GameFilters]`, `[GameOptionFilters]`, `[Channels]` and `[FavoriteMaps]` sections are used by the game list and lobby filtering UI.
+
 ### NetworkDefinitions.ini
+
+If a `NetworkDefinitions.local.ini` exists in the resource folder, it is used **instead of** `NetworkDefinitions.ini` (user override; a log line confirms which one was loaded).
 
 ```ini
 [Settings]
@@ -1514,6 +1684,21 @@ UIName=Standard
 ; Game mode properties...
 ```
 
+The multiplayer map list and aliases are defined in two additional sections:
+
+```ini
+[MultiMaps]
+0=Maps/MyMap          ; map entries: N = path of the map file relative to the game root, without the extension.
+1=Maps/AnotherMap
+
+[GameModeAliases]
+MyAlias=Standard,Infantry Only ; alias -> comma-separated list of real game mode names. A game mode alias acts as
+                                ;          a single mode that expands to the listed modes.
+```
+
+- **`[MultiMaps]`** — the entry point of the official multiplayer map list. Each value is a map path relative to the game root, without the `.map` extension (the extension from `ClientDefinitions.ini` `[Settings]` `MapFileExtension` is appended). Without this section the official map list fails to load. Each map entry may also define any of the [Map Properties](#map-properties) in a section of the same name.
+- **`[GameModeAliases]`** — maps an alias name to one or more real game mode names (comma-separated). Selecting the alias in the UI behaves like the listed modes.
+
 #### Game Mode Properties
 
 ```ini
@@ -1533,7 +1718,8 @@ ForcedSpawnIniOptions=                 ; string,  name of an INI section whose k
                                        ;          spawn.ini [Settings]. Defaults to `{Name}ForcedSpawnIniOptions`.
 MapCodeIniName=                        ; string,  name of the map code INI file in `INI/Map Code/`. Defaults to
                                        ;          `{Name}.ini`. Alias: MapCodeININame.
-RandomizedMapCodeIniNames=             ; comma-separated strings, additional randomized map code INI names.
+RandomizedMapCodeIniNames=             ; comma-separated strings, additional randomized map code INI names. Alias:
+                                       ;          RandomizedMapCodeININames.
 RandomizedMapCodesCount=1              ; integer, how many of the randomized map codes to pick.
 ```
 
@@ -1599,17 +1785,103 @@ NeutralColor=-1                        ; integer, neutral color index (-1 = defa
 SpecialColor=-1                        ; integer, special color index (-1 = default).
 Bases=                                 ; boolean, whether players start with bases.
 ExtraTextureN=name,x,y[,level[,toggleable]] ; map preview extra texture placement.
-LocalSize=WIDTH,HEIGHT                 ; 2 integers, map size for the preview (aliases: Size, or X/Y/Width/Height).
-WaypointN=X,Y                         ; 2 integers, waypoint coordinates (1-based).
-TeamStartMappingN=INDEX               ; integer, team start mapping.
+LocalSize=X,Y,WIDTH,HEIGHT            ; 4 integers, map size for the preview (isometric maps); default "0,0,0,0".
+                                      ;          Non-isometric maps use the separate `X`/`Y`/`Width`/`Height` keys
+                                      ;          instead of `LocalSize`/`Size`.
+WaypointN=CELL[,LEVEL]                ; string,  waypoint coordinate (0-based, read from `Waypoint0` up). Non-isometric
+                                      ;          games use a single cell value; isometric games use `cell[,level]`.
+TeamStartMappingN=A,B,C,D             ; comma-separated team codes, team start mapping preset. Position + 1 is the
+                                      ;          starting location; `x` = no player (blocked), `-` = no team,
+                                      ;          `A`-`D` = team letters. `N` starts from 0.
 TeamStartMappingNName=                 ; string,  team start mapping name.
 ForcedOptions=                         ; comma-separated strings, names of INI sections whose keys become forced
-                                       ;          checkbox/dropdown values.
+                                       ;          checkbox/dropdown values. Default: none.
 ForcedSpawnIniOptions=                 ; comma-separated strings, names of INI sections whose key-value pairs are
-                                       ;          written to spawn.ini.
-MissionSpawnIniOptions=SourceSection:TargetSection ; map-specific spawn INI section mapping.
+                                       ;          written to spawn.ini. Default: none.
+MissionSpawnMapIniOptions=SourceSection:TargetSection[,More:More] ; comma-separated section mappings. For each
+                                       ;          `SourceSection:TargetSection` pair, all keys of `[SourceSection]` (a
+                                       ;          section of this map's `MPMaps.ini` entry) are copied into
+                                       ;          `[TargetSection]` of the generated map INI (spawnmap.ini) at game
+                                       ;          launch, after map codes are applied. Default: none.
 ExtraIniName=MyExtraCode.ini           ; string,  filename in `INI/Map Code/` to consolidate into the map INI at game
                                        ;          launch. Alias: ExtraININame.
+```
+
+#### Co-op Map Properties
+
+For co-op maps (`IsCoopMission=Yes`), the map section additionally supports enemy/ally house definitions and the same disallowed side/color lists available to game modes:
+
+```ini
+[MAP_NAME]
+EnemyHouseN=side,color,startingLocation ; 3 integers, enemy house definition for slot `N` (N = 0, 1, ...). Values are
+                                         ;          the house side index, color index and starting-location waypoint.
+AllyHouseN=side,color,startingLocation   ; 3 integers, ally house definition for slot `N`.
+DisallowedPlayerSides=                   ; comma-separated integers, side indices that no player may select (also valid
+                                         ;          on map sections, not only game modes).
+DisallowedPlayerColors=                  ; comma-separated integers, color indices that no player may select.
+DisallowedPlayerSides.StartN=            ; comma-separated integers, per-starting-location side restrictions.
+DisallowedPlayerColors.StartN=           ; comma-separated integers, per-starting-location color restrictions.
+```
+
+`EnemyHouseN`/`AllyHouseN` are only parsed when `IsCoopMission=Yes`.
+
+#### Custom Multiplayer Map Files
+
+Custom multiplayer `.map` files (placed in the custom map folder or referenced by `[MultiMaps]`) can carry client-side settings inside their own INI sections, which are read when the map is loaded:
+
+```ini
+; Inside the .map file
+[Basic]
+Name=My Map                           ; string,  map display name (Description fallback).
+GameModes=Standard                    ; string,  game modes the map appears in (falls back to [Map] GameModes).
+GameMode=Standard                     ; string,  legacy single game mode key.
+Author=Author Name                    ; string,  map author.
+Briefing=                             ; string,  co-op briefing text.
+SpawnIniBriefing=                     ; string,  briefing written to spawn.ini.
+CooperativeLoadScreenSettings=false    ; boolean, enable cooperative loading screen settings.
+CooperativeLoadScreen=                ; string,  cooperative loading screen file.
+CooperativeLoadScreenPallet=          ; string,  cooperative loading screen palette file.
+Credits=-1                            ; integer, starting credits (-1 = default).
+UnitCount=-1                          ; integer, starting unit count (-1 = default).
+NeutralColor=-1                       ; integer, neutral color index (-1 = default).
+SpecialColor=-1                       ; integer, special color index (-1 = default).
+Bases=                                ; boolean, whether players start with bases.
+ExtraIniName=                         ; string,  extra map code INI to consolidate (alias: ExtraININame).
+
+[Map]
+LocalSize=0,0,0,0                     ; 4 integers, isometric map size. Non-isometric maps use [Map] X/Y/Width/Height.
+X=0                                   ; integer, (non-isometric) map X origin.
+Y=0                                   ; integer, (non-isometric) map Y origin.
+Width=0                               ; integer, (non-isometric) map width.
+Height=0                              ; integer, (non-isometric) map height.
+
+[Waypoints]
+0=118035                              ; waypoint coordinates, keyed `0`-`7`. Non-isometric: single cell value;
+                                      ;          isometric: `cell[,level]`.
+
+[ForcedOptions]
+; Keys become forced checkbox/dropdown values (fixed section name).
+
+[ForcedSpawnIniOptions]
+; Keys are written to spawn.ini (fixed section name).
+```
+
+The same client-side keys (`ClientMinPlayer`, `ClientMaxPlayer`, `AllowedStartingLocations`, ...) can also be defined in these internal sections instead of `MPMaps.ini`.
+
+#### Map Code INI
+
+Files in `INI/Map Code/` (see `MapCodeIniName`) may define extra behavior beyond plain section consolidation:
+
+```ini
+[GameModeIncludes]
+Standard=ExtraStandardCode.ini         ; key = game mode name, value = additional map code INI file applied only
+                                      ;          when that game mode is active. The section itself is erased after use.
+
+[ReplaceMapAircraft]
+OLD_ID=NEW_ID                         ; rename map objects: key = old object ID, value = new object ID (empty value
+                                      ;          removes the object). One section per category: ReplaceMapAircraft,
+                                      ;          ReplaceMapInfantry, ReplaceMapUnits, ReplaceMapStructures,
+                                      ;          ReplaceMapTerrain.
 ```
 
 ### GameOptions.ini
@@ -1645,6 +1917,63 @@ FogOfWar=no                            ; keys always written to spawn.ini [Setti
 AutoSaveInterval=0                     ; keys always written to spawn.ini [Settings] for campaign missions.
 ```
 
+#### Player AI Quick Options
+
+`[PlayerAIQuickOptions]` defines the default state of the AI quick options panel in the game lobby (`PlayerAIQuickOptionsPanel`). All checkbox keys accept `Yes`/`No`. The dropdown keys store the dropdown item index *minus one* (`SelectedIndex - 1`), because index 0 is always the "Don't Set" placeholder item.
+
+```ini
+[PlayerAIQuickOptions]
+cmbAIQuickDifficultyLevel=2 ; integer, AI difficulty: -1 = Don't Set, 0 = Easy, 1 = Medium, 2 = Hard.
+                            ;          Code default `2` (Hard) if the key is absent.
+cmbAIQuickSide=0            ; integer, AI side: -1 = Don't Set, 0 = Random, then random-selector / side indices
+                            ;          (item order: Don't Set, Random, selectors, sides). Code default `0` (Random).
+cmbAIQuickColor=0           ; integer, AI color: -1 = Don't Set, 0 = Random, then multiplayer color indices
+                            ;          (item order: Don't Set, Random, colors). Code default `0` (Random).
+cmbAIQuickTeam=0            ; integer, AI team: -1 = Don't Set, 0 = No team, then team indices
+                            ;          (item order: Don't Set, -, teams). Code default `0` (No team).
+chkRandomAIDifficulty=No    ; boolean, randomize the AI difficulty. Default No.
+chkRandomAISide=No          ; boolean, randomize the AI side. Default No.
+chkRandomAIColor=No         ; boolean, randomize the AI color. Default No.
+chkRandomAITeam=No          ; boolean, randomize the AI team. Default No.
+chkAutoAssignAIStarts=No    ; boolean, automatically assign starting locations to AI players. Default No.
+chkAIPlayerN=No             ; boolean, format-painter default selection for AI player `N` (`N` = 0-7). Default No.
+
+; Which item groups are included in the pool when "random" is chosen for AI sides / colors:
+Side.RandomAISelection=Yes           ; boolean, include the playable sides. Default Yes.
+SideRandom.RandomAISelection=Yes     ; boolean, include the "Random" side item. Default Yes.
+SideSelectors.RandomAISelection=Yes  ; boolean, include the random selectors. Default Yes.
+Color.RandomAISelection=Yes          ; boolean, include the multiplayer colors. Default Yes.
+ColorRandom.RandomAISelection=Yes    ; boolean, include the "Random" color item. Default Yes.
+```
+
+#### Player Name Options
+
+`[PlayerNameOptions]` defines the default state of the player name options panel in the game lobby (`PlayerNameOptionsPanel`). Values accept `Yes`/`No`.
+
+```ini
+[PlayerNameOptions]
+chkAllowCustomNames=No ; boolean, host master switch: allow players to use custom in-game names. Default No.
+chkEnableCustomName=No ; boolean, enable the local player's custom name (effective only when the host allows
+                       ;          custom names). Default No.
+```
+
+The custom name text itself is not stored here: it is persisted in `Settings.ini` under `[MultiPlayer]` → `CustomPlayerName` (see [Settings.ini](#settingsini-userinisettings)).
+
+#### Player Extra Options
+
+`[PlayerExtraOptions]` defines the default state of the extra player options panel in the game lobby (`PlayerExtraOptionsPanel`). Values accept `Yes`/`No`; all default to `No`.
+
+```ini
+[PlayerExtraOptions]
+chkBoxForceRandomSides=No     ; boolean, force all players to random sides.
+chkBoxForceNoTeams=No         ; boolean, force no teams.
+chkBoxForceRandomColors=No    ; boolean, force all players to random colors.
+chkBoxForceRandomStarts=No    ; boolean, force random starting locations.
+chkBoxUseTeamStartMappings=No ; boolean, enable auto-allying via team start mappings.
+```
+
+These are the lobby defaults only; the host can change them during the session, and the live state is synchronized to other players through network messages rather than INI.
+
 #### ForcedSpawnIniOptions
 
 Forced spawn options define keys that are always written to `spawn.ini` regardless of UI settings. They can be defined at multiple levels:
@@ -1676,6 +2005,90 @@ ForcedSpawnIniOptions=MyMapForcedOptions
 [MyMapForcedOptions]
 ; Keys here are written to spawn.ini when this specific map is played.
 AnotherOption=value
+```
+
+### GameOptionsPresets.ini
+
+`GameOptionsPresets.ini` stores game option presets (the save/load preset feature of the game lobby). It lives in the user files folder and is read/written by the client.
+
+```ini
+[Presets]
+0=My Preset                      ; N = preset name.
+
+[My Preset]
+CheckBoxValues=chkCrates:1,chkShortGame:1    ; comma-separated `controlName:value` pairs (0 = unchecked, 1 = checked).
+DropDownValues=ddTechLevel:7,ddStartingCredits:5 ; comma-separated `controlName:index` pairs (selected option index).
+DropDownCustomValues=ddTechLevel:100|200,ddStartingCredits: ; comma-separated `controlName:value` pairs (custom values).
+```
+
+### GameCollectionConfig.ini
+
+`GameCollectionConfig.ini` (in the base resource folder) adds custom games to the CnCNet game selection window.
+
+```ini
+[CustomGames]
+0=MyGame                          ; N = game section name.
+
+[MyGame]
+InternalName=MYGAME               ; string,  unique internal game ID (lowercased, max length enforced).
+IconFilename=MYGAMEicon.png       ; string,  icon texture file. Default `{InternalName}icon.png`.
+UIName=My Game                    ; string,  display name. Default: the internal ID in upper case.
+ChatChannel=#mygame               ; string,  IRC chat channel name.
+GameBroadcastChannel=#mygame-broadcast ; string,  IRC game broadcast channel name.
+ClientExecutableName=             ; string,  executable launched for the custom game. Default empty.
+RegistryInstallPath=HKCU\Software\MYGAME ; string,  registry key holding the installation path. Default
+                                  ;          `HKCU\Software\{INTERNALNAME}`.
+```
+
+### SkirmishSettings.ini
+
+`Client/SkirmishSettings.ini` (in the game folder) persists the skirmish lobby state between sessions. It is written on save and read on entry; when the file is absent default settings are used.
+
+```ini
+[Player]
+Info=                             ; string,  human player definition (serialized player info).
+
+[AIPlayers]
+0=                                ; string,  AI player definition, keyed `0`-`7`.
+
+[Settings]
+Map=                              ; string,  map SHA1 of the selected map.
+GameModeMapFilter=                ; string,  selected game-mode/map filter name. Legacy alias: `GameMode`.
+
+[GameOptions]
+ControlName=0                     ; per-lobby-option values (key = control name). Dropdowns store the selected
+                                  ;          index, checkboxes store `True`/`False`. Only written when
+                                  ;          `SaveSkirmishGameOptions` is enabled in `ClientDefinitions.ini`.
+```
+
+### CampaignSettings.ini
+
+`Client/CampaignSettings.ini` (in the game folder) persists the campaign lobby options between sessions. It is written and read only when `SaveCampaignGameOptions` is enabled in `ClientDefinitions.ini`.
+
+```ini
+[GameOptions]
+ControlName=0                     ; per-option values (key = control name). Dropdowns store the selected index,
+                                  ;          checkboxes store `True`/`False`.
+```
+
+### spawnSG.ini
+
+`Saved Games/spawnSG.ini` (in the game folder) stores the metadata of the last saved game for the "Load Game" feature of the game lobby; it is runtime-generated and copied to `spawn.ini` when a save is loaded.
+
+```ini
+[Settings]
+GameID=0                          ; integer, unique game ID.
+MapSHA1=                          ; string,  SHA1 of the map.
+BroadcastedGameOptionValues=      ; string,  serialized broadcasted game option values.
+UIMapName=                        ; string,  map display name.
+MapID=                            ; string,  map ID used for localization.
+UIGameMode=                       ; string,  game mode display name.
+PlayerCount=0                     ; integer, number of players.
+Color=0                           ; integer, local player's game color index.
+
+[OtherN]
+Name=                             ; string,  name of the other player in slot `N` (N = 1, 2, ...).
+Color=0                           ; integer, that player's game color index.
 ```
 
 ### KeyboardCommands.ini
