@@ -42,6 +42,45 @@
 
 ---
 
+## INI 继承
+
+客户端使用的 INI 文件支持两种形式的继承。
+
+### 段继承 — `BaseSection` / `$BaseSection`
+
+任何段都可以从**同一文件**中的另一个段继承键。继承段中未定义的键会从基础段复制；继承段自己定义的键保持不变。
+
+- **`BaseSection=<段名>`** — 由 INI 预处理器（`IniPreprocessor`）应用，用于窗口布局文件。递归工作；基础段不存在时该段保持原样。
+- **`$BaseSection=<段名>`** — 由 `CCIniFile`（客户端的 INI 类）在加载时应用的同一机制。基础段缺失只记录警告日志。
+
+```ini
+[lbChatMessages_Player]
+BaseSection=lbChatMessages
+```
+
+### 文件继承 — `[INISystem] BasedOn`
+
+基于 `CCIniFile` 的文件可以通过 `[INISystem]` 段链式合并其他文件：
+
+```ini
+[INISystem]
+BasedOn=GameLobbyBase.ini,MoreSettings.ini
+```
+
+列出的每个文件都会被加载，其段合并进包含它的文件；包含文件中已有的段优先。相对路径相对于包含文件的目录解析，
+`$THEME_DIR$` 令牌解析为资源路径。基础文件缺失只产生警告。
+
+窗口布局文件同时使用这两种机制：例如 `MultiplayerGameLobby.ini` 声明 `[INISystem] BasedOn=GameLobbyBase.ini`，
+其中的控件段通过 `BaseSection` 复用其他段。
+
+### 后台预处理 — `INI/Base`
+
+启动时客户端运行一个后台任务，预处理 `INI/Base`（游戏目录）中的每个 `*.ini` 文件：应用 `BaseSection` 继承后把结果
+写入 `INI/<name>.ini`。`ProcessedIniInfo.ini`（用户文件目录）保存源文件与处理后文件的 SHA1 哈希，因此只重新处理过期的
+文件。`desktop.ini` 被忽略。
+
+---
+
 ## 常量
 
 
@@ -875,21 +914,24 @@ FontIndex=0 ; integer, 字体列表中加载的字体索引。
 
 以下控件只能作为 `GameLobbyBase` 及其派生控件的子控件使用。
 
-此外，大厅窗口本身（`[GameLobbyBase]` / `[SkirmishLobby]` / `[CnCNetGameLobby]` 段，它们会链到
-`GameLobbyBase.ini`）支持由 `GameLobbyBase.ParseControlINIAttribute` 解析的以下布局键：
+此外，大厅窗口本身（`[GameLobbyBase]` / `[SkirmishLobby]` / `[MultiplayerGameLobby]` / `[CnCNetGameLobby]` 段，
+它们通过 `[INISystem] BasedOn` 链到 `GameLobbyBase.ini`）支持以下布局键——直接从窗口自身 INI 段用
+`ConfigIni.GetIntValue` 读取（并非控件属性解析器）：
 
 ```ini
 [LOBBY_WINDOW]                 ; GameLobbyBase
-PlayerOptionLocationX=         ; integer, 玩家选项控件的 X 坐标。
-PlayerOptionLocationY=         ; integer, 玩家选项控件的 Y 坐标。
+PlayerOptionLocationX=25       ; integer, 玩家选项控件的 X 坐标。
+PlayerOptionLocationY=24       ; integer, 玩家选项控件的 Y 坐标。
 PlayerOptionVerticalMargin=    ; integer, 玩家选项行之间的垂直间距。
 PlayerOptionHorizontalMargin=  ; integer, 玩家选项控件之间的水平间距。
-CaptionLocationY=              ; integer, 选项标题的 Y 坐标。
-PlayerNameWidth=               ; integer, 玩家名称控件的宽度。
-SideWidth=                     ; integer, 阵营选择器的宽度。
-ColorWidth=                    ; integer, 颜色选择器的宽度。
-StartWidth=                    ; integer, 起始位置选择器的宽度。
-TeamWidth=                     ; integer, 队伍选择器的宽度。
+PlayerOptionCaptionLocationY=6 ; integer, 选项标题的 Y 坐标。
+PlayerNameWidth=136            ; integer, 玩家名称控件的宽度。
+SideWidth=91                   ; integer, 阵营选择器的宽度。
+ColorWidth=79                  ; integer, 颜色选择器的宽度。
+StartWidth=49                  ; integer, 起始位置选择器的宽度。
+TeamWidth=46                   ; integer, 队伍选择器的宽度。
+PlayerStatusIndicatorX=3       ; integer, 玩家状态指示器的 X 偏移（`[MultiplayerGameLobby]`）。
+PlayerStatusIndicatorY=0       ; integer, 玩家状态指示器的 Y 偏移（`[MultiplayerGameLobby]`）。
 ```
 
 #### [GameSessionCheckBox](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Generic/GameSessionCheckBox.cs)
@@ -905,13 +947,19 @@ _（继承自 [XNAClientCheckBox](#xnaclientcheckbox)）_
 OptionName=                                ; string,  该选项的显示名称（用于游戏信息面板）。
 SpawnIniOption=                            ; string,  复选框状态变化时写入的 spawn INI 选项。支持带索引的
                                            ;          变体 `SpawnIniOption0`、`SpawnIniOption1`、...
-SpawnIniProject=Settings                   ; string,  选项写入的 spawn INI 段。默认 `Settings`。
-EnabledSpawnIniValue=True                  ; string,  勾选时写入的 spawn INI 值。默认为 `True`。
-DisabledSpawnIniValue=False                ; string,  未勾选时写入的 spawn INI 值。默认为 `False`。
+SpawnIniProject=Settings                   ; string,  选项写入的 spawn INI 段。默认 `Settings`。支持带索引的
+                                           ;          变体 `SpawnIniProjectN`。
+EnabledSpawnIniValue=True                  ; string,  勾选时写入的 spawn INI 值。默认为 `True`。支持带索引的
+                                           ;          变体 `EnabledSpawnIniValueN`。
+DisabledSpawnIniValue=False                ; string,  未勾选时写入的 spawn INI 值。默认为 `False`。支持带索引的
+                                           ;          变体 `DisabledSpawnIniValueN`。
 CustomIniPath=                             ; string,  地图专属设置的自定义 INI 路径（支持带索引的变体）。
 SpawnWriteCustom=false                     ; boolean, 将选项写入地图 INI（spawnmap.ini）而不是 spawn.ini。
-CustomWriteSpawn=false                     ; boolean, SpawnWriteCustom 的反义（为兼容保留）。
-SpawnIniValueCheck=false                   ; boolean, 为 `true` 时空值不会写入 spawn.ini。
+                                           ;          支持带索引的变体 `SpawnWriteCustomN`。
+CustomWriteSpawn=false                     ; boolean, SpawnWriteCustom 的反义（为兼容保留）。支持带索引的
+                                           ;          变体 `CustomWriteSpawnN`。
+SpawnIniValueCheck=false                   ; boolean, 为 `true` 时空值不会写入 spawn.ini。支持带索引的
+                                           ;          变体 `SpawnIniValueCheckN`。
 Reversed=false                             ; boolean, 反转复选框行为。
 Checked=false                              ; boolean, 初始勾选状态。
 MapScoringMode=Irrelevant                  ; enum (Irrelevant | DenyWhenChecked | DenyWhenUnchecked),
@@ -1002,9 +1050,12 @@ ItemN=                                     ; string, 索引为 `N` 的选项的 
 ItemLabelN=                                ; string, 索引为 `N` 的选项的显示标签。
 SpawnIniOption=                            ; string,  根据选中项写入的 spawn INI 选项。支持带索引的
                                            ;          变体 `SpawnIniOption0`、...
-SpawnIniProject=Settings                   ; string,  选项写入的 spawn INI 段。默认 `Settings`。
+SpawnIniProject=Settings                   ; string,  选项写入的 spawn INI 段。默认 `Settings`。支持带索引的
+                                           ;          变体 `SpawnIniProjectN`。
 SpawnWriteCustom=false                     ; boolean, 将选项写入地图 INI（spawnmap.ini）而不是 spawn.ini。
-SpawnIniValueCheck=false                   ; boolean, 为 `true` 时空值不会写入 spawn.ini。
+                                           ;          支持带索引的变体 `SpawnWriteCustomN`。
+SpawnIniValueCheck=false                   ; boolean, 为 `true` 时空值不会写入 spawn.ini。支持带索引的
+                                           ;          变体 `SpawnIniValueCheckN`。
 DefaultIndex=0                             ; integer, 默认选中的选项索引。
 DataWriteMode=BOOLEAN                      ; enum (INDEX | BOOLEAN | STRING | MAPCODE),
                                            ;          值写入 spawn INI 的方式：
@@ -1100,8 +1151,9 @@ _（继承自 [XNAClientCheckBox](#xnaclientcheckbox)）_
 
 ```ini
 [SOMEFILESETTINGCHECKBOX]        ; FileSettingCheckBox
-Checked=false                    ; boolean, 初始勾选状态。
-DefaultValue=false               ; boolean, 复选框的默认状态。未设置 `Checked` 时使用。
+Checked=false                    ; boolean, `DefaultValue` 的别名；两个键写入同一个默认状态属性
+                                 ;          （无优先级——INI 中最后出现的键生效）。
+DefaultValue=false               ; boolean, 复选框的默认状态，在设置没有已存值时使用。
 SettingSection=CustomSettings    ; string,  设置保存到的设置 INI 段。默认 `CustomSettings`。
 SettingKey=                      ; string,  设置保存到的设置 INI 键。默认在设置 `WriteSettingValue`
                                  ;          时为 `CONTROLNAME_Value`，否则为 `CONTROLNAME_Checked`。
@@ -1114,8 +1166,14 @@ ResetUnavailableValue=false      ; boolean, 与 `CheckAvailability` 一起设置
 Reversed=false                   ; boolean, 反转复选框行为（为兼容保留）。
 EnabledFileN=                    ; 逗号分隔的字符串，勾选时要复制的文件。`N` 从 0 开始递增，直到没有值。
                                  ;          格式：相对于游戏根目录的源路径、相对于游戏根目录的目标路径，
-                                 ;          以及可选的文件操作选项。
+                                 ;          以及可选的文件操作选项。源与目标可以省略由 `CopyFilePath` /
+                                 ;          `PasteFilePath` 提供的共享前缀。
 DisabledFileN=                   ; 逗号分隔的字符串，未勾选时要复制的文件。格式与 `EnabledFileN` 相同。
+CopyFilePath=                    ; string,  基准源路径（相对于游戏根目录），会前置到本段每条文件条目
+                                 ;          （`EnabledFileN`、`DisabledFileN`、旧式 `FileN`）的源路径。
+                                 ;          默认：无。
+PasteFilePath=                   ; string,  基准目标路径（相对于游戏根目录），会前置到本段每条文件条目的
+                                 ;          目标路径。与 `CopyFilePath` 相互独立，可只设其一。默认：无。
 ```
 
 #### [SettingDropDown](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DTAConfig/Settings/SettingDropDown.cs)
@@ -1132,7 +1190,7 @@ SettingSection=        ; string,  设置保存到的设置 INI 段。默认 `Cus
 SettingKey=            ; string,  设置保存到的设置 INI 键。默认在设置 `WriteItemValue` 时为
                        ;          `CONTROLNAME_Value`，否则为 `CONTROLNAME_SelectedIndex`。
 WriteItemValue=false   ; boolean, 将选中项的值（tag）写入设置 INI 键而不是索引。
-RestartRequired=true   ; boolean, 应用该设置是否需要重启客户端。
+RestartRequired=false  ; boolean, 应用该设置是否需要重启客户端。
 ```
 
 #### [FileSettingDropDown](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DTAConfig/Settings/FileSettingDropDown.cs)
@@ -1153,6 +1211,10 @@ ResetUnavailableValue=false          ; boolean, 当前值变为不可用时自�
 ItemXFileN=                          ; 逗号分隔的字符串，选中下拉框选项 `X` 时要复制的文件。
                                      ;          `N` 从 0 开始递增，直到没有值。格式与 `EnabledFileN`
                                      ;          相同（参见文件操作选项）。
+CopyFilePath=                        ; string,  基准源路径（相对于游戏根目录），会前置到每条 `ItemXFileN`
+                                     ;          条目的源路径（所有选项共享同一基准）。默认：无。
+PasteFilePath=                       ; string,  基准目标路径（相对于游戏根目录），会前置到每条 `ItemXFileN`
+                                     ;          条目的目标路径。默认：无。
 ```
 
 #### 附录：文件操作选项
@@ -1168,6 +1230,17 @@ ItemXFileN=                          ; 逗号分隔的字符串，选中下拉�
 | `DontOverwrite` | 目标文件已存在时绝不覆盖。 |
 | `KeepChanges` | 缓存目标文件，使玩家做的修改在关闭并重新启用该选项后仍然保留。 |
 | `AlwaysOverwrite_LinkAsReadOnly` | 尝试创建指向源文件的硬链接（共享内容），链接失败时回退为复制。推荐用于 `opengl32.dll`、`d3d9.dll`、`dxgi.dll` 等二进制文件；不建议用于文本文件。链接存在期间，源与目标都会被标记为只读。 |
+
+可选的 `CopyFilePath` 与 `PasteFilePath` 键用于在多个条目共享同一目录时减少重复：它们在段落级定义基准路径（相对于游戏根目录），分别前置到每条条目的源路径与目标路径，条目格式中只需写剩余的路径部分。示例：
+
+```ini
+[ReShadeSelection]
+CopyFilePath=Resources/ReShade Files
+Item0File0=dxgi.dll,dxgi.dll,AlwaysOverwrite_LinkAsReadOnly
+Item1File0=d3d9.dll,d3d9.dll,AlwaysOverwrite_LinkAsReadOnly
+```
+
+上例中 `Item0File0` 的源路径解析为 `Resources/ReShade Files/dxgi.dll`，目标路径为 `dxgi.dll`（游戏根目录）。两个键都可选、对段落内所有文件条目生效、且相互独立。
 
 ---
 
@@ -1253,17 +1326,24 @@ SideName=                            ; string,  任务图标资源前缀，不�
                                      ;          `icon.png`（例如 `SideName=GDI` 加载 `GDIicon.png`）。
 LongDescription=                     ; string,  任务描述文本。支持本地化，用 `@` 换行。
 FinalMovie=none                      ; string,  任务完成后播放的影片。
-RequiredAddon=false                  ; boolean, 任务是否要求资料片。
+RequiredAddon=false                  ; boolean, 任务是否要求资料片。默认：YR/Ares 客户端为 `true`
+                                     ;          （该值取反后写入 `Ra2Mode`），否则为 `false`
+                                     ;          （TS 写入 `Firestorm`）。
 Enabled=true                         ; boolean, 任务是否可选。
 BuildOffAlly=false                   ; boolean, 玩家能否在盟军建筑上建造。
 PlayerAlwaysOnNormalDifficulty=false ; boolean, 无论难度滑块如何，强制人类玩家为普通难度。
 Tags=                                ; 逗号分隔的字符串，用于战役标签选择器过滤的标签。自定义任务
                                      ;          始终带有 `CUSTOM` 标签。
 PreviewImage=                        ; string,  任务预览图片相对于 `Resources/Mission Previews/` 的路径。
-ScenarioMapINI=                      ; boolean, 为此任务覆盖 `CopyMissionsToSpawnmapINI`。
-Supplement=                          ; boolean, 为此任务覆盖 `CustomMissionSupplementEnable.Battle`。
-MissionSpawnIniOptions=              ; string,  `Battle.ini` 中一个段的名称，播放任务时该段的键会被
-                                     ;          写入 spawnmap.ini。
+ScenarioMapINI=                      ; string,  按布尔值解析；为此任务覆盖客户端配置
+                                     ;          `CopyMissionsToSpawnmapINI`。空值（默认）回退到配置值。
+Supplement=                          ; boolean, 为此任务覆盖 `CustomMissionSupplementEnable.Battle`。默认：
+                                     ;          `CustomMissionSupplementEnable.Battle` 配置值（自定义任务为
+                                     ;          `CustomMissionSupplementEnable.Custom`）。
+MissionSpawnIniOptions=              ; string,  `INI/Battle.ini` 中一个段的名称。播放任务时，该段的每个
+                                     ;          键值对都会写入 spawn.ini 的 `[spawnmap.ini]` 段。
+                                     ;          默认：空（不应用任何段）。自定义任务从 `[ClientMissionConfig]`
+                                     ;          读取该键，但引用的段仍然从 `INI/Battle.ini` 解析，而非地图文件。
 ```
 
 `Battle.ini` 的 `[Battles]` 段把列表条目映射到任务段：
@@ -1582,12 +1662,22 @@ SoundGameLobbyReturnCooldown=1.0    ; float, "返回" 音效之间的最小秒�
 
 ### Settings.ini（UserINISettings）
 
-逐用户设置文件（`ClientCore/Settings/UserINISettings.cs`），写入资源目录下的 `SettingsFile`（默认 `Settings.ini`）。
-它持久化用户选项，也是 `Setting*` 控件（参见 XNAOptionsPanel 控件）使用的存储。重要键：
+逐用户设置文件（`ClientCore/Settings/UserINISettings.cs`），写入 `SettingsFile`（默认 `Settings.ini`，
+键为 `ClientDefinitions.ini` `[Settings]` 中的 `SettingsFile`）**位于游戏目录**（`ProgramConstants.GamePath`）。
+它持久化用户选项，也是 `Setting*` 控件（参见 XNAOptionsPanel 控件）使用的存储。当资源目录存在
+`UserDefaults.ini` 时，会先加载它作为基础，再在其上合并用户文件（用户值优先）。重要键：
 
 ```ini
 [Audio]
 PlayMainMenuMusic=true             ; boolean, 播放主菜单音乐。默认 `true`。
+ScoreVolume=0.7                    ; float,   分数音量。默认 `0.7`。RA 读取 `[Options] ScoreVolume`。
+SoundVolume=0.7                    ; float,   音效音量。默认 `0.7`。RA 读取 `[Options] Volume`。
+VoiceVolume=0.7                    ; float,   语音音量。默认 `0.7`。
+IsScoreShuffle=true                ; boolean, 随机播放分数音乐。默认 `true`。
+ClientVolume=1.0                   ; float,   客户端音量倍率。默认 `1.0`。
+StopMusicOnMenu=true               ; boolean, 返回主菜单时停止音乐。默认 `true`。
+StopGameLobbyMessageAudio=true     ; boolean, 游戏大厅消息时停止音频。默认 `true`。
+ChatMessageSound=true              ; boolean, 聊天消息时播放提示音。默认 `true`。
 
 [Video]
 EnableBackgroundVideo=false        ; boolean, 主菜单背景视频的总开关。默认 `false`。
@@ -1596,15 +1686,98 @@ WindowedMode=                      ; boolean, 窗口模式（键名来自 `Windo
 NoWindowFrame=                     ; boolean, 无边框窗口模式。
 BorderlessWindowedClient=true      ; boolean, 无边框窗口客户端选项的默认值。
 IntegerScaledClient=false          ; boolean, 整数缩放选项的默认值。
+ScreenWidth=1024                   ; integer, 游戏内屏幕宽度。默认 `1024`。RA 使用 `[Options] Width`。
+ScreenHeight=768                   ; integer, 游戏内屏幕高度。默认 `768`。RA 使用 `[Options] Height`。
+ClientFPS=60                       ; integer, 客户端帧率。默认 `60`。
+DisplayToggleableExtraTextures=true; boolean, 显示可切换的额外纹理。默认 `true`。
+ForceLowestDetailLevel=false       ; boolean, 强制最低细节等级。默认 `false`。
+UseGraphicsPatch=true              ; boolean,（仅 TS）使用图形补丁。默认 `true`。
+VideoBackBuffer=false              ; boolean,（非 TS）渲染到视频后台缓冲。默认 `false`。
 
 [Options]
 GameSpeed=1                        ; integer, 游戏内速度设置。
+DetailLevel=2                      ; integer, 细节等级。默认 `2`。
+Translation=                       ; string,  翻译语言代码。默认：内置语言代码。
+TranslationGameFilesVersion=       ; string,  翻译游戏文件的版本标记。默认空。
+ScrollRate=3                       ; integer, 地图滚动速率。默认 `3`。
+DragDistance=4                     ; integer, 拖拽距离。默认 `4`。
+CustomDragDistance=0               ; integer, 固定拖拽距离覆盖（像素，0 = 自动缩放）。默认 `0`。
+DoubleTapInterval=30               ; integer, 双击间隔（毫秒）。默认 `30`。
+Win8Compat=No                      ; string,  Windows 8 兼容模式。默认 `No`。
+CheckforUpdates=true               ; boolean, 启动时检查更新。默认 `true`。
+PrivacyPolicyAccepted=false        ; boolean, 是否已接受隐私政策。默认 `false`。
+IsFirstRun=true                    ; boolean, 是否为首次运行。默认 `true`。
+CustomComponentsDenied=false       ; boolean, 是否拒绝了安装自定义组件。默认 `false`。
+Difficulty=1                       ; integer, 战役难度。默认 `1`。
+ScrollDelay=4                      ; integer, 滚动延迟。默认 `4`。
+MinimizeWindowsOnGameStart=true    ; boolean, 游戏启动时最小化其他窗口。默认 `true`。
+AutoRemoveUnderscoresFromName=true ; boolean, 从玩家名称中移除下划线。默认 `true`。
+GenerateTranslationStub=false      ; boolean, 生成翻译 stub 文件。默认 `false`。
+GenerateOnlyNewValuesInTranslationStub=false ; boolean, 仅向翻译 stub 写入新值。默认 `false`。
+WriteInstallationPathToRegistry=   ; boolean, 把安装路径写入注册表。
+
+[MultiPlayer]
+Theme=                             ; string,  客户端主题名称。默认：第一个可用主题。
+Handle=                            ; string,  玩家昵称/名称。默认空。
+CustomPlayerName=                  ; string,  玩家的自定义游戏内名称，在游戏大厅玩家名称选项
+                                   ;          （[PlayerNameOptions]）启用自定义名称时使用。
+ChatColor=-1                       ; integer, 聊天颜色。默认 `-1`。
+LANChatColor=-1                    ; integer, LAN 聊天颜色。默认 `-1`。
+PingCustomTunnels=true             ; boolean, 检测非官方（自定义）隧道。默认 `true`。
+PlaySoundOnGameHosted=true         ; boolean, 主持游戏时播放提示音。默认 `true`。
+SkipConnectDialog=false            ; boolean, 跳过连接对话框。默认 `false`。
+PersistentMode=false               ; boolean, 持久模式。默认 `false`。
+AutomaticCnCNetLogin=false         ; boolean, 自动登录 CnCNet。默认 `false`。
+DiscordIntegration=true            ; boolean, 启用 Discord 集成。默认 `true`。
+SteamIntegration=true              ; boolean, 启用 Steam 集成。默认 `true`。
+AllowGameInvitesFromFriendsOnly=false ; boolean, 只允许好友的游戏邀请。默认 `false`。
+NotifyOnUserListChange=true        ; boolean, 用户列表变化时通知。默认 `true`。
+DisablePrivateMessagePopups=false  ; boolean, 禁用私聊消息弹窗。默认 `false`。
+DisableMainMenuHotkeys=true        ; boolean, 禁用主菜单快捷键。默认 `true`。
+AllowPrivateMessagesFromState=0    ; integer, 允许谁发来私聊消息。默认 `0`（所有人）。
+EnableMapSharing=true              ; boolean, 启用地图共享。默认 `true`。
+AlwaysDisplayTunnelList=false      ; boolean, 始终显示隧道列表。默认 `false`。
+PreferredCnCNetTunnel=             ; string,  偏好的 CnCNet 隧道地址（由"保存为默认"隧道按钮写入）。
+MapSortState=0                     ; integer, 地图列表排序状态。默认 `0`。
+SearchAllGameModes=false           ; boolean, 在所有游戏模式中搜索。默认 `false`。
+
+[Compatibility]
+Renderer=                          ; string,  渲染器覆盖。默认空。
+
+[Phobos]
+CampaignDefaultGameSpeed=4         ; integer, 默认战役游戏速度。默认 `4`。
+
+[GameFilters]
+SortState=0                        ; integer, 游戏列表排序状态。默认 `0`。
+ShowFriendGamesOnly=false          ; boolean, 只显示好友游戏。默认 `false`。
+HideLockedGames=false              ; boolean, 隐藏锁定的游戏。默认 `false`。
+HidePasswordedGames=false          ; boolean, 隐藏带密码的游戏。默认 `false`。
+HideIncompatibleGames=false        ; boolean, 隐藏不兼容的游戏。默认 `false`。
+MaxPlayerCount=8                   ; integer, 最大玩家数过滤（2-8）。默认 `8`。
+
+[GameOptionFilters]
+ControlName=1                      ; integer, 按选项过滤（键 = 游戏大厅控件名）。复选框 0 = 关、1 = 开；
+                                   ;          下拉框为所选选项索引。键缺失表示"全部"（不过滤）。
+
+[Channels]
+ChannelName=Yes                    ; boolean, 该频道/游戏是否被关注（键 = 频道名）。
+
+[FavoriteMaps]
+0=MAPSHA1:GAMEMODE                 ; string,  收藏地图条目（`mapSHA1:gameMode`）。旧式基于名称的条目
+                                   ;          在使用时会迁移为基于 SHA1 的条目。
 ```
 
 `SettingCheckBox`/`SettingDropDown` 控件按 `SettingSection`（见 `[CustomSettings]`）保存，键名为
 `CONTROLNAME_Checked` / `CONTROLNAME_Value` / `CONTROLNAME_SelectedIndex`，取决于写入模式。
 
+游戏类型差异：RA 的屏幕尺寸键（`Width`/`Height`）与音量键（`ScoreVolume`/`Volume`）位于 `[Options]` 而非
+`[Video]`/`[Audio]`，保存时还会额外写入 `[Options] MultiplayerScoreVolume` 镜像；TS 的后台缓冲键为
+`UseGraphicsPatch` 而非 `VideoBackBuffer`。`[GameFilters]`、`[GameOptionFilters]`、`[Channels]` 与
+`[FavoriteMaps]` 段由游戏列表与大厅过滤界面使用。
+
 ### NetworkDefinitions.ini
+
+如果资源目录存在 `NetworkDefinitions.local.ini`，则它会被用来**取代** `NetworkDefinitions.ini`（用户覆盖；日志会确认加载了哪一个）。
 
 
 
@@ -1637,6 +1810,23 @@ UIName=Standard
 ; 游戏模式属性...
 ```
 
+多人游戏地图列表与别名在另外两个段中定义：
+
+```ini
+[MultiMaps]
+0=Maps/MyMap          ; 地图条目：N = 地图文件相对于游戏根目录的路径（不含扩展名）。
+1=Maps/AnotherMap
+
+[GameModeAliases]
+MyAlias=Standard,Infantry Only ; 别名 -> 逗号分隔的真实游戏模式名列表。别名在 UI 中作为一个模式，
+                                ;          实际展开为所列模式。
+```
+
+- **`[MultiMaps]`** — 官方多人游戏地图列表的入口。每个值都是相对于游戏根目录的地图路径，不含 `.map` 扩展名
+  （扩展名由 `ClientDefinitions.ini` `[Settings]` 的 `MapFileExtension` 追加）。缺少该段则官方地图列表加载失败。
+  每个地图条目也可以用同名段定义任意[地图属性](#地图属性)。
+- **`[GameModeAliases]`** — 把别名映射到一个或多个真实游戏模式名（逗号分隔）。在 UI 中选择该别名等同于选择所列模式。
+
 #### 游戏模式属性
 
 
@@ -1657,7 +1847,8 @@ ForcedSpawnIniOptions=                 ; string,  一个 INI 段的名称，其�
                                        ;          [Settings]。默认为 `{Name}ForcedSpawnIniOptions`。
 MapCodeIniName=                        ; string,  `INI/Map Code/` 中地图代码 INI 文件的名称。默认为
                                        ;          `{Name}.ini`。别名：MapCodeININame。
-RandomizedMapCodeIniNames=             ; 逗号分隔的字符串，额外的随机化地图代码 INI 名称。
+RandomizedMapCodeIniNames=             ; 逗号分隔的字符串，额外的随机化地图代码 INI 名称。别名：
+                                       ;          RandomizedMapCodeININames。
 RandomizedMapCodesCount=1              ; integer, 要挑选的随机化地图代码数量。
 ```
 
@@ -1727,15 +1918,98 @@ NeutralColor=-1                        ; integer, 中立颜色索引（-1 = 默�
 SpecialColor=-1                        ; integer, 特殊颜色索引（-1 = 默认）。
 Bases=                                 ; boolean, 玩家是否以基地开局。
 ExtraTextureN=name,x,y[,level[,toggleable]] ; 地图预览的额外纹理放置。
-LocalSize=WIDTH,HEIGHT                 ; 2 integers, 预览用地图尺寸（别名：Size，或 X/Y/Width/Height）。
-WaypointN=X,Y                         ; 2 integers, 路径点坐标（从 1 开始）。
-TeamStartMappingN=INDEX               ; integer, 队伍起始映射。
+LocalSize=X,Y,WIDTH,HEIGHT            ; 4 integers, 预览用地图尺寸（等距地图）；默认 "0,0,0,0"。非等距地图
+                                      ;          改用独立的 `X`/`Y`/`Width`/`Height` 键，而非 `LocalSize`/`Size`。
+WaypointN=CELL[,LEVEL]                ; string,  路径点坐标（0 基，从 `Waypoint0` 起读）。非等距游戏用单个
+                                      ;          单元格值；等距游戏用 `cell[,level]`。
+TeamStartMappingN=A,B,C,D             ; 逗号分隔的队伍代码，队伍起始映射预设。位置序号 + 1 即起始位置；
+                                      ;          `x` = 无玩家（阻挡），`-` = 无队伍，`A`-`D` = 队伍字母。
+                                      ;          `N` 从 0 开始。
 TeamStartMappingNName=                 ; string,  队伍起始映射名称。
-ForcedOptions=                         ; 逗号分隔的字符串，其键成为强制的复选框/下拉框值的 INI 段名。
-ForcedSpawnIniOptions=                 ; 逗号分隔的字符串，其键值对写入 spawn.ini 的 INI 段名。
-MissionSpawnIniOptions=SourceSection:TargetSection ; 地图专属的 spawn INI 段映射。
+ForcedOptions=                         ; 逗号分隔的字符串，其键成为强制的复选框/下拉框值的 INI 段名。默认：无。
+ForcedSpawnIniOptions=                 ; 逗号分隔的字符串，其键值对写入 spawn.ini 的 INI 段名。默认：无。
+MissionSpawnMapIniOptions=SourceSection:TargetSection[,More:More] ; 逗号分隔的段映射。每个
+                                       ;          `SourceSection:TargetSection` 对会把 `[SourceSection]`（本地图在
+                                       ;          `MPMaps.ini` 中的条目所属段）的所有键复制进生成的游戏地图 INI
+                                       ;          （spawnmap.ini）的 `[TargetSection]`，在启动时、地图代码应用之后
+                                       ;          执行。默认：无。
 ExtraIniName=MyExtraCode.ini           ; string,  游戏启动时合并进地图 INI 的文件名（位于 `INI/Map Code/`）。
                                        ;          别名：ExtraININame。
+```
+
+#### 合作任务地图属性
+
+对于合作任务地图（`IsCoopMission=Yes`），地图段还支持敌/友军房子定义，以及与游戏模式相同的禁用阵营/颜色列表：
+
+```ini
+[MAP_NAME]
+EnemyHouseN=side,color,startingLocation ; 3 integers, 槽位 `N`（N = 0、1、...）的敌军房子定义。值为房子的
+                                         ;          阵营索引、颜色索引与起始位置路径点。
+AllyHouseN=side,color,startingLocation   ; 3 integers, 槽位 `N` 的友军房子定义。
+DisallowedPlayerSides=                   ; 逗号分隔的整数，任何玩家都不可选的阵营索引（地图段同样有效，
+                                         ;          不仅限于游戏模式）。
+DisallowedPlayerColors=                  ; 逗号分隔的整数，任何玩家都不可选的颜色索引。
+DisallowedPlayerSides.StartN=            ; 逗号分隔的整数，按起始位置区分的阵营限制。
+DisallowedPlayerColors.StartN=           ; 逗号分隔的整数，按起始位置区分的颜色限制。
+```
+
+`EnemyHouseN`/`AllyHouseN` 仅在 `IsCoopMission=Yes` 时解析。
+
+#### 自定义多人地图文件
+
+自定义多人 `.map` 文件（放在自定义地图文件夹或由 `[MultiMaps]` 引用）可以在自身 INI 段内携带客户端侧设置，地图加载时读取：
+
+```ini
+; 在 .map 文件内部
+[Basic]
+Name=My Map                           ; string,  地图显示名称（回退到 Description）。
+GameModes=Standard                    ; string,  该地图出现的游戏模式（回退到 [Map] GameModes）。
+GameMode=Standard                     ; string,  旧式单一游戏模式键。
+Author=Author Name                    ; string,  地图作者。
+Briefing=                             ; string,  合作任务简报文本。
+SpawnIniBriefing=                     ; string,  写入 spawn.ini 的简报。
+CooperativeLoadScreenSettings=false    ; boolean, 启用合作加载画面设置。
+CooperativeLoadScreen=                ; string,  合作加载画面文件。
+CooperativeLoadScreenPallet=          ; string,  合作加载画面调色板文件。
+Credits=-1                            ; integer, 初始资金（-1 = 默认）。
+UnitCount=-1                          ; integer, 初始单位数量（-1 = 默认）。
+NeutralColor=-1                       ; integer, 中立颜色索引（-1 = 默认）。
+SpecialColor=-1                       ; integer, 特殊颜色索引（-1 = 默认）。
+Bases=                                ; boolean, 玩家是否以基地开局。
+ExtraIniName=                         ; string,  要合并的额外地图代码 INI（别名：ExtraININame）。
+
+[Map]
+LocalSize=0,0,0,0                     ; 4 integers, 等距地图尺寸。非等距地图使用 [Map] X/Y/Width/Height。
+X=0                                   ; integer,（非等距地图）地图 X 原点。
+Y=0                                   ; integer,（非等距地图）地图 Y 原点。
+Width=0                               ; integer,（非等距地图）地图宽度。
+Height=0                              ; integer,（非等距地图）地图高度。
+
+[Waypoints]
+0=118035                              ; 路径点坐标，键为 `0`-`7`。非等距：单个单元格值；等距：`cell[,level]`。
+
+[ForcedOptions]
+; 键成为强制的复选框/下拉框值（固定段名）。
+
+[ForcedSpawnIniOptions]
+; 键写入 spawn.ini（固定段名）。
+```
+
+这些内部段同样可以定义客户端侧键（`ClientMinPlayer`、`ClientMaxPlayer`、`AllowedStartingLocations` 等），而不仅限于 `MPMaps.ini`。
+
+#### 地图代码 INI
+
+`INI/Map Code/` 中的文件（参见 `MapCodeIniName`）除了普通的段合并外，还可以定义额外行为：
+
+```ini
+[GameModeIncludes]
+Standard=ExtraStandardCode.ini         ; 键 = 游戏模式名，值 = 仅在该游戏模式激活时额外应用的地图代码
+                                      ;          INI 文件。该段在使用后被清除。
+
+[ReplaceMapAircraft]
+OLD_ID=NEW_ID                         ; 重命名地图对象：键 = 旧对象 ID，值 = 新对象 ID（空值删除该对象）。
+                                      ;          每个类别一个段：ReplaceMapAircraft、ReplaceMapInfantry、
+                                      ;          ReplaceMapUnits、ReplaceMapStructures、ReplaceMapTerrain。
 ```
 
 ### GameOptions.ini
@@ -1772,6 +2046,62 @@ FogOfWar=no                            ; 多人游戏始终写入 spawn.ini [Set
 AutoSaveInterval=0                     ; 战役任务始终写入 spawn.ini [Settings] 的键。
 ```
 
+#### 玩家 AI 快捷选项
+
+`[PlayerAIQuickOptions]` 定义游戏大厅 AI 快捷选项面板（`PlayerAIQuickOptionsPanel`）的默认状态。所有复选框键接受 `Yes`/`No`。下拉框键存储的是下拉框选项索引**减一**（`SelectedIndex - 1`）的值，因为索引 0 永远是"Don't Set"占位项。
+
+```ini
+[PlayerAIQuickOptions]
+cmbAIQuickDifficultyLevel=2 ; integer, AI 难度：-1 = 不设置，0 = 简单，1 = 中等，2 = 困难。
+                            ;          缺键时代码默认 `2`（困难）。
+cmbAIQuickSide=0            ; integer, AI 阵营：-1 = 不设置，0 = 随机，然后是随机选择器 / 阵营索引
+                            ;          （选项顺序：不设置、随机、选择器、阵营）。代码默认 `0`（随机）。
+cmbAIQuickColor=0           ; integer, AI 颜色：-1 = 不设置，0 = 随机，然后是多人游戏颜色索引
+                            ;          （选项顺序：不设置、随机、颜色）。代码默认 `0`（随机）。
+cmbAIQuickTeam=0            ; integer, AI 队伍：-1 = 不设置，0 = 无队伍，然后是队伍索引
+                            ;          （选项顺序：不设置、-、队伍）。代码默认 `0`（无队伍）。
+chkRandomAIDifficulty=No    ; boolean, 随机化 AI 难度。默认 No。
+chkRandomAISide=No          ; boolean, 随机化 AI 阵营。默认 No。
+chkRandomAIColor=No         ; boolean, 随机化 AI 颜色。默认 No。
+chkRandomAITeam=No          ; boolean, 随机化 AI 队伍。默认 No。
+chkAutoAssignAIStarts=No    ; boolean, 自动为 AI 玩家分配起始位置。默认 No。
+chkAIPlayerN=No             ; boolean, 格式刷对 AI 玩家 `N`（`N` = 0-7）的默认勾选。默认 No。
+
+; 为 AI 阵营/颜色选择"随机"时，下列各组是否纳入随机池：
+Side.RandomAISelection=Yes           ; boolean, 包含可玩阵营。默认 Yes。
+SideRandom.RandomAISelection=Yes     ; boolean, 包含"随机"阵营项。默认 Yes。
+SideSelectors.RandomAISelection=Yes  ; boolean, 包含随机选择器。默认 Yes。
+Color.RandomAISelection=Yes          ; boolean, 包含多人游戏颜色。默认 Yes。
+ColorRandom.RandomAISelection=Yes    ; boolean, 包含"随机"颜色项。默认 Yes。
+```
+
+#### 玩家名称选项
+
+`[PlayerNameOptions]` 定义游戏大厅玩家名称选项面板（`PlayerNameOptionsPanel`）的默认状态。值接受 `Yes`/`No`。
+
+```ini
+[PlayerNameOptions]
+chkAllowCustomNames=No ; boolean, 房主总开关：允许玩家使用自定义游戏内名称。默认 No。
+chkEnableCustomName=No ; boolean, 启用本地玩家的自定义名称（仅在房主允许自定义名称时生效）。默认 No。
+```
+
+自定义名称文本本身不存储在这里：它持久化在 `Settings.ini` 的 `[MultiPlayer]` → `CustomPlayerName`（参见 Settings.ini）。
+
+#### 玩家额外选项
+
+`[PlayerExtraOptions]` 定义游戏大厅额外玩家选项面板（`PlayerExtraOptionsPanel`）的默认状态。值接受 `Yes`/`No`，全部默认 `No`。
+
+```ini
+[PlayerExtraOptions]
+chkBoxForceRandomSides=No     ; boolean, 强制所有玩家随机阵营。
+chkBoxForceNoTeams=No         ; boolean, 强制无队伍。
+chkBoxForceRandomColors=No    ; boolean, 强制所有玩家随机颜色。
+chkBoxForceRandomStarts=No    ; boolean, 强制随机起始位置。
+chkBoxUseTeamStartMappings=No ; boolean, 通过队伍起始映射启用自动结盟。
+```
+
+这些只是大厅默认值；房主可在会话中更改，实时状态通过联网消息而非 INI 同步给其他玩家。
+
 #### ForcedSpawnIniOptions
 
 强制 spawn 选项定义无论 UI 设置如何都始终写入 `spawn.ini` 的键。它们可以在多个层级定义：
@@ -1803,6 +2133,91 @@ ForcedSpawnIniOptions=MyMapForcedOptions
 [MyMapForcedOptions]
 ; 游玩这张特定地图时，这里的键会写入 spawn.ini。
 AnotherOption=value
+```
+
+### GameOptionsPresets.ini
+
+`GameOptionsPresets.ini` 存储游戏选项预设（游戏大厅的保存/载入预设功能）。它位于用户文件目录，由客户端读写。
+
+```ini
+[Presets]
+0=My Preset                      ; N = 预设名。
+
+[My Preset]
+CheckBoxValues=chkCrates:1,chkShortGame:1    ; 逗号分隔的 `控件名:值` 对（0 = 未勾选，1 = 勾选）。
+DropDownValues=ddTechLevel:7,ddStartingCredits:5 ; 逗号分隔的 `控件名:索引` 对（所选选项索引）。
+DropDownCustomValues=ddTechLevel:100|200,ddStartingCredits: ; 逗号分隔的 `控件名:值` 对（自定义值）。
+```
+
+### GameCollectionConfig.ini
+
+`GameCollectionConfig.ini`（位于基础资源目录）向 CnCNet 游戏选择窗口添加自定义游戏。
+
+```ini
+[CustomGames]
+0=MyGame                          ; N = 游戏段名。
+
+[MyGame]
+InternalName=MYGAME               ; string,  唯一内部游戏 ID（转小写，有长度限制）。
+IconFilename=MYGAMEicon.png       ; string,  图标纹理文件。默认 `{InternalName}icon.png`。
+UIName=My Game                    ; string,  显示名称。默认：内部 ID 的大写形式。
+ChatChannel=#mygame               ; string,  IRC 聊天频道名。
+GameBroadcastChannel=#mygame-broadcast ; string,  IRC 游戏广播频道名。
+ClientExecutableName=             ; string,  为自定义游戏启动的可执行文件。默认空。
+RegistryInstallPath=HKCU\Software\MYGAME ; string,  保存安装路径的注册表键。默认
+                                  ;          `HKCU\Software\{INTERNALNAME}`。
+```
+
+### SkirmishSettings.ini
+
+`Client/SkirmishSettings.ini`（位于游戏目录）在会话之间持久化单人遭遇战大厅状态。保存时写入、进入时读取；文件不存在时使用默认设置。
+
+```ini
+[Player]
+Info=                             ; string,  人类玩家定义（序列化的玩家信息）。
+
+[AIPlayers]
+0=                                ; string,  AI 玩家定义，键为 `0`-`7`。
+
+[Settings]
+Map=                              ; string,  所选地图的 SHA1。
+GameModeMapFilter=                ; string,  所选的游戏模式/地图过滤器名。旧式别名：`GameMode`。
+
+[GameOptions]
+ControlName=0                     ; 按大厅选项的值（键 = 控件名）。下拉框存所选索引，复选框存
+                                  ;          `True`/`False`。仅在 `ClientDefinitions.ini` 启用
+                                  ;          `SaveSkirmishGameOptions` 时写入。
+```
+
+### CampaignSettings.ini
+
+`Client/CampaignSettings.ini`（位于游戏目录）在会话之间持久化战役大厅选项。仅在 `ClientDefinitions.ini`
+启用 `SaveCampaignGameOptions` 时写入与读取。
+
+```ini
+[GameOptions]
+ControlName=0                     ; 按选项的值（键 = 控件名）。下拉框存所选索引，复选框存
+                                  ;          `True`/`False`。
+```
+
+### spawnSG.ini
+
+`Saved Games/spawnSG.ini`（位于游戏目录）存储上次存档的元数据，用于游戏大厅的"载入游戏"功能；它由客户端运行时生成，载入存档时复制到 `spawn.ini`。
+
+```ini
+[Settings]
+GameID=0                          ; integer, 唯一游戏 ID。
+MapSHA1=                          ; string,  地图的 SHA1。
+BroadcastedGameOptionValues=      ; string,  序列化的广播游戏选项值。
+UIMapName=                        ; string,  地图显示名称。
+MapID=                            ; string,  用于本地化的地图 ID。
+UIGameMode=                       ; string,  游戏模式显示名称。
+PlayerCount=0                     ; integer, 玩家数量。
+Color=0                           ; integer, 本地玩家的游戏颜色索引。
+
+[OtherN]
+Name=                             ; string,  槽位 `N`（N = 1、2、...）其他玩家的名称。
+Color=0                           ; integer, 该玩家的游戏颜色索引。
 ```
 
 ### KeyboardCommands.ini
