@@ -1603,6 +1603,13 @@ ForceLowestDetailLevel=false       ; boolean, force the lowest detail level. Def
 UseGraphicsPatch=true              ; boolean, (TS only) use the graphics patch. Default `true`.
 VideoBackBuffer=false              ; boolean, (non-TS) render into the video back buffer. Default `false`.
 
+[Fonts]
+UseTTFFonts=true                   ; boolean, enable TrueType (TTF) font rendering from `Fonts.ini`. Default `true`.
+                                   ;          When `false`, the client skips `Fonts.ini` and falls back to the legacy
+                                   ;          `SpriteFontN.xnb` assets instead (lower memory/rendering cost). Toggled by
+                                   ;          the "Use TrueType Fonts" checkbox in the Display Options panel; requires a
+                                   ;          client restart.
+
 [Options]
 GameSpeed=1                        ; integer, in-game speed setting.
 DetailLevel=2                      ; integer, detail level. Default `2`.

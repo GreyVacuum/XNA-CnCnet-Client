@@ -7,6 +7,8 @@ The client supports two font types:
 
 > **Important:** TrueType and SpriteFont fonts cannot be mixed within a fallback chain. Fallback only works between TrueType fonts. A SpriteFont font index cannot fall back to a TrueType font, and vice versa. Each font index is entirely one type or the other.
 
+> **User opt-out:** the player can disable TrueType rendering entirely via the "Use TrueType Fonts" checkbox in the Display Options panel (stored as `Settings.ini` `[Fonts]` `UseTTFFonts`, default `true`). When disabled, the client skips the `Fonts.ini` search and loads only the legacy `SpriteFontN.xnb` assets, which lowers memory and rendering cost at the expense of font fidelity. Requires a client restart. Note that this fallback needs the SpriteFont assets to be shipped; if they are absent the font list will be empty.
+
 Font configuration is done via `Fonts.ini` placed in your `Resources` directory.
 
 ## Fonts.ini location
