@@ -24,6 +24,7 @@ namespace ClientCore
         public const string GAME_OPTION_FILTERS = "GameOptionFilters";
         public const string PHOBOS = "Phobos";
         private const string FAVORITE_MAPS = "FavoriteMaps";
+        private const string FONTS = "Fonts";
 
         private const bool DEFAULT_SHOW_FRIENDS_ONLY_GAMES = false;
         private const bool DEFAULT_HIDE_LOCKED_GAMES = false;
@@ -118,6 +119,7 @@ namespace ClientCore
             IntegerScaledClient = new BoolSetting(iniFile, VIDEO, "IntegerScaledClient", ClientConfiguration.Instance.UserDefault_IntegerScaledClient);
             ClientFPS = new IntSetting(iniFile, VIDEO, "ClientFPS", 60);
             DisplayToggleableExtraTextures = new BoolSetting(iniFile, VIDEO, "DisplayToggleableExtraTextures", true);
+            UseTTFFonts = new BoolSetting(iniFile, FONTS, nameof(UseTTFFonts), true);
 
             // RA1 reads MultiplayerScoreVolume instead of ScoreVolume. This value is handled when saving
             ScoreVolume = new DoubleSetting(iniFile,
@@ -225,6 +227,7 @@ namespace ClientCore
         public BoolSetting IntegerScaledClient { get; private set; }
         public IntSetting ClientFPS { get; private set; }
         public BoolSetting DisplayToggleableExtraTextures { get; private set; }
+        public BoolSetting UseTTFFonts { get; private set; }
         public BoolSetting EnableBackgroundVideo { get; private set; }
         public BoolSetting EnableBackgroundVideoSound { get; private set; }
 

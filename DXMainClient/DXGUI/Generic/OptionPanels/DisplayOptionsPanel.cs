@@ -48,6 +48,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
         private XNAClientCheckBox chkIntegerScaledClient;
         private XNAClientDropDown ddClientTheme;
         private XNAClientDropDown ddTranslation;
+        private XNAClientCheckBox chkUseTTFFonts;
         private XNAClientCheckBox chkEnableBackgroundVideo;
         private XNAClientCheckBox chkEnableBackgroundVideoSound;
 
@@ -293,11 +294,25 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             foreach (var (translation, name) in Translation.GetTranslations())
                 ddTranslation.AddItem(new XNADropDownItem { Text = name, Tag = translation });
 
+            chkUseTTFFonts = new XNAClientCheckBox(WindowManager);
+            chkUseTTFFonts.Name = nameof(chkUseTTFFonts);
+            chkUseTTFFonts.ClientRectangle = new Rectangle(
+                lblClientResolution.X,
+                ddTranslation.Bottom + 16, 0, 0);
+            chkUseTTFFonts.Text = "Use TrueType Fonts".L10N("Client:DTAConfig:UseTTFFonts");
+            chkUseTTFFonts.ToolTipText =
+                """
+                When enabled, the UI renders text with the TrueType fonts defined in
+                Fonts.ini. When disabled, the client falls back to the legacy SpriteFont
+                assets instead, which can reduce memory and rendering cost on low-end
+                systems. Requires a client restart.
+                """.L10N("Client:DTAConfig:UseTTFFontsToolTip");
+
             chkEnableBackgroundVideo = new XNAClientCheckBox(WindowManager);
             chkEnableBackgroundVideo.Name = nameof(chkEnableBackgroundVideo);
             chkEnableBackgroundVideo.ClientRectangle = new Rectangle(
                 lblClientResolution.X,
-                ddTranslation.Bottom + 16, 0, 0);
+                chkUseTTFFonts.Bottom + 24, 0, 0);
             chkEnableBackgroundVideo.Text = "Enable Background Video".L10N("Client:DTAConfig:EnableBackgroundVideo");
             chkEnableBackgroundVideo.ToolTipText =
                 """
@@ -345,6 +360,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             AddChild(ddClientTheme);
             AddChild(lblTranslation);
             AddChild(ddTranslation);
+            AddChild(chkUseTTFFonts);
             AddChild(chkEnableBackgroundVideo);
             AddChild(chkEnableBackgroundVideoSound);
             AddChild(lblClientResolution);
@@ -676,6 +692,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
                 chkBackBufferInVRAM.Checked = UserINISettings.Instance.BackBufferInVRAM;
             }
 
+            chkUseTTFFonts.Checked = IniSettings.UseTTFFonts.Value;
             chkEnableBackgroundVideo.Checked = IniSettings.EnableBackgroundVideo.Value;
             chkEnableBackgroundVideoSound.Checked = IniSettings.EnableBackgroundVideoSound.Value;
         }
@@ -802,6 +819,11 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             IniSettings.EnableBackgroundVideo.Value = chkEnableBackgroundVideo.Checked;
 
             IniSettings.EnableBackgroundVideoSound.Value = chkEnableBackgroundVideoSound.Checked;
+
+            if (IniSettings.UseTTFFonts.Value != chkUseTTFFonts.Checked)
+                restartRequired = true;
+
+            IniSettings.UseTTFFonts.Value = chkUseTTFFonts.Checked;
 
             return restartRequired;
         }
