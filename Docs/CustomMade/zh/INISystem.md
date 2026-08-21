@@ -79,6 +79,8 @@ BasedOn=GameLobbyBase.ini,MoreSettings.ini
 写入 `INI/<name>.ini`。`ProcessedIniInfo.ini`（用户文件目录）保存源文件与处理后文件的 SHA1 哈希，因此只重新处理过期的
 文件。`desktop.ini` 被忽略。
 
+> **运行时禁止访问 `desktop.ini`。** 除上面预处理跳过之外，客户端在启动时（`PreStartup.cs`）会将 `IniFile.DisallowDesktopIni` 置为 `true`：任何解析或写入名为 `desktop.ini` 的文件（任意目录、不区分大小写）都会抛出 `InvalidOperationException`。这也意味着 `$Include` 或 `[INISystem] BasedOn` 的值若指向 `desktop.ini`，将以异常失败，而不是仅记录一条警告。
+
 ---
 
 ## 常量
@@ -228,6 +230,8 @@ $Include00=SpawnGameOptions.ini
 - 否则路径相对于当前 INI 文件所在目录解析。
 
 处理完成后，`$Include` 键会从段中移除。如果被包含的文件不存在，或其中没有与当前控件同名的段，则记录一条错误并继续解析。
+
+> **可以包含任意文件。** 路径不限于 `.ini` 文件，也不限于当前 INI 所在目录：值可以使用相对路径（包括 `..`）或绝对路径，任何存在的文件都会被当作 INI 解析（与扩展名无关）。只有存在且包含与当前控件同名段的文件才会被合并；其他情况跳过并记录错误。由于 INI 文件可能来自 mod 或下载的内容，请注意：精心构造的 INI 可以用此指令读取本机其他文件——客户端不会对路径做沙箱限制。（底层 `IniFile` 解析器还支持独立的 `[$Include]` *段* 形式，会在解析时合并被包含文件的**所有**段；本文档介绍的窗口系统使用上面这种逐控件形式。）
 
 ### 额外控件
 

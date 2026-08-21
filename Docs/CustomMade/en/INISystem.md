@@ -71,6 +71,8 @@ Window layout files use both mechanisms together: for example `MultiplayerGameLo
 
 At startup the client runs a background task that preprocesses every `*.ini` file in `INI/Base` (game folder): `BaseSection` inheritance is applied and the result is written to `INI/<name>.ini`. A `ProcessedIniInfo.ini` (user files folder) stores the SHA1 hashes of the source and the processed file, so only outdated files are re-processed. `desktop.ini` is ignored.
 
+> **`desktop.ini` is forbidden at runtime.** Beyond the preprocessing skip above, the client sets `IniFile.DisallowDesktopIni = true` at startup (`PreStartup.cs`): any attempt to parse or write a file named `desktop.ini` (any directory, case-insensitive) throws an `InvalidOperationException`. This also means a `$Include` or `[INISystem] BasedOn` value pointing at a `desktop.ini` fails with an exception rather than a logged warning.
+
 ---
 
 ## Constants
@@ -208,6 +210,8 @@ Path resolution:
 - Otherwise the path is resolved relative to the directory of the current INI file.
 
 The `$Include` keys are removed from the section after processing. If the included file is missing, or does not contain a section named after the current control, an error is logged and parsing continues.
+
+> **Any file can be included.** The path is not restricted to `.ini` files or to the INI's own directory: the value may use relative paths (including `..`) or absolute paths, and any existing file is parsed as INI regardless of its extension. Only an existing file that contains a section named after the current control is merged; anything else is skipped with an error logged. Since INI files may come from mods or downloaded content, note that a crafted INI can use this directive to read other local files — the client does not sandbox the path. (The underlying `IniFile` parser also supports a separate `[$Include]` *section* form that merges **all** sections of the included file at parse time; the window system documented here uses the per-control form above.)
 
 ### Extra controls
 
