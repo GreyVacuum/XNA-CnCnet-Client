@@ -348,33 +348,29 @@ namespace ClientGUI
                     {
                         void ApplyTabOpenExit(int selectedTab)
                         {
-                            var shouldOpen = new HashSet<XNAControl>();
+                            // 非破坏式语义：$OpenN 仅"打开"当前 tab 列出的控件，$ExitN 仅"关闭"
+                            // 当前 tab 列出的控件；其它控件（含其它 tab 的 $OpenM/$ExitM、
+                            // 以及 $ToggleN 管理的控件）一律不动，避免切 tab 时误伤无关控件。
                             if (tabOpenMap.TryGetValue(selectedTab, out var opensList))
                             {
-                                foreach (var c in opensList) shouldOpen.Add(c);
+                                foreach (var oc in opensList)
+                                {
+                                    if (oc != null)
+                                    {
+                                        oc.Visible = true;
+                                        oc.Enabled = true;
+                                    }
+                                }
                             }
 
-                            var allMapped = new List<XNAControl>();
-                            allMapped.AddRange(tabOpenMap.SelectMany(k => k.Value));
-                            allMapped.AddRange(tabExitMap.SelectMany(k => k.Value));
-
-                            foreach (var mapped in allMapped.Distinct())
-                            {
-                                if (mapped == null) continue;
-                                bool active = shouldOpen.Contains(mapped);
-                                mapped.Visible = active;
-                                mapped.Enabled = active;
-                            }
-
-                            // exit mapping: any mapped in tabExitMap[selectedTab] should be closed (override opens)
                             if (tabExitMap.TryGetValue(selectedTab, out var exitsList))
                             {
-                                foreach (var ex in exitsList)
+                                foreach (var xc in exitsList)
                                 {
-                                    if (ex != null)
+                                    if (xc != null)
                                     {
-                                        ex.Visible = false;
-                                        ex.Enabled = false;
+                                        xc.Visible = false;
+                                        xc.Enabled = false;
                                     }
                                 }
                             }
@@ -534,32 +530,28 @@ namespace ClientGUI
                     {
                         void ApplyDropDownOpenExit(int selectedIndex)
                         {
-                            var shouldOpen = new HashSet<XNAControl>();
+                            // 非破坏式语义（与 tab 版本一致）：$OpenN 仅"打开"当前项列出的控件，
+                            // $ExitN 仅"关闭"当前项列出的控件，其余控件不受影响。
                             if (ddOpenMap.TryGetValue(selectedIndex, out var opensList))
                             {
-                                foreach (var c in opensList) shouldOpen.Add(c);
-                            }
-
-                            var allMapped = new List<XNAControl>();
-                            allMapped.AddRange(ddOpenMap.SelectMany(k => k.Value));
-                            allMapped.AddRange(ddExitMap.SelectMany(k => k.Value));
-
-                            foreach (var mapped in allMapped.Distinct())
-                            {
-                                if (mapped == null) continue;
-                                bool active = shouldOpen.Contains(mapped);
-                                mapped.Visible = active;
-                                mapped.Enabled = active;
+                                foreach (var oc in opensList)
+                                {
+                                    if (oc != null)
+                                    {
+                                        oc.Visible = true;
+                                        oc.Enabled = true;
+                                    }
+                                }
                             }
 
                             if (ddExitMap.TryGetValue(selectedIndex, out var exitsList))
                             {
-                                foreach (var ex in exitsList)
+                                foreach (var xc in exitsList)
                                 {
-                                    if (ex != null)
+                                    if (xc != null)
                                     {
-                                        ex.Visible = false;
-                                        ex.Enabled = false;
+                                        xc.Visible = false;
+                                        xc.Enabled = false;
                                     }
                                 }
                             }
