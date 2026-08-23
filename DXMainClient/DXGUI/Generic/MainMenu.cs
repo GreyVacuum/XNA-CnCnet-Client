@@ -514,7 +514,7 @@ namespace DTAClient.DXGUI.Generic
                         videoWidth,
                         videoHeight,
                         backgroundVideoLooping,
-                        IsVideoAudioMuted(),
+                        GetEffectiveVideoMute(),
                         volume,
                         frameIntervalMs: backgroundVideoFrameInterval);
 
