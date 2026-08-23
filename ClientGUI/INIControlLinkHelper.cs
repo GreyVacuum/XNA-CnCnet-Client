@@ -25,9 +25,15 @@ namespace ClientGUI
         /// <param name="root">The control whose child controls are processed.</param>
         public static void ReadLateAttributes(IniFile iniFile, XNAControl root)
         {
-            var section = iniFile.GetSection(root.Name);
-            if (section == null)
-                return;
+            // NOTE: Do NOT early-return when the root has no INI section of its own.
+            // Containers such as XNAScrollPanel and its ContentPanel carry no section,
+            // yet their descendants (the actual content children added via AddContentChild)
+            // still need to be scanned for late attributes like $Toggles / $ToggleN /
+            // $Opens / $Exits. The root's own section is never read by this method
+            // (only child sections are), so returning here only prevented descending
+            // into those containers and silently disabled every late attribute nested
+            // inside a scroll panel -- e.g. an XNADropDown $Toggle in an XNAOptionsPanel.
+            _ = iniFile.GetSection(root.Name);
 
             // 修复：使用传入的 root 的子控件集合，而不是顶层 this.Children
             var children = root.Children.ToList();
