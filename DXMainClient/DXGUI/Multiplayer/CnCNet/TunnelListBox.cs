@@ -8,6 +8,8 @@ using Rampastring.XNAUI;
 using Rampastring.XNAUI.XNAControls;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using ClientCore;
 using System.IO;
 using System.Reflection;
 
@@ -60,6 +62,23 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             AllowKeyboardInput = true;
         }
 
+        private int? _targetVersion;
+        public int? TargetVersion
+        {
+            get => _targetVersion;
+            set
+            {
+                if (_targetVersion != value)
+                {
+                    _targetVersion = value;
+                    isManuallySelectedTunnel = false;
+                    manuallySelectedTunnelKey = null;
+                    if (ItemCount > 0)
+                        TunnelHandler_TunnelsRefreshed(this, EventArgs.Empty);
+                }
+            }
+        }
+
         public event EventHandler ListRefreshed;
 
         private readonly TunnelHandler tunnelHandler;
@@ -69,33 +88,68 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         private int lowestTunnelRating = int.MaxValue;
 
         private bool isManuallySelectedTunnel;
-        private string manuallySelectedTunnelAddress;
+        private string manuallySelectedTunnelKey;
+
+        private List<CnCNetTunnel> GetFilteredTunnels()
+        {
+            int targetVersion = TargetVersion ?? ((TunnelMode)UserINISettings.Instance.TunnelMode.Value == TunnelMode.V2Legacy ? 2 : 3);
+            return tunnelHandler.Tunnels.Where(tunnel => tunnel.Version == targetVersion).ToList();
+        }
+
+        private static string GetTunnelKey(CnCNetTunnel tunnel) => GetTunnelKey(tunnel.Address, tunnel.Port);
+
+        private static string GetTunnelKey(string address, int port) => $"{address}:{port}";
 
         private bool isPreferredSelectedTunnel;
 
         private bool ignoreNextSelectionChange;
 
         /// <summary>
-        /// The saved preferred (default) tunnel address, read directly from user settings.
+        /// The saved preferred (default) tunnel key, read directly from user settings.
         /// Reading from the settings instance keeps all TunnelListBox instances in sync with
         /// the latest saved default, regardless of which window last changed it.
         /// </summary>
-        private string PreferredTunnelAddress => UserINISettings.Instance.PreferredCnCNetTunnel.Value;
-
+        /// <remarks>
+        /// Stored as "address:port", because under V3 a tunnel is only identified by both parts
+        /// and the same address can host several ports. Preferences saved as a bare address by
+        /// older builds are still honoured through an address-only fallback.
+        /// </remarks>
+        private string PreferredTunnelKey => UserINISettings.Instance.PreferredCnCNetTunnel.Value;
 
         /// <summary>
-        /// Selects a tunnel from the list with the given address.
+        /// Locates the saved preferred (default) tunnel within the currently filtered list.
+        /// </summary>
+        /// <returns>The index into the filtered list, or -1 when no preference is set or visible.</returns>
+        private int FindPreferredTunnelIndex()
+        {
+            string preferred = PreferredTunnelKey;
+            if (string.IsNullOrEmpty(preferred))
+                return -1;
+
+            var filteredTunnels = GetFilteredTunnels();
+
+            int index = filteredTunnels.FindIndex(t => GetTunnelKey(t) == preferred);
+            if (index > -1)
+                return index;
+
+            // Legacy preference: a bare address saved before ports became part of the key.
+            return filteredTunnels.FindIndex(t => t.Address == preferred);
+        }
+
+        /// <summary>
+        /// Selects a tunnel from the list with the given address and port.
         /// </summary>
         /// <param name="address">The address of the tunnel server to select.</param>
-        public void SelectTunnel(string address)
+        /// <param name="port">The port of the tunnel server to select.</param>
+        public void SelectTunnel(string address, int port)
         {
-            int index = tunnelHandler.Tunnels.FindIndex(t => t.Address == address);
+            int index = GetFilteredTunnels().FindIndex(t => t.Address == address && t.Port == port);
             if (index > -1)
             {
                 ignoreNextSelectionChange = true;
                 SelectedIndex = index;
                 isManuallySelectedTunnel = true;
-                manuallySelectedTunnelAddress = address;
+                manuallySelectedTunnelKey = GetTunnelKey(address, port);
                 isPreferredSelectedTunnel = false;
             }
         }
@@ -107,11 +161,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         /// </summary>
         public void SelectPreferredTunnel()
         {
-            string address = PreferredTunnelAddress;
-            if (string.IsNullOrEmpty(address))
-                return;
-
-            int index = tunnelHandler.Tunnels.FindIndex(t => t.Address == address);
+            int index = FindPreferredTunnelIndex();
             if (index > -1)
             {
                 ignoreNextSelectionChange = true;
@@ -136,12 +186,15 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         }
 
         /// <summary>
-        /// Gets whether or not a tunnel from the list with the given address is selected.
+        /// Gets whether or not a tunnel from the list with the given address and port is selected.
         /// </summary>
         /// <param name="address">The address of the tunnel server</param>
+        /// <param name="port">The port of the tunnel server</param>
         /// <returns>True if tunnel with given address is selected, otherwise false.</returns>
-        public bool IsTunnelSelected(string address) =>
-            tunnelHandler.Tunnels.FindIndex(t => t.Address == address) == SelectedIndex;
+        public bool IsTunnelSelected(string address, int port)
+        {
+            return GetFilteredTunnels().FindIndex(t => t.Address == address && t.Port == port) == SelectedIndex;
+        }
 
         /// <summary>
         /// Gets whether the currently selected tunnel is already the saved preferred (default) tunnel.
@@ -151,11 +204,18 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             if (!IsValidIndexSelected())
                 return false;
 
-            string address = PreferredTunnelAddress;
-            if (string.IsNullOrEmpty(address))
+            string preferred = PreferredTunnelKey;
+            if (string.IsNullOrEmpty(preferred))
                 return false;
 
-            return tunnelHandler.Tunnels[SelectedIndex].Address == address;
+            var filteredTunnels = GetFilteredTunnels();
+            if (SelectedIndex < 0 || SelectedIndex >= filteredTunnels.Count)
+                return false;
+
+            CnCNetTunnel selected = filteredTunnels[SelectedIndex];
+
+            // Exact key match, or a legacy preference saved as a bare address.
+            return GetTunnelKey(selected) == preferred || selected.Address == preferred;
         }
 
         /// <summary>
@@ -172,19 +232,19 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         {
             ClearItems();
 
+            var filteredTunnels = GetFilteredTunnels();
             int tunnelIndex = 0;
+            bestTunnelIndex = 0;
+            lowestTunnelRating = int.MaxValue;
 
-            foreach (CnCNetTunnel tunnel in tunnelHandler.Tunnels)
+            foreach (CnCNetTunnel tunnel in filteredTunnels)
             {
                 List<string> info = new List<string>();
 
                 info.Add(""); // Flag column
                 info.Add(tunnel.Name);
                 info.Add(Conversions.BooleanToString(tunnel.Official, BooleanStringStyle.YESNO));
-                if (tunnel.PingInMs < 0)
-                    info.Add("Unknown".L10N("Client:Main:UnknownPing"));
-                else
-                    info.Add(tunnel.PingInMs + " ms");
+                info.Add(tunnel.Ping.ToString());
                 info.Add(tunnel.Clients + " / " + tunnel.MaxClients);
 
                 AddItem(info, true);
@@ -193,7 +253,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 if (flagItem != null)
                     flagItem.Tag = GetFlagRectangle(tunnel.CountryCode);
 
-                if ((tunnel.Official || tunnel.Recommended) && tunnel.PingInMs > -1)
+                if ((tunnel.Official || tunnel.Recommended) && tunnel.Ping.IsValid())
                 {
                     int rating = GetTunnelRating(tunnel);
                     if (rating < lowestTunnelRating)
@@ -206,17 +266,18 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 tunnelIndex++;
             }
 
-            if (tunnelHandler.Tunnels.Count > 0)
+            if (filteredTunnels.Count > 0)
             {
                 if (isManuallySelectedTunnel)
                 {
-                    int manuallySelectedIndex = tunnelHandler.Tunnels.FindIndex(t => t.Address == manuallySelectedTunnelAddress);
+                    int manuallySelectedIndex = filteredTunnels.FindIndex(t => GetTunnelKey(t) == manuallySelectedTunnelKey);
 
                     if (manuallySelectedIndex == -1)
                     {
                         ignoreNextSelectionChange = true;
                         SelectedIndex = bestTunnelIndex;
                         isManuallySelectedTunnel = false;
+                        manuallySelectedTunnelKey = null;
                     }
                     else
                     {
@@ -224,9 +285,9 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                         SelectedIndex = manuallySelectedIndex;
                     }
                 }
-                else if (!string.IsNullOrEmpty(PreferredTunnelAddress))
+                else if (!string.IsNullOrEmpty(PreferredTunnelKey))
                 {
-                    int preferredIndex = tunnelHandler.Tunnels.FindIndex(t => t.Address == PreferredTunnelAddress);
+                    int preferredIndex = FindPreferredTunnelIndex();
                     if (preferredIndex > -1)
                     {
                         ignoreNextSelectionChange = true;
@@ -250,31 +311,25 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             ListRefreshed?.Invoke(this, EventArgs.Empty);
         }
 
-        private void TunnelHandler_TunnelPinged(int tunnelIndex)
+        private void TunnelHandler_TunnelPinged(string address, int port)
         {
-            XNAListBoxItem lbItem = GetItem(3, tunnelIndex);
-            CnCNetTunnel tunnel = tunnelHandler.Tunnels[tunnelIndex];
+            var filteredTunnels = GetFilteredTunnels();
 
-            if (tunnel.PingInMs == -1)
-                lbItem.Text = "Unknown".L10N("Client:Main:UnknownPing");
-            else
-                lbItem.Text = tunnel.PingInMs + " ms";
+            CnCNetTunnel tunnel = tunnelHandler.Tunnels.FirstOrDefault(t => t.Address == address && t.Port == port);
+            if (tunnel == null)
+                return;
 
-            int rating = GetTunnelRating(tunnel);
+            int filteredIndex = filteredTunnels.FindIndex(t => t.Address == address && t.Port == port);
+            if (filteredIndex == -1)
+                return;
 
-            // Keep track of the best official/recommended tunnel in the background. This is
-            // used as the automatic fallback when there is no manual or saved-default selection,
-            // and must be updated independently of the current selection.
-            bool isNewBest = (tunnel.Recommended || tunnel.Official) && rating < lowestTunnelRating;
-
-            if (isNewBest)
-            {
-                bestTunnelIndex = tunnelIndex;
-                lowestTunnelRating = rating;
-            }
+            XNAListBoxItem lbItem = GetItem(3, filteredIndex);
+            lbItem.Text = tunnel.Ping.ToString();
 
             // If the saved-default (preferred) tunnel became unreachable, fall back to the best one.
-            if (isPreferredSelectedTunnel && tunnel.Address == PreferredTunnelAddress && tunnel.PingInMs == -1)
+            // Checked BEFORE the validity guard below: an unreachable tunnel has an invalid Ping,
+            // so testing this inside the guard would never fire.
+            if (isPreferredSelectedTunnel && filteredIndex == FindPreferredTunnelIndex() && !tunnel.Ping.IsValid())
             {
                 isPreferredSelectedTunnel = false;
                 ignoreNextSelectionChange = true;
@@ -282,23 +337,39 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 return;
             }
 
-            // A manually chosen or saved-default (preferred) tunnel must NOT be overridden by
-            // periodic ping updates, even if another official/recommended tunnel reports a
-            // marginally better score. This is what previously discarded the player's saved default.
-            if (isManuallySelectedTunnel || isPreferredSelectedTunnel)
-                return;
-
-            // Pure automatic mode: select the tunnel if it is now the best official/recommended one.
-            if (isNewBest)
+            if (tunnel.Ping.IsValid())
             {
-                ignoreNextSelectionChange = true;
-                SelectedIndex = tunnelIndex;
+                int rating = GetTunnelRating(tunnel);
+
+                // Keep track of the best official/recommended tunnel in the background. This is
+                // used as the automatic fallback when there is no manual or saved-default selection,
+                // and must be updated independently of the current selection.
+                bool isNewBest = (tunnel.Recommended || tunnel.Official) && rating < lowestTunnelRating;
+
+                if (isNewBest)
+                {
+                    bestTunnelIndex = filteredIndex;
+                    lowestTunnelRating = rating;
+                }
+
+                // A manually chosen or saved-default (preferred) tunnel must NOT be overridden by
+                // periodic ping updates, even if another official/recommended tunnel reports a
+                // marginally better score. This is what previously discarded the player's saved default.
+                if (isManuallySelectedTunnel || isPreferredSelectedTunnel)
+                    return;
+
+                // Pure automatic mode: select the tunnel if it is now the best official/recommended one.
+                if (isNewBest)
+                {
+                    ignoreNextSelectionChange = true;
+                    SelectedIndex = filteredIndex;
+                }
             }
         }
 
         private int GetTunnelRating(CnCNetTunnel tunnel)
         {
-            if (tunnel.PingInMs < 0)
+            if (!tunnel.Ping.IsValid())
                 return int.MaxValue;
 
             if (tunnel.Clients >= tunnel.MaxClients)
@@ -311,13 +382,21 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
 
             usageRatio *= 100.0;
 
-            double rating = Math.Pow(tunnel.PingInMs, 2.0) * usageRatio;
+            double rating = Math.Pow(tunnel.Ping.Milliseconds, 2.0) * usageRatio;
 
             // Slightly penalize unofficial, non-recommended tunnels because their stability is less guaranteed.
             if (!tunnel.Official && !tunnel.Recommended)
                 rating *= 1.25;
 
             return Convert.ToInt32(rating);
+        }
+
+        public CnCNetTunnel GetSelectedTunnel()
+        {
+            if (!IsValidIndexSelected())
+                return null;
+
+            return GetFilteredTunnels()[SelectedIndex];
         }
 
         private void TunnelListBox_SelectedIndexChanged(object sender, EventArgs e)
@@ -331,9 +410,13 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 return;
             }
 
-            isManuallySelectedTunnel = true;
-            isPreferredSelectedTunnel = false;
-            manuallySelectedTunnelAddress = tunnelHandler.Tunnels[SelectedIndex].Address;
+            var filteredTunnels = GetFilteredTunnels();
+            if (SelectedIndex >= 0 && SelectedIndex < filteredTunnels.Count)
+            {
+                isManuallySelectedTunnel = true;
+                isPreferredSelectedTunnel = false;
+                manuallySelectedTunnelKey = GetTunnelKey(filteredTunnels[SelectedIndex]);
+            }
         }
 
         /// <summary>
@@ -342,15 +425,16 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         /// </summary>
         public void AutoSelectBestTunnel()
         {
-            if (tunnelHandler.Tunnels.Count == 0)
+            var filteredTunnels = GetFilteredTunnels();
+            if (filteredTunnels.Count == 0)
                 return;
 
             int bestIndex = 0;
             int lowestRating = int.MaxValue;
 
-            for (int i = 0; i < tunnelHandler.Tunnels.Count; i++)
+            for (int i = 0; i < filteredTunnels.Count; i++)
             {
-                int rating = GetTunnelRating(tunnelHandler.Tunnels[i]);
+                int rating = GetTunnelRating(filteredTunnels[i]);
                 if (rating < lowestRating)
                 {
                     lowestRating = rating;
@@ -358,13 +442,13 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 }
             }
 
-            CnCNetTunnel bestTunnel = tunnelHandler.Tunnels[bestIndex];
+            CnCNetTunnel bestTunnel = filteredTunnels[bestIndex];
             bestTunnelIndex = bestIndex;
             lowestTunnelRating = lowestRating;
 
             // Treat the auto-selected server as a temporary, in-session manual choice:
             // it sticks until the user changes it, but is not written to PreferredCnCNetTunnel.
-            manuallySelectedTunnelAddress = bestTunnel.Address;
+            manuallySelectedTunnelKey = GetTunnelKey(bestTunnel);
             isManuallySelectedTunnel = true;
             isPreferredSelectedTunnel = false;
 
@@ -381,7 +465,11 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             if (!IsValidIndexSelected())
                 return;
 
-            CnCNetTunnel tunnel = tunnelHandler.Tunnels[SelectedIndex];
+            var filteredTunnels = GetFilteredTunnels();
+            if (SelectedIndex < 0 || SelectedIndex >= filteredTunnels.Count)
+                return;
+
+            CnCNetTunnel tunnel = filteredTunnels[SelectedIndex];
 
             isPreferredSelectedTunnel = true;
             isManuallySelectedTunnel = false;
@@ -397,7 +485,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             if (tunnel == null)
                 return;
 
-            UserINISettings.Instance.PreferredCnCNetTunnel.Value = tunnel.Address;
+            UserINISettings.Instance.PreferredCnCNetTunnel.Value = GetTunnelKey(tunnel);
             UserINISettings.Instance.SaveSettings();
         }
 
