@@ -425,7 +425,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private void InitializePlayerAIQuickOptionsPanel()
         {
-            btnPlayerAIQuickOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerAIQuickOptionsOpen), true);
+            btnPlayerAIQuickOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerAIQuickOptionsOpen), optional: true);
 
             if (btnPlayerAIQuickOptionsOpen != null)
             {
@@ -474,7 +474,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         private void InitializePlayerNameOptionsPanel()
         {
-            btnPlayerNameOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerNameOptionsOpen), true);
+            btnPlayerNameOptionsOpen = FindChild<XNAClientButton>(nameof(btnPlayerNameOptionsOpen), optional: true);
 
             if (btnPlayerNameOptionsOpen != null)
             {
