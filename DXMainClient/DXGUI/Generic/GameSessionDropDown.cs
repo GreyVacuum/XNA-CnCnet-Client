@@ -227,6 +227,17 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
 
     protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
     {
+        // Split a comma-separated list but keep empty entries so that item
+        // indexes stay aligned. The shared SplitWithCleanup removes empty
+        // entries, which would shift the indexes of the following items.
+        static string[] SplitItemsKeepEmpty(string list)
+        {
+            if (string.IsNullOrEmpty(list))
+                return [];
+
+            return list.Split([',']).Select(s => s.Trim()).ToArray();
+        }
+
         // shorthand for localization function
         static string Localize(XNAControl control, string attributeName, string defaultValue, bool notify = true)
             => Translation.Instance.LookUp(control, attributeName, defaultValue, notify);
@@ -245,8 +256,8 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
         switch (key)
         {
             case "Items":
-                string[] items = value.SplitWithCleanup();
-                string[] itemLabels = iniFile.GetStringListValue(Name, "ItemLabels", "");
+                string[] items = SplitItemsKeepEmpty(value);
+                string[] itemLabels = SplitItemsKeepEmpty(iniFile.GetStringValue(Name, "ItemLabels", ""));
                 string[] iconNames = iniFile.GetStringListValue(Name, "Icons", "");
                 // Build items, applying per-index overrides when present
                 for (int i = 0; i < items.Length; i++)
