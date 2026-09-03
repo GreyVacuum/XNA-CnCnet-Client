@@ -1043,13 +1043,17 @@ DisallowedSideIndex=0,1           ; 逗号分隔的整数，此复选框勾选�
 
 _（继承自 [XNAClientDropDown](#xnaclientdropdown)）_
 
-用于游戏大厅的游戏选项下拉框。支持向 CnCNet 大厅广播游戏选项，并在游戏列表与过滤器中显示。
+用于游戏大厅的游戏选项下拉框。支持向 CnCNet 大厅广播游戏选项，并在游戏列表与过滤器中显示；可通过 `EnableRightInputBox` 配置自定义值输入（InputBox）槽位。
 
 ```ini
 [SOMEGAMESESSIONDROPDOWN]                  ; GameSessionDropDown
 Items=                                     ; 逗号分隔的字符串，下拉框的选项值（tag）。
 ItemLabels=                                ; 逗号分隔的字符串，选项的可选显示标签。
 Icons=                                     ; 逗号分隔的字符串，选项图标的纹理名。数量应与选项数一致。
+DefaultIcons=                              ; string,  未为某项配置 `Icons`（或该索引图标缺失）时，应用到
+                                           ;          该项/全部选项的统一默认图标。
+IconN=                                     ; string,  索引为 `N` 的选项的图标（覆盖 `Icons` 中同索引条目
+                                           ;          与 `DefaultIcons`）。
 ItemN=                                     ; string, 索引为 `N` 的选项的 tag（覆盖 Items 条目）。
 ItemLabelN=                                ; string, 索引为 `N` 的选项的显示标签。
 SpawnIniOption=                            ; string,  根据选中项写入的 spawn INI 选项。支持带索引的
@@ -1099,7 +1103,22 @@ MaxInputBoxInteger=                        ; integer, 接受的最大整数（�
 InputBoxCustomItems=1                      ; integer, 追加到选项列表的自定义值槽位数量。
 InputBoxCustomItemsLabels=                 ; 逗号分隔的字符串，自定义槽位的标签（可用 `{0}` 表示值）。
 InputBoxCustomDefaultItems=                ; 逗号分隔的字符串，自定义槽位的默认值。
+InputBoxCustomIcons=                       ; 逗号分隔的字符串，自定义槽位的图标纹理名。数量应与
+                                           ;          `InputBoxCustomItems` 一致；缺失的槽位回退到
+                                           ;          `InputBoxCustomDefaultIcons`。
+InputBoxCustomDefaultIcons=                ; string,  未配置 `InputBoxCustomIcons`（或某槽位图标缺失）时，
+                                           ;          应用到全部自定义槽位的统一默认图标。
+InputBoxCustomIconN=                       ; string,  索引为 `N` 的自定义槽位的图标（覆盖
+                                           ;          `InputBoxCustomIcons` 中同索引条目）。
 ```
+
+**图标与广播语义**（适用于 `GameSessionDropDown` 及其子类；代码：`GameSessionDropDown` / `GameLobbyDropDown` / `GameLobbyBase` / `CnCNetGameLobby` / `GameListBox` / `GameInformationPanel` / `GameFiltersPanel`）：
+
+- 普通项图标优先级：`IconN` > `Icons` 列表同索引 > `DefaultIcons` > 无图标（`null`）。自定义槽位图标优先级：`InputBoxCustomIconN` > `InputBoxCustomIcons` 列表同槽 > `InputBoxCustomDefaultIcons` > 无图标。图标名非空但文件缺失时显示占位纹理（与 `Icons` 行为一致）；空值被忽略（回退到下一级）。
+- `BroadcastToLobby=false`（默认）时该下拉框**不进入**大厅 GAME 广播：游戏列表、信息面板、过滤器均不会处理它（这些界面只遍历"可广播"设置）；房间内设置同步不受影响（全量设置消息广播全部下拉框）。要让选项出现在大厅房间行 / 信息面板 / 过滤器中，必须设为 `true`。
+- `ShowInGameList` / `ShowInGameInformationPanel`（及其 `ShowInGameListOnRight` / `ShowInGameInformationPanelAsIconOnly` 变体）与 `SortOrder` 仅对 `BroadcastToLobby=true` 的下拉框生效；且下拉框在游戏列表 / 信息面板中的展示**必须有图标**（见上优先级）——图标缺失时即使文本模式也不会显示该项。
+- `ShowIconInGameLobby` 目前仅对复选框（`GameLobbyCheckBox`）生效；下拉框侧尚未实现绘制，设置后不会产生效果。
+- 自定义（InputBox）槽位文本的跨端同步：房间成员由 host 的全量设置消息 + 自定义值消息恢复（文本与所选槽位一致，槽位由全量消息携带的绝对选中索引决定）；大厅中的观察者（未加入房间者）通过 GAME 广播 options 字段的**尾随 base64 文本**获得房主输入的自定义值（普通选项或旧版本客户端回退为观察者本地项文本）。图标始终取自观察者本地 INI（各端配置应保持一致）。
 
 #### [CampaignDropDown](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Campaign/CampaignDropDown.cs)
 
@@ -1116,6 +1135,12 @@ _（继承自 [GameSessionDropDown](#gamesessiondropdown)）_
 _（继承自 [GameSessionDropDown](#gamesessiondropdown)）_
 
 在 `GameLobbyBase.ini` 中为游戏大厅下拉框使用此控件类型。继承 `GameSessionDropDown` 的全部属性；`DefaultIndex` 额外在主机与客户端用户之间同步。
+
+联机自定义（InputBox）值的同步机制（无需额外 INI 键，host/成员双端使用同一份大厅 INI）：
+
+- 房间内成员：host 每次修改选项都会广播**全量设置消息**（携带每个下拉框当前选中的绝对索引，含自定义槽位）与**自定义值消息**（携带每个下拉框的自定义槽位文本串）。成员端恢复后，所选槽位与文本均与 host 一致（槽位来自全量消息中的绝对索引，因此多槽 `InputBoxCustomItems` 也正确对齐）。
+- 大厅观察者（未加入房间）：房间行与信息面板显示的选项来自 host 周期性发送的大厅 `GAME` 广播（默认约每 30 秒一次；host 修改选项后会加速至约 10 秒内刷新）。该广播在选项 CSV 的尾部携带每个可广播下拉框的当前显示文本（base64 编码；仅自定义槽位非空）。旧版本客户端/普通选项不受影响（回退为观察者本地项文本）。
+- 依赖关系：要让下拉框出现在大厅房间行、信息面板或过滤器中，必须 `BroadcastToLobby=true` 且按上节图标优先级配置图标；房间内同步不受 `BroadcastToLobby` 影响。
 
 ### XNAOptionsPanel 控件
 
@@ -1765,10 +1790,15 @@ AllowGameInvitesFromFriendsOnly=false ; boolean, 只允许好友的游戏邀请�
 NotifyOnUserListChange=true        ; boolean, 用户列表变化时通知。默认 `true`。
 DisablePrivateMessagePopups=false  ; boolean, 禁用私聊消息弹窗。默认 `false`。
 DisableMainMenuHotkeys=true        ; boolean, 禁用主菜单快捷键。默认 `true`。
-AllowPrivateMessagesFromState=0    ; integer, 允许谁发来私聊消息。默认 `0`（所有人）。
+AllowPrivateMessagesFromState=1    ; integer, 允许谁发来私聊消息。1 = 所有人（默认）、2 = 仅好友、
+                                   ;          3 = 无人、4 = 仅当前频道。
 EnableMapSharing=true              ; boolean, 启用地图共享。默认 `true`。
 AlwaysDisplayTunnelList=false      ; boolean, 始终显示隧道列表。默认 `false`。
 PreferredCnCNetTunnel=             ; string,  偏好的 CnCNet 隧道地址（由"保存为默认"隧道按钮写入）。
+TunnelMode=1                       ; integer, 隧道模式。0 = Static (V3)、1 = Dynamic (V3，默认)、
+                                   ;          2 = Legacy (V2)。
+EnableP2P=false                    ; boolean, 是否允许把动态 V3 隧道升级为玩家之间的直接
+                                   ;          P2P 连接。默认 `false`。
 MapSortState=0                     ; integer, 地图列表排序状态。默认 `0`。
 SearchAllGameModes=false           ; boolean, 在所有游戏模式中搜索。默认 `false`。
 
@@ -1806,6 +1836,56 @@ ChannelName=Yes                    ; boolean, 该频道/游戏是否被关注（
 `UseGraphicsPatch` 而非 `VideoBackBuffer`。`[GameFilters]`、`[GameOptionFilters]`、`[Channels]` 与
 `[FavoriteMaps]` 段由游戏列表与大厅过滤界面使用。
 
+**隧道设置**
+
+`[MultiPlayer]` 段的隧道设置（`TunnelMode` / `EnableP2P`）用于选择房间使用的隧道模式：
+
+- **Dynamic (V3)**（默认）：客户端自动为每对玩家协商出最佳隧道，主持人不需手动选择隧道。
+- **Static (V3)**：使用一条由主持人手动选择的 V3 隧道。
+- **Legacy (V2)**：保留旧版手动 V2 隧道选择行为——这是 2.14.0 之前版本唯一的行为。
+
+玩家可以在开房窗口的"隧道模式"下拉框中为单局游戏选择模式，或在选项窗口的 CnCNet 选项页中通过"主持时的隧道模式"更改自己的默认模式。启用直接 P2P 连接会把每位玩家的 IP 地址分享给游戏会话内的其他玩家，因此启用该选项时客户端会显示警告。相关协议调参见 [NetworkDefinitions.ini](#networkdefinitionsini) 的 `[V3TunnelNegotiation]` 与 `[V3Matchmaking]`。
+
+### Renderers.ini
+
+管理客户端可供选择的游戏渲染器（DirectDraw 包装器）。文件位于客户端资源目录。设置界面中的渲染器下拉列表由此文件驱动，用户选择写入 `Settings.ini` 的 `Renderer` 键（值为渲染器内部名）。切换渲染器时，客户端会清理旧渲染器放入游戏目录的文件，再应用新渲染器的文件（`ddraw.dll`、配置文件、附加文件等）。相关代码：`DXMainClient/Domain/DirectDrawWrapperManager.cs`、`DirectDrawWrapper.cs`。
+
+```ini
+[Renderers]            ; 声明可用的渲染器。键名本身无意义，值为渲染器内部名（internalName）；
+0=CnC-DDRAW            ; 每个条目必须存在同名的渲染器配置段。
+1=Default
+
+[DefaultRenderer]      ; 按操作系统指定默认渲染器。键 = OSVersion 枚举名，值 = 内部名。
+UNKNOWN=Default
+WINXP=Default
+WINVISTA=CnC-DDRAW
+WIN7=CnC-DDRAW
+WIN810=CnC-DDRAW
+UNIX=Default
+
+[CnC-DDRAW]            ; 渲染器配置段，段名 = 内部名。
+UIName=CnC-DDRAW       ; string,  设置界面显示的渲染器名称。默认 "Unnamed renderer"。
+DLLName=cnc-ddraw.dll  ; string,  资源目录中要作为游戏目录 `ddraw.dll` 使用的文件。空 = 不使用包装器。
+ResConfigFileName=cnc-ddraw.ini ; string, 配置文件的源文件名（资源目录）。默认取 `ConfigFileName`。
+ConfigFileName=ddraw.ini       ; string, 复制到游戏目录的配置文件名。若目标文件已存在则不覆盖。
+AdditionalFiles=       ; 逗号分隔的附加文件列表（一并复制到游戏目录；切换渲染器时一并清理）。
+UseQres=true           ; boolean, 是否使用 qres.dat 将桌面分辨率设为 16 位色。默认 `true`。
+SingleCoreAffinity=true; boolean, 是否给游戏进程设置单核 CPU 亲和性。默认 `true`。
+Hidden=false           ; boolean, 为 `true` 时从渲染器选择列表隐藏该项。
+WindowedModeSection=   ; string,  若设置，窗口化设置将写入该渲染器配置文件中的此段（而不是游戏常规
+                       ;          设置 INI）。
+WindowedModeKey=       ; string,  与 `WindowedModeSection` 配合的窗口化设置键名。
+BorderlessWindowedModeKey=  ; string, 与 `WindowedModeSection` 配合的无边框窗口设置键名。
+IsBorderlessWindowedModeKeyReversed=false ; boolean, 反转无边框设置的布尔含义（"false"=开启）。
+IsDxWnd=false          ; boolean, 兼容旧版客户端的简写：等价于
+                       ;          WindowedModeSection=DxWnd、WindowedModeKey=RunInWindow、
+                       ;          BorderlessWindowedModeKey=NoWindowFrame。
+DisallowedOperatingSystems= ; 逗号分隔的 OSVersion 枚举名，声明此渲染器不兼容的操作系统（这些系统
+                       ;          的选择列表中不显示该项）。
+```
+
+> 说明：`DLLName` / `ResConfigFileName` / `AdditionalFiles` 支持资源目录下的子路径（如 `DLLName=Renderers\my.dll` → 从 `Resources\Renderers\my.dll` 读取，复制后仍放入游戏根目录）。`OSVersion` 枚举取值：`UNKNOWN | WINXP | WINVISTA | WIN7 | WIN810 | UNIX`。若资源目录缺少 `[Renderers]` 段或当前操作系统缺少默认渲染器，客户端启动时会抛出配置异常。
+
 ### NetworkDefinitions.ini
 
 如果资源目录存在 `NetworkDefinitions.local.ini`，则它会被用来**取代** `NetworkDefinitions.ini`（用户覆盖；日志会确认加载了哪一个）。
@@ -1819,9 +1899,58 @@ CnCNetPlayerCountURL=     ; string, CnCNet 玩家数量 API 的 URL。
 CnCNetMapDBDownloadURL=   ; string, 地图数据库下载 API 的 URL。
 CnCNetMapDBUploadURL=     ; string, 地图数据库上传 API 的 URL。
 DisableDiscordIntegration=false ; boolean, 禁用 Discord 集成。
+P2PStunServers=                 ; 逗号分隔的 STUN 服务器列表，用于 P2P 候选收集
+                                ; （仅当 [MultiPlayer] `EnableP2P=true` 时使用）。默认空。
 
 [IRCServers]
 0=irc.server.example ; IRC 服务器地址；每个非空值都会被添加。
+```
+
+**V3 隧道协商（[V3TunnelNegotiation]）与配对（[V3Matchmaking]）调参**
+
+`NetworkDefinitions.ini` 中的以下两段用于调节 V3 隧道协商协议（dynamic V3 / 静态 V3 的隧道选择与保活）与配对（matchmaking，候选房间/对端挑选）行为。默认值已按官方服务器与常见网络调优，通常无需修改；仅在自建网络环境或排查联机问题时按需调整。代码：`ClientCore/ClientConfiguration.cs`（各属性名 = 键名），消费方为 `TunnelHandler`、`NegotiationDataManager`、`CnCNetGameLobby`。
+
+```ini
+[V3TunnelNegotiation]
+NonDeciderTotalTimeoutMs=20000          ; integer, 非决策方整体协商超时（毫秒）。默认 20000。
+ConnectedPhaseTimeoutMs=15000           ; integer, 已连接阶段的超时。默认 15000。
+ConnectedPhaseTimeoutSyncedMs=5000      ; integer, 已连接（已同步）阶段的超时。默认 5000。
+DeciderPingPhaseTimeoutMs=12000         ; integer, 决策方测速阶段的超时。默认 12000。
+PingsPerTunnel=10                       ; integer, 每个隧道在各阶段的 ping 次数。默认 10。
+PingTimeoutMs=1000                      ; integer, 单次隧道 ping 超时。默认 1000。
+P2PPingsPerTunnel=6                     ; integer, P2P 阶段每隧道的 ping 次数。默认 6。
+P2PPingTimeoutMs=1000                   ; integer, P2P ping 超时。默认 1000。
+NonDeciderConnectedIntervalMs=500       ; integer, 非决策方已连接状态的确认间隔。默认 500。
+P2PCandidateExchangeTimeoutMs=3000      ; integer, P2P 候选交换超时。默认 3000。
+P2PCandidateSendCount=3                 ; integer, 每轮发送的 P2P 候选数量。默认 3。
+P2PCandidateSendIntervalMs=150          ; integer, P2P 候选发送间隔。默认 150。
+P2PUpgradeNonDeciderTimeoutMs=10000     ; integer, 非决策方等待 P2P 升级的超时。默认 10000。
+P2PUpgradeConnectedTimeoutMs=3000       ; integer, 已连接方等待 P2P 升级的超时。默认 3000。
+TunnelChoiceRetryIntervalMs=1000        ; integer, 隧道选择失败后的重试间隔。默认 1000。
+NonDeciderAckLingerRetries=3            ; integer, 非决策方 ACK 停留重试次数。默认 3。
+TunnelChoiceMaxRetries=10               ; integer, 隧道选择的最大重试次数。默认 10。
+EarlySelectionThreshold=0.8             ; double,  早期选择的得分阈值（0-1）。默认 0.8。
+PacketLossWeight=10                     ; integer, 分数计算中的丢包权重。默认 10。
+CurrentTunnelPingIntervalSeconds=20.0   ; double,  当前隧道的常规 ping 间隔（秒）。默认 20.0。
+CyclesPerTunnelListRefresh=3            ; integer, 每 N 个周期刷新一次隧道列表。默认 3。
+TunnelFailedPingAmountMs=2000           ; integer, 判定隧道失败的 ping 阈值时长（毫秒）。默认 2000。
+TunnelFailedConsecutivePings=2          ; integer, 判定隧道失败所需的连续失败次数。默认 2。
+RetainedPingFailures=2                  ; integer, 保留的 ping 失败计数。默认 2。
+KeepAliveIntervalSeconds=15.0           ; double,  保活消息间隔（秒）。默认 15.0。
+KeepAliveTickSeconds=5.0                ; double,  保活计时器滴答间隔（秒）。默认 5.0。
+KeepAliveMaxMisses=3                    ; integer, 保活最大未响应次数（超过判定失联）。默认 3。
+ProbeReplyCacheSeconds=5.0              ; double,  探测应答缓存时长（秒）。默认 5.0。
+
+[V3Matchmaking]
+Enabled=true                    ; boolean, 启用 V3 配对。默认 `true`。
+CandidateCount=6                ; integer, 候选数量。默认 6。
+DiversitySlots=1                ; integer, 多样性槽位数（强制不同隧道的候选数）。默认 1。
+CapacityThreshold=0.85          ; double,  容量阈值（0-1），超过则不再加入候选。默认 0.85。
+ExchangeTimeoutMs=10000         ; integer, 配对信息交换超时。默认 10000。
+RetryIntervalMs=400             ; integer, 配对重试间隔。默认 400。
+FallbackCandidateCount=8        ; integer, 回退候选数量。默认 8。
+FallbackDeterministicSlots=4    ; integer, 回退确定性槽位数。默认 4。
+HandshakeFailureThreshold=2     ; integer, 握手失败阈值。默认 2。
 ```
 
 ### MPMaps.ini
@@ -2198,6 +2327,44 @@ ClientExecutableName=             ; string,  为自定义游戏启动的可执�
 RegistryInstallPath=HKCU\Software\MYGAME ; string,  保存安装路径的注册表键。默认
                                   ;          `HKCU\Software\{INTERNALNAME}`。
 ```
+
+### UpdaterConfig.ini
+
+位于客户端**资源目录**（`Resources\`）。控制更新器（`ClientUpdater/Updater.cs`）的下载镜像与自定义组件。文件缺失时回退读取旧的 `updateconfig.ini`（游戏目录，legacy 格式）。
+
+```ini
+[Settings]
+IgnoreMasks=.rtf,.txt,Theme.ini,gui_settings.xml ; 逗号/空格分隔的文件名或扩展名掩码，更新校验时忽略这些
+                                   ;          文件。默认 `.rtf,.txt,Theme.ini,gui_settings.xml`。
+
+[DownloadMirrors]
+0=https://mirror.example.com/files,Main mirror,EU ; 每个键定义一个更新下载镜像，键名任意、可重复追加：
+                                   ;          <URL>,<Name>[,<Location>]。URL 末尾斜杠会被去除并补一个；
+                                   ;          少于两段（无 Name）的条目被忽略。
+
+[CustomComponents]
+0=附加补丁,mycomp,https://host/files/mycomp.zip,extra,false ; 每个键定义一个可安装的自定义组件：
+                                   ;          <Name>,<ID>,<DownloadPath>,<LocalPath>[,<noArchiveExtension>]。
+                                   ;          ID 用于去重；DownloadPath 为绝对 URL 时按绝对地址下载，
+                                   ;          否则相对地址会追加到当前下载镜像 URL；下载完成后
+                                   ;          解压/安装到 <LocalPath>（相对游戏目录）。第 5 段可选布尔
+                                   ;          （默认 false）控制是否不以归档扩展名方式处理下载路径。
+```
+
+### FHCConfig.ini
+
+位于客户端**资源目录**（`Resources\`）。控制客户端文件完整性哈希（File Hash Calculator，`DXMainClient/Online/FileHashCalculator.cs`）：把一组关键文件（`spawner.xdp`、`rules.ini`/`ai.ini`/`art.ini` 等——按游戏类型不同有内置清单）组合计算成一个 SHA1 哈希。CnCNet / 局域网游戏大厅在开始加载时将该哈希通过 `FILE_HASH` 消息发送给房主，房主与自身哈希比对以检测客户端文件不一致（完整性/反篡改校验）。
+
+```ini
+[Settings]
+CalculateGameExeHash=true ; boolean, 是否把游戏主程序（如 gamemd.exe）也纳入哈希计算。默认 `true`。
+
+[FilenameList]
+0=spawner.xdp            ; 覆盖内置的文件名清单（键名任意；值留空时用键名本身作为文件名）。
+1=INI/Rules.ini
+```
+
+> 文本类扩展名（`.txt` / `.ini` / `.json` / `.xml`）的文件会先归一化行尾（CRLF → LF）并去除首尾空白后再哈希，使换行符差异不改变哈希值。
 
 ### SkirmishSettings.ini
 

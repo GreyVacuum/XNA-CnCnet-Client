@@ -939,7 +939,7 @@ DisallowedSideIndex=0,1           ; comma-separated integers, side indices that 
 
 _(inherits [XNAClientDropDown](#xnaclientdropdown))_
 
-Game option dropdown for the game lobby. Supports broadcasting game options to the CnCNet lobby and displaying them in the game list and filters.
+Game option dropdown for the game lobby. Supports broadcasting game options to the CnCNet lobby and displaying them in the game list and filters; custom-value (InputBox) slots can be enabled with `EnableRightInputBox`.
 
 ```ini
 [SOMEGAMESESSIONDROPDOWN]                  ; GameSessionDropDown
@@ -947,6 +947,10 @@ Items=                                     ; comma-separated strings, item value
 ItemLabels=                                ; comma-separated strings, optional display labels for the items.
 Icons=                                     ; comma-separated strings, texture names for the item icons. Should match the
                                            ;          number of items.
+DefaultIcons=                              ; string,  single default icon applied to an item / all items when
+                                           ;          `Icons` is not set (or the item has no icon at its index).
+IconN=                                     ; string,  icon for the item at index `N` (overrides the `Icons`
+                                           ;          entry at the same index and `DefaultIcons`).
 ItemN=                                     ; string, tag of the item at index `N` (overrides Items entry).
 ItemLabelN=                                ; string, display label of the item at index `N`.
 SpawnIniOption=                            ; string,  spawn INI option written based on the selected item. Indexed
@@ -996,7 +1000,22 @@ MaxInputBoxInteger=                        ; integer, maximum accepted integer (
 InputBoxCustomItems=1                      ; integer, number of custom value slots appended to the item list.
 InputBoxCustomItemsLabels=                 ; comma-separated strings, labels of the custom slots (may contain `{0}` for the value).
 InputBoxCustomDefaultItems=                ; comma-separated strings, default values of the custom slots.
+InputBoxCustomIcons=                       ; comma-separated strings, texture names for the custom slot icons. Should
+                                           ;          match the number of `InputBoxCustomItems`; missing slots fall back
+                                           ;          to `InputBoxCustomDefaultIcons`.
+InputBoxCustomDefaultIcons=                ; string,  single default icon applied to all custom slots when
+                                           ;          `InputBoxCustomIcons` is not set (or a slot has no icon).
+InputBoxCustomIconN=                       ; string,  icon for the custom slot at index `N` (overrides the
+                                           ;          `InputBoxCustomIcons` entry at the same index).
 ```
+
+**Icon and broadcast semantics** (applies to `GameSessionDropDown` and its subclasses; code: `GameSessionDropDown` / `GameLobbyDropDown` / `GameLobbyBase` / `CnCNetGameLobby` / `GameListBox` / `GameInformationPanel` / `GameFiltersPanel`):
+
+- Regular item icon priority: `IconN` > `Icons` list at the same index > `DefaultIcons` > no icon (`null`). Custom slot icon priority: `InputBoxCustomIconN` > `InputBoxCustomIcons` list at the same slot > `InputBoxCustomDefaultIcons` > no icon. A non-empty icon name whose file is missing shows the placeholder texture (same as `Icons`); empty values are ignored (fall through to the next level).
+- With `BroadcastToLobby=false` (default) the dropdown is **not included** in the GAME broadcast to the CnCNet lobby: the game list, information panel and filters never process it (they only walk the broadcastable settings). In-room settings sync is unaffected (the full settings message broadcasts every dropdown). Set `BroadcastToLobby=true` to make the option appear in the lobby game row / information panel / filters.
+- `ShowInGameList` / `ShowInGameInformationPanel` (and the `ShowInGameListOnRight` / `ShowInGameInformationPanelAsIconOnly` variants) and `SortOrder` only take effect for dropdowns with `BroadcastToLobby=true`; additionally, a dropdown is only shown in the game list / information panel **if it has icons** (see priority above) — without an icon the entry is skipped even in text mode.
+- `ShowIconInGameLobby` is currently only implemented for checkboxes (`GameLobbyCheckBox`); the dropdown side has no drawing consumer yet, so setting it has no effect there.
+- Cross-client sync of custom (InputBox) slot text: room members are restored via the host's full-settings message plus the custom-value message (text and selected slot both match the host; the slot comes from the absolute index carried by the full-settings message). Observers in the lobby who have not joined the room receive the host-typed custom text through the **trailing base64 fields** of the game-options CSV inside the GAME broadcast (regular selections and older clients fall back to the observer's local item text). Icons always come from the observer's local INI (keep per-client INIs consistent).
 
 #### [CampaignDropDown](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Campaign/CampaignDropDown.cs)
 
@@ -1009,6 +1028,12 @@ Use this control type for campaign dropdowns in `CampaignSelector.ini`. Inherits
 _(inherits [GameSessionDropDown](#gamesessiondropdown))_
 
 Use this control type for game lobby dropdowns in `GameLobbyBase.ini`. Inherits all properties from `GameSessionDropDown`; `DefaultIndex` is additionally synchronized between host and client users.
+
+Online sync of custom (InputBox) values (no extra INI keys needed; host and clients share the same lobby INI):
+
+- In-room members: whenever the host changes an option it broadcasts a **full settings message** (carrying every dropdown's currently selected absolute index, including custom slots) plus a **custom-value message** (carrying each dropdown's custom slot text). After a member applies them, both the selected slot and the text match the host (the slot comes from the absolute index in the full-settings message, so multi-slot `InputBoxCustomItems` align correctly too).
+- Lobby observers (players who have not joined the room): the option row shown in the game list / information panel comes from the host's periodic lobby `GAME` broadcast (roughly every 30 seconds by default; after the host changes an option it is accelerated to refresh within about 10 seconds). That broadcast carries each broadcastable dropdown's current display text in the trailing fields of the options CSV (base64-encoded; only non-empty for custom slots). Older clients and regular selections are unaffected (they fall back to the observer's local item text).
+- Dependencies: for a dropdown to appear in the lobby game row, information panel or filters it needs `BroadcastToLobby=true` and icons per the icon priority in the `GameSessionDropDown` section; in-room sync does not depend on `BroadcastToLobby`.
 
 ### XNAOptionsPanel Controls
 
@@ -1654,11 +1679,16 @@ AllowGameInvitesFromFriendsOnly=false ; boolean, only allow game invites from fr
 NotifyOnUserListChange=true        ; boolean, notify when the user list changes. Default `true`.
 DisablePrivateMessagePopups=false  ; boolean, disable private message popups. Default `false`.
 DisableMainMenuHotkeys=true        ; boolean, disable main menu hotkeys. Default `true`.
-AllowPrivateMessagesFromState=0    ; integer, whom private messages are allowed from. Default `0` (everyone).
+AllowPrivateMessagesFromState=1    ; integer, whom private messages are allowed from. 1 = Everyone
+                                   ;          (default), 2 = Friends only, 3 = Nobody, 4 = Current channel only.
 EnableMapSharing=true              ; boolean, enable map sharing. Default `true`.
 AlwaysDisplayTunnelList=false      ; boolean, always display the tunnel list. Default `false`.
 PreferredCnCNetTunnel=             ; string,  preferred CnCNet tunnel address (written by the "Save as Default"
                                    ;          tunnel button).
+TunnelMode=1                       ; integer, tunnel mode. 0 = Static (V3), 1 = Dynamic (V3, default),
+                                   ;          2 = Legacy (V2).
+EnableP2P=false                    ; boolean, whether dynamic V3 tunnels may be upgraded to direct
+                                   ;          player-to-player connections. Default `false`.
 MapSortState=0                     ; integer, map list sort state. Default `0`.
 SearchAllGameModes=false           ; boolean, search across all game modes. Default `false`.
 
@@ -1694,6 +1724,64 @@ ChannelName=Yes                    ; boolean, whether the channel / game is foll
 
 Game type differences: for RA, the screen size keys (`Width`/`Height`) and the volume keys (`ScoreVolume`/`Volume`) live under `[Options]` instead of `[Video]`/`[Audio]`, and saving writes an extra `[Options] MultiplayerScoreVolume` mirror; for TS, the back-buffer key is `UseGraphicsPatch` instead of `VideoBackBuffer`. The `[GameFilters]`, `[GameOptionFilters]`, `[Channels]` and `[FavoriteMaps]` sections are used by the game list and lobby filtering UI.
 
+**Tunnel settings**
+
+The `[MultiPlayer]` tunnel settings (`TunnelMode` / `EnableP2P`) pick the tunnel mode used by a game room:
+
+- **Dynamic (V3)** (default): the client automatically negotiates the best tunnel for each pair of players and the host does not need to select a tunnel manually.
+- **Static (V3)**: uses one V3 tunnel that the host selects manually.
+- **Legacy (V2)**: preserves the previous manual V2 tunnel selection behavior, which was the only behavior in versions up to, but not including, 2.14.0.
+
+Users can select a mode for an individual game from the "Tunnel mode:" drop-down in the game creation window, or change their default with "Tunnel mode when hosting:" in the CnCNet options tab of the Options window. Enabling direct P2P connections shares each player's IP address with the other players in the game session, so the client shows a warning when this option is enabled. See also `[V3TunnelNegotiation]` and `[V3Matchmaking]` in [NetworkDefinitions.ini](#networkdefinitionsini) for the protocol tuning knobs.
+
+### Renderers.ini
+
+Manages the game renderers (DirectDraw wrappers) selectable by the client. The file lives in the client's resource directory. The renderer drop-down in the options menu is driven by this file; the user's choice is stored in the `Renderer` key of `Settings.ini` (value = internal name). When switching renderers, the client cleans the previous renderer's files from the game directory and then applies the new renderer's files (`ddraw.dll`, config file, additional files, ...). Code: `DXMainClient/Domain/DirectDrawWrapperManager.cs`, `DirectDrawWrapper.cs`.
+
+```ini
+[Renderers]            ; Declares the available renderers. The key names themselves are
+0=CnC-DDRAW            ; meaningless; the value is the renderer's internal name, and each
+1=Default              ; entry must have a matching renderer section below.
+
+[DefaultRenderer]      ; Picks the default renderer per operating system. Keys are
+UNKNOWN=Default        ; OSVersion enum names, values are internal names.
+WINXP=Default
+WINVISTA=CnC-DDRAW
+WIN7=CnC-DDRAW
+WIN810=CnC-DDRAW
+UNIX=Default
+
+[CnC-DDRAW]            ; Renderer configuration section; the section name is the internal name.
+UIName=CnC-DDRAW       ; string,  name shown in the options menu. Default "Unnamed renderer".
+DLLName=cnc-ddraw.dll  ; string,  file from the resource directory that is used as the game
+                       ;          directory's `ddraw.dll`. Empty = no wrapper (dummy).
+ResConfigFileName=cnc-ddraw.ini ; string, source file name of the config file (resource
+                       ;          directory). Defaults to `ConfigFileName`.
+ConfigFileName=ddraw.ini       ; string, config file name copied into the game directory.
+                       ;          Existing files are not overwritten.
+AdditionalFiles=       ; comma-separated additional files copied to the game directory
+                       ;          (and cleaned up when switching renderers).
+UseQres=true           ; boolean, whether qres.dat is used to switch the desktop to 16-bit
+                       ;          color. Default `true`.
+SingleCoreAffinity=true; boolean, whether the game process gets single-core CPU affinity.
+                       ;          Default `true`.
+Hidden=false           ; boolean, when `true` this renderer is hidden from the selection list.
+WindowedModeSection=   ; string,  when set, the windowed-mode setting is written to this section
+                       ;          of the renderer's own config file (instead of the regular
+                       ;          game settings INI).
+WindowedModeKey=       ; string,  windowed-mode key paired with `WindowedModeSection`.
+BorderlessWindowedModeKey=  ; string, borderless-windowed key paired with `WindowedModeSection`.
+IsBorderlessWindowedModeKeyReversed=false ; boolean, reverses the boolean meaning of the
+                       ;          borderless setting ("false" = enabled).
+IsDxWnd=false          ; boolean, legacy shorthand equivalent to
+                       ;          WindowedModeSection=DxWnd, WindowedModeKey=RunInWindow,
+                       ;          BorderlessWindowedModeKey=NoWindowFrame.
+DisallowedOperatingSystems= ; comma-separated OSVersion enum names this renderer is
+                       ;          incompatible with (not shown on those systems).
+```
+
+> Notes: `DLLName` / `ResConfigFileName` / `AdditionalFiles` support sub-paths inside the resource directory (e.g. `DLLName=Renderers\my.dll` is read from `Resources\Renderers\my.dll` but still copied to the game root). `OSVersion` values: `UNKNOWN | WINXP | WINVISTA | WIN7 | WIN810 | UNIX`. If `[Renderers]` is missing from the resource directory, or no default renderer exists for the current OS, the client throws a configuration exception at startup.
+
 ### NetworkDefinitions.ini
 
 If a `NetworkDefinitions.local.ini` exists in the resource folder, it is used **instead of** `NetworkDefinitions.ini` (user override; a log line confirms which one was loaded).
@@ -1705,9 +1793,59 @@ CnCNetPlayerCountURL=     ; string, URL of the CnCNet player count API.
 CnCNetMapDBDownloadURL=   ; string, URL of the map database download API.
 CnCNetMapDBUploadURL=     ; string, URL of the map database upload API.
 DisableDiscordIntegration=false ; boolean, disables Discord integration.
+P2PStunServers=                 ; comma-separated STUN server list used for P2P candidate
+                                ; gathering (only when `EnableP2P=true` in `[MultiPlayer]`).
+                                ; Default empty.
 
 [IRCServers]
 0=irc.server.example ; IRC server addresses; every non-empty value is added.
+```
+
+**V3 tunnel negotiation ([V3TunnelNegotiation]) and matchmaking ([V3Matchmaking]) tuning**
+
+The two sections below tune the V3 tunnel negotiation protocol (dynamic V3 / static V3 tunnel selection and keep-alive) and matchmaking (candidate room/peer picking). The defaults are tuned for the official servers and typical networks and usually need no changes; adjust them only for custom network environments or when troubleshooting connectivity. Code: `ClientCore/ClientConfiguration.cs` (property names = key names); consumers: `TunnelHandler`, `NegotiationDataManager`, `CnCNetGameLobby`.
+
+```ini
+[V3TunnelNegotiation]
+NonDeciderTotalTimeoutMs=20000          ; integer, total negotiation timeout for the non-decider (ms). Default 20000.
+ConnectedPhaseTimeoutMs=15000           ; integer, timeout of the connected phase (ms). Default 15000.
+ConnectedPhaseTimeoutSyncedMs=5000      ; integer, timeout of the connected-and-synced phase (ms). Default 5000.
+DeciderPingPhaseTimeoutMs=12000         ; integer, timeout of the decider's ping phase (ms). Default 12000.
+PingsPerTunnel=10                       ; integer, pings per tunnel per phase. Default 10.
+PingTimeoutMs=1000                      ; integer, single tunnel ping timeout (ms). Default 1000.
+P2PPingsPerTunnel=6                     ; integer, pings per tunnel during the P2P phase. Default 6.
+P2PPingTimeoutMs=1000                   ; integer, P2P ping timeout (ms). Default 1000.
+NonDeciderConnectedIntervalMs=500       ; integer, confirmation interval for the non-decider's connected state. Default 500.
+P2PCandidateExchangeTimeoutMs=3000      ; integer, P2P candidate exchange timeout (ms). Default 3000.
+P2PCandidateSendCount=3                 ; integer, P2P candidates sent per round. Default 3.
+P2PCandidateSendIntervalMs=150          ; integer, P2P candidate send interval (ms). Default 150.
+P2PUpgradeNonDeciderTimeoutMs=10000     ; integer, non-decider timeout while waiting for the P2P upgrade (ms). Default 10000.
+P2PUpgradeConnectedTimeoutMs=3000       ; integer, connected-party timeout while waiting for the P2P upgrade (ms). Default 3000.
+TunnelChoiceRetryIntervalMs=1000        ; integer, retry interval after a failed tunnel choice (ms). Default 1000.
+NonDeciderAckLingerRetries=3            ; integer, ACK linger retries on the non-decider side. Default 3.
+TunnelChoiceMaxRetries=10               ; integer, maximum retries for tunnel choice. Default 10.
+EarlySelectionThreshold=0.8             ; double,  score threshold (0-1) for early selection. Default 0.8.
+PacketLossWeight=10                     ; integer, packet-loss weight in the score. Default 10.
+CurrentTunnelPingIntervalSeconds=20.0   ; double,  regular ping interval of the current tunnel (s). Default 20.0.
+CyclesPerTunnelListRefresh=3            ; integer, refresh the tunnel list every N cycles. Default 3.
+TunnelFailedPingAmountMs=2000           ; integer, ping duration (ms) that flags a tunnel as failed. Default 2000.
+TunnelFailedConsecutivePings=2          ; integer, consecutive failures required to flag a tunnel as failed. Default 2.
+RetainedPingFailures=2                  ; integer, retained ping-failure count. Default 2.
+KeepAliveIntervalSeconds=15.0           ; double,  keep-alive interval (s). Default 15.0.
+KeepAliveTickSeconds=5.0                ; double,  keep-alive timer tick (s). Default 5.0.
+KeepAliveMaxMisses=3                    ; integer, maximum missed keep-alives before the peer is considered lost. Default 3.
+ProbeReplyCacheSeconds=5.0              ; double,  probe-reply cache duration (s). Default 5.0.
+
+[V3Matchmaking]
+Enabled=true                    ; boolean, enable V3 matchmaking. Default `true`.
+CandidateCount=6                ; integer, number of candidates. Default 6.
+DiversitySlots=1                ; integer, diversity slots (candidates forced onto different tunnels). Default 1.
+CapacityThreshold=0.85          ; double,  capacity threshold (0-1); above it no further candidates are added. Default 0.85.
+ExchangeTimeoutMs=10000         ; integer, matchmaking info exchange timeout (ms). Default 10000.
+RetryIntervalMs=400             ; integer, matchmaking retry interval (ms). Default 400.
+FallbackCandidateCount=8        ; integer, fallback candidate count. Default 8.
+FallbackDeterministicSlots=4    ; integer, fallback deterministic slots. Default 4.
+HandshakeFailureThreshold=2     ; integer, handshake failure threshold. Default 2.
 ```
 
 ### MPMaps.ini
@@ -2080,6 +2218,50 @@ ClientExecutableName=             ; string,  executable launched for the custom 
 RegistryInstallPath=HKCU\Software\MYGAME ; string,  registry key holding the installation path. Default
                                   ;          `HKCU\Software\{INTERNALNAME}`.
 ```
+
+### UpdaterConfig.ini
+
+Lives in the client's **resource folder** (`Resources\`). Controls the download mirrors and custom components of the updater (`ClientUpdater/Updater.cs`). When the file is absent the updater falls back to the legacy `updateconfig.ini` in the game folder.
+
+```ini
+[Settings]
+IgnoreMasks=.rtf,.txt,Theme.ini,gui_settings.xml ; comma- or space-separated file-name / extension masks
+                                   ;          ignored during update verification. Default
+                                   ;          `.rtf,.txt,Theme.ini,gui_settings.xml`.
+
+[DownloadMirrors]
+0=https://mirror.example.com/files,Main mirror,EU ; one update mirror per key (key names are arbitrary,
+                                   ;          more keys may be added): <URL>,<Name>[,<Location>]. A
+                                   ;          trailing slash is trimmed from the URL and re-appended;
+                                   ;          entries with fewer than two fields (no name) are ignored.
+
+[CustomComponents]
+0=Extra patch,mycomp,https://host/files/mycomp.zip,extra,false ; one installable custom component per key:
+                                   ;          <Name>,<ID>,<DownloadPath>,<LocalPath>[,<noArchiveExtension>].
+                                   ;          ID is used for de-duplication; an absolute-URI DownloadPath
+                                   ;          is fetched directly, otherwise it is appended to the current
+                                   ;          mirror URL; after download the component is extracted /
+                                   ;          installed into <LocalPath> (relative to the game folder).
+                                   ;          The optional 5th boolean (default false) controls whether the
+                                   ;          download path is treated as having an archive extension.
+```
+
+### FHCConfig.ini
+
+Lives in the client's **resource folder** (`Resources\`). Configures the client file-hash calculator (`DXMainClient/Online/FileHashCalculator.cs`): a set of key game files (`spawner.xdp`, `rules.ini` / `ai.ini` / `art.ini`, ... - the built-in list differs per game type) is combined into a single SHA1 hash. When the game starts loading, the CnCNet / LAN game lobby sends this hash to the host in a `FILE_HASH` message; the host compares it with its own to detect mismatching client files (integrity / tamper check).
+
+```ini
+[Settings]
+CalculateGameExeHash=true ; boolean, whether the game executable (e.g. gamemd.exe) is included in the
+                          ;          hash. Default `true`.
+
+[FilenameList]
+0=spawner.xdp            ; overrides the built-in file-name list (key names are arbitrary; an empty
+                         ;          value uses the key itself as the file name).
+1=INI/Rules.ini
+```
+
+> Text-type extensions (`.txt` / `.ini` / `.json` / `.xml`) are normalized before hashing (line endings CRLF -> LF and surrounding whitespace trimmed) so newline differences do not change the hash.
 
 ### SkirmishSettings.ini
 
