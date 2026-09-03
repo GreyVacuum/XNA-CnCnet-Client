@@ -34,6 +34,17 @@ namespace DTAClient.Domain.Multiplayer.CnCNet
         public CnCNetTunnel? TunnelServer { get; set; }
         public int[]? BroadcastedGameOptionValues { get; set; }
 
+        /// <summary>
+        /// Display text of each broadcast (BroadcastToLobby) drop-down's current
+        /// selection, ordered like the drop-down part of
+        /// <see cref="BroadcastedGameOptionValues"/>. Entries are null/empty for
+        /// drop-downs whose host selection is a regular item (observers fall back
+        /// to their local item text in that case). Carried in the trailing fields
+        /// of the game-options CSV so observers can show the host's custom input
+        /// instead of their local defaults.
+        /// </summary>
+        public string[]? BroadcastedDropdownCustomTexts { get; set; }
+
         public override PingValue Ping => TunnelServer?.Ping ?? PingValue.Unknown;
 
         public override bool Equals(GenericHostedGame other)

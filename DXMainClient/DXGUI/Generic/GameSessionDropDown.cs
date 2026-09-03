@@ -165,6 +165,31 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     private int editingCustomSlot = -1;
 
     /// <summary>
+    /// 自定义项（InputBox 模式）的图标文件名列表，按 slot 顺序与
+    /// InputBoxCustomItems / InputBoxCustomDefaultItems 对齐。
+    /// 为 null 或长度不足时，对应自定义项不带图标（Texture = null）。
+    /// </summary>
+    private string[] customIconNames;
+
+    /// <summary>
+    /// 未配置 InputBoxCustomIcons（或某槽位图标名缺失）时，作为全部自定义项的
+    /// 统一默认图标（单个文件）。为空表示无默认图标。
+    /// </summary>
+    private string defaultCustomIconName;
+
+    /// <summary>
+    /// Per-index icon overrides for regular items (Icon0, Icon1 ...).
+    /// Takes priority over the Icons list and DefaultIcons.
+    /// </summary>
+    private readonly Dictionary<int, string> indexedIcons = new();
+
+    /// <summary>
+    /// Per-slot icon overrides for custom (InputBox) items (InputBoxCustomIcon0, ...).
+    /// Takes priority over the InputBoxCustomIcons list.
+    /// </summary>
+    private readonly Dictionary<int, string> indexedCustomIcons = new();
+
+    /// <summary>
     /// Per-index spawn INI entries for the dropdown control.
     /// Index 0 mirrors the base (no-suffix) values for compatibility.
     /// </summary>
@@ -259,6 +284,9 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                 string[] items = SplitItemsKeepEmpty(value);
                 string[] itemLabels = SplitItemsKeepEmpty(iniFile.GetStringValue(Name, "ItemLabels", ""));
                 string[] iconNames = iniFile.GetStringListValue(Name, "Icons", "");
+                // 未为某项配置 Icons 时，回退到 DefaultIcons 指定的单个默认图标
+                // （作用于该项；若整键缺失则全部项使用默认图标）
+                string defaultIconName = iniFile.GetStringValue(Name, "DefaultIcons", "");
                 // Build items, applying per-index overrides when present
                 for (int i = 0; i < items.Length; i++)
                 {
@@ -267,7 +295,13 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                     string tag = indexedItems.ContainsKey(i) && !string.IsNullOrEmpty(indexedItems[i].Tag) ? indexedItems[i].Tag : defaultTag;
                     string defaultLabel = hasLabel ? itemLabels[i] : defaultTag;
                     string label = indexedItems.ContainsKey(i) && !string.IsNullOrEmpty(indexedItems[i].Label) ? indexedItems[i].Label : defaultLabel;
-                    string iconName = iconNames.Length > i ? iconNames[i] : null;
+                    string iconName = null;
+                    if (indexedIcons.TryGetValue(i, out string indexedIconName) && !string.IsNullOrEmpty(indexedIconName))
+                        iconName = indexedIconName; // IconN 覆盖优先
+                    else if (iconNames.Length > i)
+                        iconName = iconNames[i]; // Icons 列表
+                    if (string.IsNullOrEmpty(iconName))
+                        iconName = defaultIconName; // DefaultIcons 兜底
                     XNADropDownItem item = new()
                     {
                         Text = Localize(this, $"Item{i}", label),
@@ -415,6 +449,15 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
             case "InputBoxCustomDefaultItems":
                 InputBoxCustomDefaultItems = value.SplitWithCleanup();
                 return;
+            case "InputBoxCustomIcons":
+                // 逗号分隔、每项一个图标文件，按自定义项 slot 顺序与
+                // InputBoxCustomItems 对齐；保留空位以免后续槽位索引错位。
+                customIconNames = SplitItemsKeepEmpty(value);
+                return;
+            case "InputBoxCustomDefaultIcons":
+                // 未配置 InputBoxCustomIcons 时的统一默认图标（单个文件，作用于全部自定义项）
+                defaultCustomIconName = value;
+                return;
         }
 
         // handle indexed items: keys like Item0, Item1 ...
@@ -444,6 +487,31 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                 string text = !string.IsNullOrEmpty(value) ? value : (Items[idx].Tag?.ToString() ?? "");
                 Items[idx].Text = Localize(this, $"Item{idx}", text);
             }
+            return;
+        }
+
+        idx = ParseSuffix(key, "Icon");
+        if (idx >= 0)
+        {
+            // IconN：按索引覆盖普通项的图标，优先于 Icons 列表与 DefaultIcons。
+            // 空值忽略（回落到列表/默认图标）。
+            if (!string.IsNullOrEmpty(value))
+            {
+                indexedIcons[idx] = value;
+                // if the Items list already contains an item at this index, update its icon now
+                if (Items.Count > idx)
+                    Items[idx].Texture = AssetLoader.LoadTexture(value);
+            }
+            return;
+        }
+
+        idx = ParseSuffix(key, "InputBoxCustomIcon");
+        if (idx >= 0)
+        {
+            // InputBoxCustomIconN：按槽位覆盖自定义项图标，优先于 InputBoxCustomIcons 列表。
+            // 自定义项在 Initialize() 中创建（晚于所有属性解析），此处仅记录，无需即时更新。
+            if (!string.IsNullOrEmpty(value))
+                indexedCustomIcons[idx] = value;
             return;
         }
 
@@ -747,6 +815,18 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     /// </summary>
     public int CustomSlotCount => customValues?.Length ?? 0;
 
+    /// <summary>
+    /// The item index at which custom (InputBox) items start.
+    /// -1 if no custom items have been created yet.
+    /// </summary>
+    public int CustomItemStartIndex => customItemStartIndex;
+
+    /// <summary>
+    /// The custom slot index of the currently selected item,
+    /// or -1 if the current selection is not a custom item.
+    /// </summary>
+    public int SelectedCustomSlot => IsCustomItemIndex(SelectedIndex) ? SelectedIndex - customItemStartIndex : -1;
+
     public event EventHandler CustomValueChanged;
 
     public override void Initialize()
@@ -778,10 +858,18 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
                     customValues[i] = InputBoxCustomDefaultItems[i];
                 else
                     customValues[i] = string.Empty;
+                string customIconName = null;
+                if (indexedCustomIcons.TryGetValue(i, out string indexedCustomIconName) && !string.IsNullOrEmpty(indexedCustomIconName))
+                    customIconName = indexedCustomIconName; // InputBoxCustomIconN 覆盖优先
+                else if (customIconNames != null && i < customIconNames.Length)
+                    customIconName = customIconNames[i]; // InputBoxCustomIcons 列表
+                if (string.IsNullOrEmpty(customIconName))
+                    customIconName = defaultCustomIconName; // 未逐项配置时回退到统一默认图标
                 XNADropDownItem customItem = new()
                 {
                     Text = FormatCustomItemLabel(i, customValues[i]),
                     Tag = "__custom_" + i,
+                    Texture = !string.IsNullOrEmpty(customIconName) ? AssetLoader.LoadTexture(customIconName) : null,
                 };
                 AddItem(customItem);
             }

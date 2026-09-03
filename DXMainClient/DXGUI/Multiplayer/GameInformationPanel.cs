@@ -323,6 +323,7 @@ namespace DTAClient.DXGUI.Multiplayer
             var broadcastableSettings = gameLobby.GetBroadcastableSettings();
             var optionIconsWithText = new List<(Texture2D icon, string text, int sortOrder)>();
             var optionIconsOnly = new List<(Texture2D icon, int sortOrder)>();
+            int broadcastDropdownOrdinal = 0;
 
             for (int i = 0; i < broadcastableSettings.Count && i < cncnetGame.BroadcastedGameOptionValues.Length; i++)
             {
@@ -367,12 +368,23 @@ namespace DTAClient.DXGUI.Multiplayer
                             }
                             else
                             {
-                                // Show with text
-                                string text = $"{dropdown.OptionName}: {dropdown.Items[value].Text}";
+                                // Prefer the host-broadcast display text (carries the host's
+                                // custom InputBox value for observers who don't have it
+                                // synced locally); fall back to the local item text.
+                                string broadcastText = cncnetGame.BroadcastedDropdownCustomTexts != null &&
+                                                       broadcastDropdownOrdinal < cncnetGame.BroadcastedDropdownCustomTexts.Length
+                                    ? cncnetGame.BroadcastedDropdownCustomTexts[broadcastDropdownOrdinal]
+                                    : null;
+                                string itemText = string.IsNullOrEmpty(broadcastText)
+                                    ? dropdown.Items[value].Text
+                                    : broadcastText;
+                                string text = $"{dropdown.OptionName}: {itemText}";
                                 optionIconsWithText.Add((icon, text, dropdown.SortOrder));
                             }
                         }
                     }
+
+                    broadcastDropdownOrdinal++;
                 }
             }
 

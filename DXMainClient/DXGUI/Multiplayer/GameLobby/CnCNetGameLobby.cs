@@ -1935,6 +1935,12 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             sb.Append((int)_tunnelMode);
 
             channel.SendCTCPMessage(sb.ToString(), QueuedMessageType.GAME_SETTINGS_MESSAGE, 11);
+
+            // The game row shown in the CnCNet lobby (game list + game information
+            // panel) reflects the values broadcast by BroadcastGame(), which runs on a
+            // 30-second timer. Accelerate it so option changes become visible in the
+            // game list/information panel promptly instead of up to 30 seconds later.
+            AccelerateGameBroadcasting();
         }
 
         protected override void BroadcastDropDownCustomValues()
@@ -1958,7 +1964,16 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             string[] parts = message.Split(';');
 
-            if (parts.Length != DropDowns.Count * 2)
+            // The message carries (useCustom, value) per dropdown. For robustness, also
+            // accept a legacy 3-segment variant that used to carry (useCustom, value,
+            // slot); the slot is intentionally ignored because SelectedIndex is synced by
+            // the full GO message (which carries the host's absolute index, already
+            // pointing at the correct custom slot). Forcing the slot here is what caused
+            // multi-slot custom values to be restored to the wrong slot.
+            int expected2 = DropDowns.Count * 2;
+            int expected3 = DropDowns.Count * 3;
+
+            if (parts.Length != expected2 && parts.Length != expected3)
             {
                 Logger.Log("Invalid dropdown custom value message from host: " + message);
                 return;
@@ -1978,9 +1993,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                     // Check if value changed for notification
                     bool changed = dd.CustomValue != customValue;
                     dd.CustomValue = customValue;
-                    // Sync SelectedIndex to the first custom item
-                    if (dd.CustomSlotCount > 0)
-                        dd.SelectedIndex = dd.GetCustomItemIndex(0);
+                    // Note: do NOT change SelectedIndex here; the GO broadcast already
+                    // restores it to the host's selected absolute index (which covers the
+                    // custom slot). Only the item texts are refreshed above.
                     // Notify room member of the change with OptionName
                     if (changed && !string.IsNullOrEmpty(customValue))
                     {
@@ -3234,6 +3249,34 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             sb.Append(Map?.SHA1);
 
             string gameOptionValues = GetPackedGameOptionValuesString();
+
+            // Append the current selection's display text for every broadcast
+            // (BroadcastToLobby) drop-down as trailing CSV fields. Custom (InputBox)
+            // selections carry the host-typed text so that observers in the game list /
+            // information panel can show it instead of their own local defaults.
+            // Regular selections produce an empty field (receivers fall back to local
+            // item text). The text is base64-encoded so commas inside it cannot break
+            // the CSV, and the GAME message keeps its fixed 14-segment layout, so
+            // legacy receivers simply ignore these trailing fields.
+            var broadcastDropDowns = DropDowns.Where(dd => dd.BroadcastToLobby).ToList();
+            if (broadcastDropDowns.Count > 0)
+            {
+                StringBuilder optionsBuilder = new StringBuilder(gameOptionValues);
+                foreach (GameLobbyDropDown dd in broadcastDropDowns)
+                {
+                    optionsBuilder.Append(',');
+                    string displayText = dd.UseCustomValue &&
+                                         dd.SelectedIndex >= 0 &&
+                                         dd.SelectedIndex < dd.Items.Count
+                        ? dd.Items[dd.SelectedIndex].Text
+                        : string.Empty;
+                    if (!string.IsNullOrEmpty(displayText))
+                        optionsBuilder.Append(Convert.ToBase64String(Encoding.UTF8.GetBytes(displayText)));
+                }
+
+                gameOptionValues = optionsBuilder.ToString();
+            }
+
             sb.Append(";");
             sb.Append(gameOptionValues);
 
