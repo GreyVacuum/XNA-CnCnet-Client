@@ -835,7 +835,16 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             string[] parts = data.Split(ProgramConstants.LAN_DATA_SEPARATOR);
 
-            if (parts.Length != DropDowns.Count * 2)
+            // The message carries (useCustom, value) per dropdown. For robustness, also
+            // accept a legacy 3-segment variant that used to carry (useCustom, value,
+            // slot); the slot is intentionally ignored because SelectedIndex is synced by
+            // the full options broadcast (which carries the host's absolute index,
+            // already pointing at the correct custom slot). Forcing the slot here is
+            // what caused multi-slot custom values to be restored to the wrong slot.
+            int expected2 = DropDowns.Count * 2;
+            int expected3 = DropDowns.Count * 3;
+
+            if (parts.Length != expected2 && parts.Length != expected3)
             {
                 Logger.Log("Invalid dropdown custom value message from host: " + data);
                 return;
@@ -854,8 +863,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 {
                     bool changed = dd.CustomValue != customValue;
                     dd.CustomValue = customValue;
-                    if (dd.CustomSlotCount > 0)
-                        dd.SelectedIndex = dd.GetCustomItemIndex(0);
+                    // Note: do NOT change SelectedIndex here; the options broadcast
+                    // already restores it to the host's selected absolute index (which
+                    // covers the custom slot). Only the item texts are refreshed above.
                     if (changed && !string.IsNullOrEmpty(customValue))
                     {
                         string optionName = dd.OptionName;

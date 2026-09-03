@@ -17,6 +17,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using ClientCore.Enums;
 using ClientCore.Extensions;
@@ -1605,6 +1606,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 string mapHash = splitMessage[12];
 
                 int[] gameOptionValues = null;
+                string[] dropdownCustomTexts = null;
 
                 // Games with different versions may have different option counts, so ignore
                 if (gameVersion == ProgramConstants.GAME_VERSION && channel.ChannelName == localGame?.GameBroadcastChannel)
@@ -1644,6 +1646,32 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                             int count = Math.Min(allValueStrings.Length - packedCheckboxCount, dropdownCount);
                             for (int i = 0; i < count; i++)
                                 gameOptionValues[checkboxCount + i] = int.Parse(allValueStrings[packedCheckboxCount + i]);
+
+                            // Trailing fields (optional): base64 display text of each
+                            // broadcast drop-down's current selection. Sent by newer
+                            // hosts so custom (InputBox) values can be shown; ignored
+                            // when absent (older hosts / plain selections).
+                            int textStart = packedCheckboxCount + dropdownCount;
+                            if (allValueStrings.Length > textStart)
+                            {
+                                int textCount = Math.Min(allValueStrings.Length - textStart, dropdownCount);
+                                dropdownCustomTexts = new string[dropdownCount];
+                                for (int i = 0; i < textCount; i++)
+                                {
+                                    string encoded = allValueStrings[textStart + i];
+                                    if (string.IsNullOrEmpty(encoded))
+                                        continue;
+
+                                    try
+                                    {
+                                        dropdownCustomTexts[i] = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+                                    }
+                                    catch (FormatException)
+                                    {
+                                        dropdownCustomTexts[i] = null;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1706,6 +1734,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 game.TunnelServer = tunnel;
                 game.SkillLevel = skillLevel;
                 game.BroadcastedGameOptionValues = gameOptionValues;
+                game.BroadcastedDropdownCustomTexts = dropdownCustomTexts;
 
                 if (isClosed)
                 {
