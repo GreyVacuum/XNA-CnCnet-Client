@@ -1335,7 +1335,16 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 sb.Append(dd.HostUseCustomValue ? 1 : 0);
                 sb.Append(dd.HostCustomValue ?? string.Empty);
             }
-            channel.SendCTCPMessage(sb.ToString(), QueuedMessageType.GAME_SETTINGS_MESSAGE, 11);
+            // Must NOT use QueuedMessageType.GAME_SETTINGS_MESSAGE here: special messages
+            // of the same type replace each other in the send queue (Connection.
+            // AddSpecialQueuedMessage keeps only one message per MessageType), and the GO
+            // broadcast fired by the same option change also uses GAME_SETTINGS_MESSAGE.
+            // Using that type would make the GO and this custom value message overwrite
+            // each other, so clients would never receive both the host's SelectedIndex
+            // (GO, switches to the custom slot) and the custom value text (this message),
+            // leaving non-host players stuck on the previously displayed item. SYSTEM_
+            // MESSAGE goes through the regular, non-replacing message queue instead.
+            channel.SendCTCPMessage(sb.ToString(), QueuedMessageType.SYSTEM_MESSAGE, 11);
         }
 
         private void ApplyDropDownCustomValues(string sender, string message)
