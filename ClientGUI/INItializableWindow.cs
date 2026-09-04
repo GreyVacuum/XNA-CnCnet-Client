@@ -339,6 +339,22 @@ namespace ClientGUI
 
             XNAControl childControl = ClientGUICreator.GetXnaControl(parts[1]);
 
+            // [ScrollPanelMods] (default: No): when the declared type is a plain
+            // XNAPanel and its own INI section opts in via ScrollPanelMods=Yes,
+            // transparently upgrade the panel to an XNAScrollPanel. The $CC child
+            // controls declared in the same section are then mounted onto the scroll
+            // panel's ContentPanel (see below) and the panel becomes scrollable once
+            // its content overflows - the INI author needs neither a nested scroll
+            // panel section nor a change of the registration type.
+            // Note: only exact XNAPanel instances are upgraded; typed subclasses
+            // (XNAWindowBase, XNAOptionsPanel, ...) keep their declared behavior.
+            if (childControl.GetType() == typeof(XNAPanel)
+                && ConfigIni != null
+                && ConfigIni.GetBooleanValue(childName, "ScrollPanelMods", false))
+            {
+                childControl = new XNAScrollPanel(WindowManager);
+            }
+
             if (Array.Exists(childName.ToCharArray(), c => !char.IsLetterOrDigit(c) && c != '_'))
                 throw new INIConfigException("Names of INItializableWindow child controls must consist of letters, digits and underscores only. Offending name: " + parts[0]);
 

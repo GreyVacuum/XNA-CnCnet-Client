@@ -128,8 +128,12 @@ namespace ClientGUI
         /// Walks up from the given control's parent, skipping the internal
         /// scroll container (<see cref="XNAScrollPanel"/>) and its content panel,
         /// so that expressions such as <c>$ParentControl</c> resolve to the actual
-        /// logical parent (the <see cref="XNAOptionsPanel"/>) rather than the
-        /// auto-sized scrollable content.
+        /// logical parent. If the scroll panel is hosted by an XNAOptionsPanel
+        /// (OptionsWindow extra controls) it is skipped over so the options panel
+        /// becomes the logical parent - existing behavior. Otherwise (e.g. an
+        /// INItializableWindow $CC scroll panel) the scroll panel itself is the
+        /// logical parent so layout expressions using <c>$ParentControl</c>
+        /// reference its own viewport size.
         /// </summary>
         private static XNAControl GetLogicalParent(XNAControl control)
         {
@@ -137,18 +141,29 @@ namespace ClientGUI
 
             while (parent != null)
             {
-                // Skip the scroll panel itself.
+                // Skip the scroll panel itself (or stop at it when it is the logical
+                // parent - see below).
                 if (parent is XNAScrollPanel scrollPanel)
                 {
-                    parent = scrollPanel.Parent;
+                    // Only skip past the scroll panel when it is hosted by an
+                    // XNAOptionsPanel (OptionsWindow extra controls). In every other
+                    // case (INItializableWindow $CC panel, ...) the scroll panel's
+                    // own viewport size is the logical "parent" for layout.
+                    if (scrollPanel.Parent is XNAOptionsPanel)
+                        parent = scrollPanel.Parent;
+                    else
+                        return scrollPanel;
                     continue;
                 }
 
-                // Skip the scroll panel's content panel, which sits directly
-                // inside the scroll panel.
-                if (parent.Parent is XNAScrollPanel)
+                // Skip the scroll panel's content panel, which sits directly inside
+                // the scroll panel. Keep the same distinction as above.
+                if (parent.Parent is XNAScrollPanel parentScrollPanel)
                 {
-                    parent = parent.Parent.Parent;
+                    if (parentScrollPanel.Parent is XNAOptionsPanel)
+                        parent = parentScrollPanel.Parent;
+                    else
+                        return parentScrollPanel;
                     continue;
                 }
 
