@@ -879,37 +879,102 @@ EnabledIcon=                               ; string,  texture name for the icon 
 DisabledIcon=                              ; string,  texture name for the icon when the setting is disabled.
 SortOrder=0                                ; integer, display order for icons in the game information panel and game list.
                                            ;          Lower values appear first.
-ParentCheckBoxName=                        ; string,  name of a parent checkbox (single-parent form). When this value
-                                           ;          contains no comma, single-parent gate semantics apply (see below).
-ParentCheckBoxName=chkA,chkB              ; comma-separated list of parent checkbox names, stored as indices 0, 1, 2, ...
-                                           ;          (indexed-parent semantics, see below). Equivalent to writing
-                                           ;          ParentCheckBoxName0=chkA, ParentCheckBoxName1=chkB, ...
-ParentCheckBoxNameN=                       ; string,  indexed form: parent checkbox name for index `N` (N = 0, 1, 2, ...).
-ParentCheckBoxRequiredValue=true           ; boolean, state required from the parent checkbox. Single-parent form: applies
-                                           ;          to the single parent. Indexed form: comma-separated values are mapped
-                                           ;          to the indexed parents in order (a single value is copied to all of
-                                           ;          them; the last value fills in missing entries); also available as the
-                                           ;          indexed key ParentCheckBoxRequiredValueN. Unspecified indices default
-                                           ;          to `true`.
-ParentCheckBoxTexture=checkedTex,uncheckedTex ; string, texture pair "checked,unchecked" (or a single texture applied to
-                                           ;          both states) shown on THIS checkbox while it is disabled by its parent
-                                           ;          dependency. Also available as the indexed key ParentCheckBoxTextureN.
-ParentChecked=false                        ; boolean, checked state shown on this checkbox while it is disabled by its
-                                           ;          parent dependency. Default `false`. Also available as the indexed key
-                                           ;          ParentCheckedN.
+ParentControlName=                         ; string,  name of a parent control (single-parent form). The parent can
+                                           ;          be a CheckBox or a DropDown.
+ParentControlName=chkA,chkB                ; comma-separated list of parent control names: every name becomes a
+                                           ;          member of group 0 (evaluated with the All direction). Note this is
+                                           ;          "one group, many members", which differs from Name0=chkA +
+                                           ;          Name1=chkB (two independent groups combined with AND).
+ParentControlNameN=                        ; string,  indexed (group) form: index `N` (N = 0, 1, 2, ...) defines one
+                                           ;          independent parent group. The value supports a comma list where
+                                           ;          every entry is a member of group `N`
+                                           ;          (`ParentControlName0=chkA,chkB` = group 0 with members chkA and
+                                           ;          chkB). Group indices never overlap; a group's members do not
+                                           ;          occupy other groups' indices.
+ParentControlRequiredValue=True            ; boolean/string, state required from each parent control. CheckBox
+                                           ;          parents: `True`/`False` (default `True`); DropDown parents: an
+                                           ;          integer (SelectedIndex == N) or an item Tag string (non-integer
+                                           ;          values are matched against item Tags; unset defaults to index 0).
+                                           ;          For Tag/Text/range matching use the dedicated DropDown key
+                                           ;          family below (ParentDropDownMode/Value/Compare).
+                                           ;          Comma lists are mapped to the parents in order (a single value
+                                           ;          is copied to all of them; the last value fills in missing
+                                           ;          entries); also available as the indexed key
+                                           ;          ParentControlRequiredValueN (applies to every member of group
+                                           ;          `N`, order independent).
+ParentDropDownMode=Index                   ; enum (Index | Tag | Text), DropDown parents only: comparison mode.
+                                           ;          `Index` (default) compares against `SelectedIndex` (slot index);
+                                           ;          `Tag` against the selected item's Tag (value semantics: when the
+                                           ;          Tag parses as an integer it compares numerically and supports
+                                           ;          every comparison method, otherwise string == / !=; with right-
+                                           ;          click custom input enabled, custom slots use the player-typed
+                                           ;          value); `Text` against the selected item's display text
+                                           ;          (== / != only). Also available as ParentDropDownModeN for
+                                           ;          group `N`.
+ParentDropDownValue=                       ; string,  DropDown parents only: the comparison target value
+                                           ;          (interpreted according to ParentDropDownMode). Configuring
+                                           ;          this key for a group switches that group's DropDown parents
+                                           ;          to the Mode/Value/Compare evaluation (taking precedence over
+                                           ;          RequiredValue). Also available as ParentDropDownValueN.
+ParentDropDownCompare="=="                   ; enum (== | != | > | >= | < | <= | *), DropDown parents only: comparison
+                                           ;          method (default `==`). `*` = any selection satisfies; range
+                                           ;          comparisons work in `Index` mode and in `Tag` mode when the
+                                           ;          Tag parses as an integer (treated as unsatisfied in `Text`
+                                           ;          mode / for non-numeric Tags); invalid values count as
+                                           ;          unsatisfied. English words Equals/NotEquals/Greater/
+                                           ;          GreaterOrEqual/Less/LessOrEqual/Any are kept as compatible
+                                           ;          aliases. Also available as ParentDropDownCompareN.
+ParentControlLockedValue=False             ; string,  state shown on this control while it is disabled by its parent
+                                           ;          dependency. CheckBox children: checked state (default `False`);
+                                           ;          DropDown children: an integer index or an item Tag (the
+                                           ;          selection switches to it while locked; when unset the current
+                                           ;          selection is kept).
+ParentControlMatchMode=All                 ; enum (All | Any), All (default) = this control is disabled only when
+                                           ;          **all** parent controls fail their own Required values (any
+                                           ;          satisfying parent keeps it editable); Any = it is disabled as
+                                           ;          soon as any parent fails (all parents must satisfy to keep it
+                                           ;          editable). With a single parent both modes are equivalent.
+                                           ;          Global default; per-group overrides via ParentControlMatchModeN.
+ParentControlMatchModeN=All                ; enum (All | Any), indexed form: per-group match direction for the whole
+                                           ;          set of parents expanded by the Name key at index `N` ("each
+                                           ;          manages its own"). With multiple groups, groups AND: any
+                                           ;          unsatisfied group disables this control; it is editable only
+                                           ;          while every group is satisfied.
+ParentCheckBoxTexture=checkedTex,uncheckedTex ; string, CheckBox children only: texture pair "checked,unchecked" (or a
+                                           ;          single texture applied to both states) shown on THIS checkbox
+                                           ;          while it is disabled by its parent dependency. Also available
+                                           ;          as the indexed key ParentCheckBoxTextureN. DropDown children
+                                           ;          handle their disabled look automatically (drop arrow hidden
+                                           ;          and colors dimmed) and have no texture key.
 ```
 
 Parent-dependency semantics:
 
-- **Single-parent form** (`ParentCheckBoxName=chkX`, no comma): *gate* semantics. The parent checkbox must be in the
-  state required by `ParentCheckBoxRequiredValue` for this checkbox to be changeable; otherwise this checkbox is
-  disabled, forced to the `ParentChecked` state, and displayed with the `ParentCheckBoxTexture` textures.
-- **Indexed form** (comma-separated `ParentCheckBoxName` list or `ParentCheckBoxName{N}` keys): *lock* semantics. When
-  **all** indexed parent checkboxes are in their required states (a parent that cannot be found counts as not
-  matching; an index without an explicit `ParentCheckBoxRequiredValue{N}` defaults to `true`), this checkbox is locked
-  — it cannot be changed — its checked state is taken from the **lowest** configured index's `ParentChecked{N}`
-  (falling back to the plain `ParentChecked`) and it is displayed with that index's `ParentCheckBoxTexture{N}`
-  (falling back to the global texture pair). As soon as any parent does not match, the checkbox is freely changeable.
+- **Per-group evaluation, groups AND ("each manages its own")**: every `ParentControlNameN` key (including comma
+  expansions) defines one group; each group is evaluated independently using its own match direction, and **if any
+  group is not satisfied, this control is disabled**; it is editable only while every group is satisfied.
+- **Group direction**: `All` (default) = the group is satisfied as soon as any member parent satisfies its
+  `RequiredValue`; `Any` = the group is satisfied only when every member parent satisfies. Single-parent groups are
+  equivalent under both directions. A group's direction defaults to the global `ParentControlMatchMode` and can be
+  overridden per group with `ParentControlMatchModeN`.
+- **Constraint evaluation**: CheckBox parents: `RequiredValue=True` means a checked parent "satisfies", `False` means
+  an unchecked parent "satisfies". **DropDown parents**: an integer value is compared against `SelectedIndex`; a
+  non-integer value is matched exactly against the item `Tag` (unset defaults to requiring index 0). **Dedicated
+  DropDown key family** (`ParentDropDownMode` / `ParentDropDownValue` / `ParentDropDownCompare`): once
+  `ParentDropDownValue` is configured for a group, that group's DropDown parents are evaluated by
+  `Mode` (Index/Tag/Text) × `Compare` (`==`/`!=`/`>`/`>=`/`<`/`<=`/`*`); Tag/Text modes
+  are independent of item order; groups without `ParentDropDownValue` keep using RequiredValue. A parent that has
+  not been found/bound yet does not constrain the child (it stays editable) and takes effect automatically once bound.
+- **Lock behavior**: a CheckBox child cannot be clicked, its checked state is forced to `ParentControlLockedValue`, and
+  it is displayed with the `ParentCheckBoxTexture` textures (falling back to the default disabled textures when unset);
+  a DropDown child cannot drop down (arrow hidden, an opened list collapses), its border and text switch to the
+  standard disabled color, and the right-click input-box entry is disabled.
+- **Parent lookup**: starting from the container this control lives in, walk up the parent hierarchy (nearest container
+  first); at each level scan the direct children first, then their descendants breadth-first; the first name match in
+  add order wins; this control itself is always skipped.
+- **Indexed (group) form**: every `ParentControlNameN` key defines an independent group `N` whose comma list holds its
+  members (group indices never overlap); `ParentControlRequiredValueN` / `ParentControlLockedValueN` /
+  `ParentCheckBoxTextureN` / `ParentControlMatchModeN` apply to every member of group `N` (order independent).
 
 #### [CampaignCheckBox](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Campaign/CampaignCheckBox.cs)
 
@@ -1007,6 +1072,28 @@ InputBoxCustomDefaultIcons=                ; string,  single default icon applie
                                            ;          `InputBoxCustomIcons` is not set (or a slot has no icon).
 InputBoxCustomIconN=                       ; string,  icon for the custom slot at index `N` (overrides the
                                            ;          `InputBoxCustomIcons` entry at the same index).
+ParentControlName=                         ; string,  parent-control constraint (shared engine with
+ParentControlRequiredValue=True            ;           GameSessionCheckBox). The parent can be a CheckBox or a
+ParentControlLockedValue=                  ;           DropDown; syntax and values are documented in the
+                                           ;           GameSessionCheckBox parent-dependency semantics. While
+                                           ;           locked this drop-down cannot drop down (arrow hidden), its
+                                           ;           border and text dim automatically, and the right-click
+                                           ;           input-box entry is disabled; `ParentControlLockedValue` is
+                                           ;           an integer index or an item Tag (the selection switches to
+                                           ;           it while locked; when unset the current selection is kept).
+ParentControlMatchMode=All                 ; enum (All | Any), default `All`. With a single parent both modes
+                                           ;           are equivalent.
+ParentDropDownMode=Index                   ; enum (Index | Tag | Text), DropDown-parent only: when THIS drop-down
+ParentDropDownValue=                       ;           acts as a PARENT constraining other controls, these three keys
+ParentDropDownCompare="=="                   ;           describe the match rule (see the GameSessionCheckBox
+                                           ;           parent-dependency semantics): `Mode` = what to compare
+                                           ;           (SelectedIndex / item Tag / display text), `Value` = the
+                                           ;           comparison target, `Compare` = the comparison method
+                                           ;           (`==` [default] / `!=` / `>` / `>=` / `<` / `<=` / `*` any
+                                           ;           selection satisfies; English words kept as compatible
+                                           ;           aliases). All three keys support the N form for group `N`;
+                                           ;           values may be quoted (e.g. `ParentDropDownCompare="=="`,
+                                           ;           quotes and surrounding whitespace are stripped).
 ```
 
 **Icon and broadcast semantics** (applies to `GameSessionDropDown` and its subclasses; code: `GameSessionDropDown` / `GameLobbyDropDown` / `GameLobbyBase` / `CnCNetGameLobby` / `GameListBox` / `GameInformationPanel` / `GameFiltersPanel`):

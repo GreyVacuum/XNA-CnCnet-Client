@@ -981,33 +981,63 @@ EnabledIcon=                               ; string,  设置启用时图标的�
 DisabledIcon=                              ; string,  设置禁用时图标的纹理名。
 SortOrder=0                                ; integer, 游戏信息面板与游戏列表中图标的显示顺序。
                                            ;          值越小越靠前。
-ParentCheckBoxName=                        ; string,  父复选框名（单一父形式）。该值不含逗号时使用单一父的
-                                           ;          "门控"语义（见下文）。
-ParentCheckBoxName=chkA,chkB              ; 逗号分隔的父复选框名列表，按索引 0、1、2、... 存储
-                                           ;          （索引形式语义，见下文）。等价于分别写
-                                           ;          ParentCheckBoxName0=chkA、ParentCheckBoxName1=chkB、...
-ParentCheckBoxNameN=                       ; string,  索引形式：索引 `N`（N = 0、1、2、...）的父复选框名。
-ParentCheckBoxRequiredValue=true           ; boolean, 父复选框所需的状态。单一父形式：作用于该单一父复选框。
-                                           ;          索引形式：逗号分隔的值按顺序映射到各个索引父复选框（单个值
-                                           ;          复制给全部；最后一个值补齐缺失项）；也可使用带索引的键
-                                           ;          ParentCheckBoxRequiredValueN。未指定的索引默认为 `true`。
-ParentCheckBoxTexture=checkedTex,uncheckedTex ; string, "选中纹理,未选中纹理" 纹理对（或单一纹理同时用于两种
-                                           ;          状态），在本复选框被父依赖禁用时显示。也可使用带索引的键
-                                           ;          ParentCheckBoxTextureN。
-ParentChecked=false                        ; boolean, 本复选框被父依赖禁用时显示的勾选状态。默认 `false`。
-                                           ;          也可使用带索引的键 ParentCheckedN。
+ParentControlName=                         ; string,  父控件名（单一父形式）。父控件可为 CheckBox 或 DropDown。
+ParentControlName=chkA,chkB                ; 逗号分隔的父控件名列表：全部成员归入组 0（组内按 All 方向求值）。
+                                           ;          注意：这是"一个组、多个成员"，与 Name0=chkA + Name1=chkB
+                                           ;          （两个独立组、组间 AND）语义不同。
+ParentControlNameN=                        ; string,  索引形式（组）：索引 `N`（N = 0、1、2、...）定义一个独立的
+                                           ;          父控件组。值支持逗号列表，每一项是组 `N` 的一个成员
+                                           ;          （`ParentControlName0=chkA,chkB` = 组 0 含 chkA、chkB 两个成员）。
+                                           ;          组间索引互不重叠，组内展开不占用其它组的索引。
+ParentControlRequiredValue=True            ; boolean/string, 父控件需满足的状态。CheckBox 父：`True`/`False`
+                                           ;          （默认 `True`）。DropDown 父：整数（SelectedIndex == N）或项
+                                           ;          Tag 字符串（非整数按项 Tag 匹配；未配置默认要求索引 0）。
+                                           ;          需要 Tag/Text/区间等更丰富匹配时，改用下方 DropDown 专用
+                                           ;          键族（ParentDropDownMode/Value/Compare），两者互不干扰。
+                                           ;          逗号列表按索引映射（单个值复制给全部；最后一个值
+                                           ;          补齐缺失项）；也可使用带索引的键 `ParentControlRequiredValueN`
+                                           ;          （作用于组 `N` 的全部成员，键序无关）。
+ParentDropDownMode=Index                   ; enum (Index | Tag | Text), DropDown 父专用：比较模式。`Index`
+                                           ;          （默认）按 `SelectedIndex`（槽位索引）数值比较；`Tag` 按选中项
+                                           ;          的 Tag（值语义：Tag 可解析为整数时按数值比较、支持全部比较
+                                           ;          方式，否则字符串 == / !=；父启用右键自定义输入时自定义槽位
+                                           ;          取玩家输入的值）；`Text` 按选中项显示文本（仅 == / !=）。
+                                           ;          也可用带索引的键 `ParentDropDownModeN` 作用于组 `N`。
+ParentDropDownValue=                       ; string,  DropDown 父专用：比较目标值（按 ParentDropDownMode 解释）。
+                                           ;          本键对某组配置后，该组的 DropDown 父控件改用
+                                           ;          Mode/Value/Compare 三键判定（优先于 RequiredValue）。
+                                           ;          也可用带索引的键 `ParentDropDownValueN`。
+ParentDropDownCompare="=="                   ; enum (== | != | > | >= | < | <= | *), DropDown 父专用：比较方式
+                                           ;          （默认 `==`）。`*` = 任意选择即满足；区间比较在 `Index` 与
+                                           ;          `Tag`（Tag 可解析为整数）模式可用，`Text` 模式视为不满足；
+                                           ;          非法取值视为不满足。
+                                           ;          英文单词 Equals/NotEquals/Greater/GreaterOrEqual/Less/
+                                           ;          LessOrEqual/Any 保留为兼容别名。也可用带索引的键
+                                           ;          `ParentDropDownCompareN`。
+ParentControlLockedValue=False             ; string,  本控件被父依赖禁用时显示的状态。CheckBox 子项：勾选状态
+                                           ;          （默认 `False`）；DropDown 子项：整数索引或项 Tag（锁定时
+                                           ;          切换到该项；Tag 未匹配时按索引 0 处理；未配置则保持当前选择）。
+ParentControlMatchMode=All                 ; enum (All | Any), All（默认）= 全部父控件都不满足各自 Required 时
+                                           ;          禁用（任一满足即可编辑）；Any = 任一父控件不满足即禁用
+                                           ;          （全部满足才可编辑）。单父控件时两种模式等价。全局默认值，
+                                           ;          可被 ParentControlMatchModeN 按组覆盖。
+ParentControlMatchModeN=All                ; enum (All | Any), 索引形式：为索引 `N` 的 Name 键所定义的整组父控件
+                                           ;          单独指定匹配方向（"各管各的"）。多组并存时组间为 AND：
+                                           ;          任一组不满足 → 本控件禁用；全部组满足 → 可编辑。
+ParentCheckBoxTexture=checkedTex,uncheckedTex ; string, 仅 CheckBox 子项："选中纹理,未选中纹理" 纹理对（或单一
+                                           ;          纹理同时用于两种状态），在本复选框被父依赖禁用时显示。
+                                           ;          也可使用带索引的键 `ParentCheckBoxTextureN`。DropDown 子项
+                                           ;          的禁用视觉由控件自动处理（隐藏下拉箭头并置灰），无纹理键。
 ```
 
 父依赖语义：
 
-- **单一父形式**（`ParentCheckBoxName=chkX`，不含逗号）：*门控*语义。父复选框必须处于 `ParentCheckBoxRequiredValue`
-  所需的状态，本复选框才可更改；否则本复选框被禁用、强制为 `ParentChecked` 状态，并用 `ParentCheckBoxTexture`
-  的纹理显示。
-- **索引形式**（逗号分隔的 `ParentCheckBoxName` 列表或 `ParentCheckBoxName{N}` 键）：*锁定*语义。当**所有**
-  索引父复选框都处于各自所需状态时（找不到的父复选框视为不匹配；没有显式 `ParentCheckBoxRequiredValue{N}`
-  的索引默认要求 `true`），本复选框被锁定 — 不可更改 — 其勾选状态取**最小**已配置索引的 `ParentChecked{N}`
-  （回退到普通 `ParentChecked`），并用该索引的 `ParentCheckBoxTexture{N}`（回退到全局纹理对）显示。只要任一
-  父复选框不匹配，本复选框就可以自由更改。
+- **按组求值，组间 AND（"各管各的"）**：每个 `ParentControlNameN`（含逗号展开）定义一个组；每组按该组的匹配方向独立求值，**任一组不满足 → 本控件禁用**，全部组满足 → 可编辑。
+- **组内方向**：`All`（默认）= 组内任一父控件满足即该组满足；`Any` = 组内全部父控件满足该组才满足。单父组两种方向等价。组方向默认取全局 `ParentControlMatchMode`，可用 `ParentControlMatchModeN` 按组覆盖。
+- **约束判定**：CheckBox 父控件 `RequiredValue=True` 表示父勾选为"满足"，`False` 表示父未勾选为"满足"；DropDown 父控件整数值与 `SelectedIndex` 比较、非整数值按项 `Tag` 精确匹配（未配置默认要求索引 0）。**DropDown 专用键族**（`ParentDropDownMode` / `ParentDropDownValue` / `ParentDropDownCompare`）：对某组配置 `ParentDropDownValue` 后，该组的 DropDown 父控件按 `Mode`（Index/Tag/Text）× `Compare`（`==`/`!=`/`>`/`>=`/`<`/`<=`/`*`）判定，Tag/Text 模式不受选项顺序影响；未配置 DropDownValue 的组继续用 RequiredValue。父控件尚未找到/绑定时施加约束（可编辑），绑定成功后自动生效。
+- **锁定行为**：CheckBox 子项不可点击，勾选状态强制为 `ParentControlLockedValue`，并显示 `ParentCheckBoxTexture` 纹理（未配置则回退默认禁用纹理）；DropDown 子项禁止下拉（箭头隐藏、已展开列表收起），边框与文字自动转为标准禁用色，右键输入框编辑入口禁用。
+- **父控件查找**：从本控件所在容器开始沿父层级逐级向上（就近容器优先）；每级先查直接子级再广度优先查后代容器；同级同名取添加顺序第一个；始终跳过本控件自身。
+- **N 式（组模型）**：每个 `ParentControlNameN` 定义独立的组 `N`，逗号列表即组内成员（组间索引互不重叠）；`ParentControlRequiredValueN` / `ParentControlLockedValueN` / `ParentCheckBoxTextureN` / `ParentControlMatchModeN` 作用于组 `N` 的全部成员（键序无关）。
 
 #### [CampaignCheckBox](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Campaign/CampaignCheckBox.cs)
 
@@ -1110,6 +1140,21 @@ InputBoxCustomDefaultIcons=                ; string,  未配置 `InputBoxCustomI
                                            ;          应用到全部自定义槽位的统一默认图标。
 InputBoxCustomIconN=                       ; string,  索引为 `N` 的自定义槽位的图标（覆盖
                                            ;          `InputBoxCustomIcons` 中同索引条目）。
+ParentControlName=                         ; string,  父控件约束（与 GameSessionCheckBox 共用引擎）。父控件可为
+ParentControlRequiredValue=True            ;           CheckBox 或 DropDown；语法与取值详见 GameSessionCheckBox 的
+ParentControlLockedValue=                  ;           父依赖语义说明。锁定时本下拉框禁止下拉（箭头隐藏）、
+                                           ;           边框与文字自动置灰、右键输入框编辑入口禁用；
+                                           ;           `ParentControlLockedValue` 可为整数索引或项 Tag（锁定时
+                                           ;           切换到该项，未配置则保持当前选择）。
+ParentControlMatchMode=All                 ; enum (All | Any), 默认 `All`。单父控件时两种模式等价。
+ParentDropDownMode=Index                   ; enum (Index | Tag | Text), DropDown 父专用：当本下拉框作为"父控件"
+ParentDropDownValue=                       ;           约束其它控件时，用这三个键描述匹配规则（详见
+ParentDropDownCompare="=="                   ;           GameSessionCheckBox 的父依赖语义）：`Mode` 按什么匹配
+                                           ;           （SelectedIndex / 项 Tag / 显示文本）、`Value` 比较目标值、
+                                           ;           `Compare` 比较方式（`==`[默认] / `!=` / `>` / `>=` / `<` /
+                                           ;           `<=` / `*` 任意即满足；英文单词为兼容别名）。三键均支持
+                                           ;           N 式作用于组 `N`；取值支持 "…" 引号包裹（如
+                                           ;           `ParentDropDownCompare="=="`，解析时剥离引号与空白）。
 ```
 
 **图标与广播语义**（适用于 `GameSessionDropDown` 及其子类；代码：`GameSessionDropDown` / `GameLobbyDropDown` / `GameLobbyBase` / `CnCNetGameLobby` / `GameListBox` / `GameInformationPanel` / `GameFiltersPanel`）：
