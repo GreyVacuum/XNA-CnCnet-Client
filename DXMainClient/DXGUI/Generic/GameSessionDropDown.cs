@@ -29,12 +29,48 @@ public enum InputBoxDataMode
 /// A game option drop-down for the game lobby or campaign.
 /// </summary>
 // TODO split the logic between descendants better and clean up
-public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
+/// <remarks>
+/// 父控件约束（引擎：GameSessionParentControl，与 GameSessionCheckBox 共用）：
+///
+/// 本控件既可作为"子控件"被其它控件约束，也可作为"父控件"约束 CheckBox/DropDown。
+/// INI 键族（N 式索引即组号，组间 AND"各管各的"；详见 Docs/GameSessionParentControl_INI.md）：
+///
+///   子控件侧（本控件被父控件锁定）：
+///     ParentControlName(N)            父控件名（逗号列表 = 组内多成员）
+///     ParentControlRequiredValue(N)   父需满足的状态（CheckBox: True/False；DropDown: 索引/Tag）
+///     ParentControlLockedValue(N)     锁定时本下拉框切换到的项（整数索引或项 Tag）
+///     ParentControlMatchMode(N)       All（默认，组内任一父满足即可用）/ Any（全部满足才可用）
+///
+///   父控件侧（父 DropDown 约束其它控件时，DropDown 专用直白键族）：
+///     ParentDropDownMode(N)           Index（默认，按 SelectedIndex）/ Tag / Text
+///     ParentDropDownValue(N)          比较目标值（支持 "…" 引号包裹）
+///     ParentDropDownCompare(N)        ==（默认）/ != / > / >= / < / <= / *（任意即满足），
+///                                     英文单词保留为兼容别名
+///
+/// 锁定表现：禁止下拉（箭头隐藏、已展开列表收起）、边框与文字转为标准禁用色、
+/// 右键输入框编辑入口禁用；若配置 ParentControlLockedValue，选中项切换为该值。
+/// </remarks>
+public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting, IGameSessionParentLockAdapter
 {
 
     private const int DEFAULT_SORT_ORDER = 0;
 
     public GameSessionDropDown(WindowManager windowManager) : base(windowManager) { }
+
+    /// <summary>
+    /// 父控件约束引擎（与 GameSessionCheckBox 共用，GameSessionParentControl.cs）。
+    /// 父控件可为 XNACheckBox 或 XNADropDown；锁定/解锁动作由本控件的
+    /// OnUnlocked / OnLocked 实现。
+    /// </summary>
+    private readonly GameSessionParentControl parentControl = new();
+
+    /// <summary>当前是否被父控件锁定（锁定时禁止下拉与右键输入框）。</summary>
+    private bool parentLocked = false;
+
+    // 锁定期间的禁用视觉：进入锁定前捕获原颜色，解锁时还原
+    //（AllowDropDown=false 本身会隐藏下拉箭头，配合置灰的边框与文字构成完整禁用态）
+    private Color? savedLockedBorderColor = null;
+    private Color? savedLockedTextColor = null;
 
     public string OptionName { get; private set; }
     public bool AffectsSpawnIni => HasAnySpawnIniEntryWrittenToSpawnIni();
@@ -252,6 +288,10 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
 
     protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
     {
+        // ParentControl 系列键（普通式 / 逗号式 / N 式）统一由引擎处理
+        if (parentControl.TryParseAttribute(key, value))
+            return;
+
         // Split a comma-separated list but keep empty entries so that item
         // indexes stay aligned. The shared SplitWithCleanup removes empty
         // entries, which would shift the indexes of the following items.
@@ -827,11 +867,36 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     /// </summary>
     public int SelectedCustomSlot => IsCustomItemIndex(SelectedIndex) ? SelectedIndex - customItemStartIndex : -1;
 
+    /// <summary>
+    /// 当前选中项的"值字符串"（即写入 spawn.ini 的值语义，供父控件约束引擎
+    /// ParentDropDownMode=Tag 判定使用）：
+    /// - 自定义槽位（右键输入）→ 玩家输入/默认的槽位值；
+    /// - 普通项 → 项 Tag 字符串；
+    /// - 无有效选中 → null。
+    /// </summary>
+    public string GetSelectedValueString()
+    {
+        if (SelectedIndex < 0)
+            return null;
+
+        if (IsCustomItemIndex(SelectedIndex))
+        {
+            int slot = SelectedIndex - customItemStartIndex;
+            return slot >= 0 && slot < customValues.Length ? customValues[slot] : null;
+        }
+
+        return Items[SelectedIndex]?.Tag?.ToString();
+    }
+
     public event EventHandler CustomValueChanged;
 
     public override void Initialize()
     {
         base.Initialize();
+
+        // 父控件约束：引擎在锁定状态跳变时回调本控件的 OnUnlocked / OnLocked
+        parentControl.Attach(this);
+        parentControl.Refresh(this);
 
         if (EnableRightInputBox)
         {
@@ -1154,6 +1219,10 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     {
         inputEventArgs.Handled = true;
 
+        // 被父控件锁定时禁止切换到输入框编辑模式
+        if (parentLocked)
+            return;
+
         if (!EnableRightInputBox)
         {
             base.OnRightClick(inputEventArgs);
@@ -1164,6 +1233,61 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
             SwitchToInputBoxMode();
         else
             ConfirmInputAndExit();
+    }
+
+    /// <summary>
+    /// 约束满足：恢复可下拉与正常配色。
+    /// （IGameSessionParentLockAdapter，仅跳变时被引擎调用一次）
+    /// </summary>
+    public void OnUnlocked()
+    {
+        parentLocked = false;
+
+        // 还原锁定前捕获的边框/文字颜色
+        if (savedLockedBorderColor.HasValue)
+        {
+            BorderColor = savedLockedBorderColor.Value;
+            savedLockedBorderColor = null;
+        }
+        if (savedLockedTextColor.HasValue)
+        {
+            TextColor = savedLockedTextColor.Value;
+            savedLockedTextColor = null;
+        }
+
+        if (!isInputBoxMode)
+            AllowDropDown = true;
+    }
+
+    /// <summary>
+    /// 约束不满足：锁定子项——关闭下拉（含退出输入框模式）、
+    /// 边框与文字转为客户端标准禁用色，
+    /// 并按 ParentControlLockedValue 配置（如已配置）显示锁定值。
+    /// （IGameSessionParentLockAdapter，仅跳变时被引擎调用一次）
+    /// </summary>
+    public void OnLocked(GameSessionParentControl engine, int firstLockedIndex)
+    {
+        parentLocked = true;
+
+        // 先退出输入框模式（其内部会将 AllowDropDown 置回 true），再统一锁定
+        if (isInputBoxMode)
+            SwitchToDropDownMode();
+
+        AllowDropDown = false;
+
+        // 禁用视觉：捕获原颜色后整体置灰
+        if (!savedLockedBorderColor.HasValue)
+            savedLockedBorderColor = BorderColor;
+        if (!savedLockedTextColor.HasValue)
+            savedLockedTextColor = TextColor;
+        Color disabledColor = UISettings.ActiveSettings.DisabledItemColor;
+        BorderColor = disabledColor;
+        TextColor = disabledColor;
+
+        // 若配置了锁定显示值（索引或项 Tag），锁定时切换到对应项
+        if (engine.TryGetLockedDropDownIndex(this, firstLockedIndex, out int lockedIndex) &&
+            SelectedIndex != lockedIndex)
+            SelectedIndex = lockedIndex;
     }
 
     public override void OnMouseScrolled(InputEventArgs inputEventArgs)
@@ -1181,6 +1305,9 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+
+        // 父控件约束：引擎驱动（重试绑定 + 跳变检测）；无父控件配置时为廉价空操作
+        parentControl.Refresh(this);
 
         if (isInputBoxMode && inputTextBox != null)
         {
