@@ -1608,6 +1608,22 @@ CustomIngameResolutions=             ; 逗号分隔的字符串，额外的游�
 CopyResolutionDependentLanguageDLL=true ; boolean, 复制与分辨率相关的语言 DLL。
 SettingsFile=Settings.ini            ; string,  设置控件写入的设置 INI 文件名。
 MPMapsPath=INI/MPMaps.ini            ; string,  多人游戏地图 INI 的路径。
+UseMapsTranslationSyncSpawnIni=true  ; boolean, 把本地化的游戏模式名与地图名写入 spawn.ini 的 `UIGameMode`
+                                     ;          与 `UIMapName`。取值来源为 MPMaps.ini 中游戏模式段的 `UIName`
+                                     ;          与地图段的 `Description`，经 `INI:GameModes` / `INI:Maps`
+                                     ;          翻译键翻译后得到。spawner 读取这两个值并在游戏内显示，而游戏
+                                     ;          内没有翻译表，所以启用后游戏内的地图描述、外交对话框中的游戏
+                                     ;          模式名也会是本地化的。设为 `No` 则写入未翻译名称，由客户端在
+                                     ;          显示时翻译（游戏内保持原文），**同时不再写**
+                                     ;          `UIGameMode.$Original` / `UIMapName.$Original`
+                                     ;          （此时主键本身就是未翻译名，旁挂键多余）。默认 `true`。
+UseCustomNameSyncSpawnIni=true       ; boolean, 把游戏大厅里配置的「自定义玩家名」写入 spawn.ini 的
+                                     ;          `Name` 与 `[OtherN] Name`，使玩家在游戏内显示为自定义名。
+                                     ;          设为 `No` 则写入大厅名，并**完全忽略**自定义名——包括重名
+                                     ;          检测（此时校验的是真正会写进 spawn.ini 的大厅名，避免因
+                                     ;          "用不到的冲突"阻止开局），**同时不再写** `Name.$Original`
+                                     ;          / `[OtherN] Name.$Original`（此时 `Name` 本身就是大厅名）。
+                                     ;          默认 `true`。
 KeyboardINI=Keyboard.ini             ; string,  热键配置写入的游戏键盘 INI 文件。
 KeyboardHotkeySection=               ; string,  热键使用的键盘 INI 段。RA 类型客户端默认为 "WinHotKeys"，
                                      ;          其他为 "Hotkey"。
@@ -2465,19 +2481,53 @@ ControlName=0                     ; 按选项的值（键 = 控件名）。下�
 
 ```ini
 [Settings]
+Name=                             ; string,  本地玩家的游戏内名称（启用自定义名称时为自定义名）。
+Name.$Original=                   ; string,  本地玩家的大厅名称。仅当 `UseCustomNameSyncSpawnIni`
+                                  ;          为 `Yes`（即 `Name` 可能是自定义名）时写入。大厅名才是
+                                  ;          跨端身份：客户端用它判断存档是否属于自己、在大厅中匹配
+                                  ;          玩家；缺失时回退 `Name`（兼容旧 spawnSG.ini）。
 GameID=0                          ; integer, 唯一游戏 ID。
 MapSHA1=                          ; string,  地图的 SHA1。
 BroadcastedGameOptionValues=      ; string,  序列化的广播游戏选项值。
-UIMapName=                        ; string,  地图显示名称。
+UIMapName=                        ; string,  地图显示名称（启用 `UseMapsTranslationSyncSpawnIni`
+                                  ;          时为本地化后的名称）。
+UIMapName.$Original=              ; string,  未翻译的地图名。仅当 `UseMapsTranslationSyncSpawnIni`
+                                  ;          为 `Yes` 时写入（为 `No` 时主键本身就是未翻译名）。
+                                  ;          供游戏列表广播使用（跨语言匹配地图靠它）。
 MapID=                            ; string,  用于本地化的地图 ID。
-UIGameMode=                       ; string,  游戏模式显示名称。
+UIGameMode=                       ; string,  游戏模式显示名称（启用 `UseMapsTranslationSyncSpawnIni`
+                                  ;          时为本地化后的名称）。
+UIGameMode.$Original=             ; string,  未翻译的游戏模式名。仅当 `UseMapsTranslationSyncSpawnIni`
+                                  ;          为 `Yes` 时写入。
 PlayerCount=0                     ; integer, 玩家数量。
 Color=0                           ; integer, 本地玩家的游戏颜色索引。
 
 [OtherN]
-Name=                             ; string,  槽位 `N`（N = 1、2、...）其他玩家的名称。
+Name=                             ; string,  槽位 `N`（N = 1、2、...）其他玩家的游戏内名称。
+Name.$Original=                   ; string,  该玩家的大厅名称。仅在 `UseCustomNameSyncSpawnIni`
+                                  ;          为 `Yes` 时写入。加载大厅据此匹配在场玩家、判断
+                                  ;          "未到场"状态并回填 IP/端口。
 Color=0                           ; integer, 该玩家的游戏颜色索引。
 ```
+
+> 命名约定：凡被客户端改写为「展示名」的字段，都旁挂同名的 `.<原键>.$Original` 保存身份值，
+> **仅在该字段的同步开关为 `Yes` 时写入**——开关为 `No` 时主键本身就是身份值，旁挂键不再写入。
+> 读取方一律 `.$Original` 优先、回退主键，因此两种设置都能正确工作。
+
+**`Name` 与 `Name.$Original` 的分工**（`UIMapName` / `UIGameMode` 与 `UIMapName.$Original` / `UIGameMode.$Original` 完全同理）：
+
+| 键 | 含义 | 谁读它 |
+|---|---|---|
+| `Name` / `[OtherN] Name` | 游戏内**展示名**（启用自定义名时为自定义名，否则为大厅名） | **只有 spawner / 游戏进程读**：写入引擎的 `NodeNameType::Name`，决定玩家在游戏内显示的名字。从不读 `.$Original` |
+| `Name.$Original` / `[OtherN] Name.$Original` | **跨端身份名**（大厅名） | 客户端读取：`GameCreationWindow` / `LANGameCreationWindow` 的 `AllowLoadingGame()` 用它判断存档是否属于本机；读档大厅用它匹配在场玩家、显示"未到场"并回填 IP/端口；存档局的聊天频道游戏列表广播与 Discord 状态也用它 |
+
+**读取规则与兼容性**：
+
+- 每个读取点都写成"`.$Original` 优先、回退主键"，因此**键不存在不会异常**，只会走回退分支。
+- 回退到的主键在开关为 `No` 时**本来就是身份值**，所以 `No` 配置下行为与旧版一致；本功能加入**之前生成的旧存档**同样走回退分支——若旧存档里的 `Name` 是自定义名，读档大厅会显示"未到场"（这是旧数据的历史状态，重新开一局即恢复），不会抛异常或崩溃。
+- `.$Original` 是**纯增量键**：客户端与 spawner 都只读取自己认识的键，未知键被解析器忽略，因此不会破坏旧版客户端或 spawner。
+- 默认 `Yes` 对未启用自定义名、也没有地图翻译条目的 mod 而言，写入内容与上游一致；两个开关都设 `No` 时与上游逐字节相同。
+- 注意：`.$Original` 只用于**匹配与标识**，游戏内玩家名的显示只由 `Name` 决定；两者语义不同，不要混用。
 
 ### KeyboardCommands.ini
 
