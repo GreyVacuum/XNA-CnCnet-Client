@@ -72,12 +72,20 @@ namespace DTAClient.DXGUI.Multiplayer
         public bool HasReceivedHostState => _hasReceivedHostState;
 
         /// <summary>
+        /// Whether custom player names are applied at all, as configured by
+        /// UseCustomNameSyncSpawnIni in ClientDefinitions.ini. When disabled, the lobby names are
+        /// used everywhere instead of the custom names — including the duplicate name detection,
+        /// which then validates the names that actually reach spawn.ini.
+        /// </summary>
+        private bool UseCustomNames => ClientConfiguration.Instance.UseCustomNameSyncSpawnIni;
+
+        /// <summary>
         /// Returns the effective in-game name for the local player.
         /// Uses custom name if enabled and allowed, otherwise the lobby name.
         /// </summary>
         public string GetEffectiveLocalName()
         {
-            if (AllowCustomNames && IsCustomNameEnabled && !string.IsNullOrEmpty(CustomName))
+            if (UseCustomNames && AllowCustomNames && IsCustomNameEnabled && !string.IsNullOrEmpty(CustomName))
                 return CustomName;
             return ProgramConstants.PLAYERNAME;
         }
@@ -88,7 +96,8 @@ namespace DTAClient.DXGUI.Multiplayer
         /// </summary>
         public string GetEffectivePlayerName(string lobbyName)
         {
-            if (AllowCustomNames &&
+            if (UseCustomNames &&
+                AllowCustomNames &&
                 otherCustomNameEnabled.TryGetValue(lobbyName, out bool enabled) && enabled &&
                 otherCustomNames.TryGetValue(lobbyName, out string customName) &&
                 !string.IsNullOrEmpty(customName))

@@ -310,7 +310,10 @@ namespace DTAClient.DXGUI.Multiplayer
 
             for (int i = 1; i < Players.Count; i++)
             {
-                string otherName = spawnIni.GetStringValue("Other" + i, "Name", string.Empty);
+                // Match by the lobby name; the players list holds lobby names, while Name
+                // can hold a custom in-game name.
+                string otherName = spawnIni.GetStringValue("Other" + i, "Name.$Original",
+                    spawnIni.GetStringValue("Other" + i, "Name", string.Empty));
 
                 if (string.IsNullOrEmpty(otherName))
                     continue;
@@ -406,10 +409,30 @@ namespace DTAClient.DXGUI.Multiplayer
             loadedGameID = spawnSGIni.GetStringValue("Settings", "GameID", "0");
             savedMapSHA1 = spawnSGIni.GetStringValue("Settings", "MapSHA1", string.Empty);
             savedBroadcastOptionValues = spawnSGIni.GetStringValue("Settings", "BroadcastedGameOptionValues", string.Empty);
-            lblMapNameValue.Tag = spawnSGIni.GetStringValue("Settings", "UIMapName", string.Empty);
-            lblMapNameValue.Text = ((string)lblGameModeValue.Tag).L10N($"INI:Maps:{spawnSGIni.GetStringValue("Settings", "MapID", string.Empty)}:Description");
-            lblGameModeValue.Tag = spawnSGIni.GetStringValue("Settings", "UIGameMode", string.Empty);
-            lblGameModeValue.Text = ((string)lblGameModeValue.Tag).L10N($"INI:GameModes:{(string)lblGameModeValue.Tag}:UIName");
+            string uiMapName = spawnSGIni.GetStringValue("Settings", "UIMapName", string.Empty);
+            string uiGameMode = spawnSGIni.GetStringValue("Settings", "UIGameMode", string.Empty);
+
+            // The Tag values are reused for the game list broadcast and Discord Rich Presence,
+            // which rely on the untranslated names (see CnCNetGameLobby.BroadcastGame), so always
+            // read the identity copies written by GameLobbyBase.WriteSpawnIni.
+            lblMapNameValue.Tag = spawnSGIni.GetStringValue("Settings", "UIMapName.$Original", uiMapName);
+            lblGameModeValue.Tag = spawnSGIni.GetStringValue("Settings", "UIGameMode.$Original", uiGameMode);
+
+            if (ClientConfiguration.Instance.UseMapsTranslationSyncSpawnIni)
+            {
+                // The names were already localized when spawn.ini was written
+                // (see GameLobbyBase.WriteSpawnIni), so use them as-is.
+                lblMapNameValue.Text = uiMapName;
+                lblGameModeValue.Text = uiGameMode;
+            }
+            else
+            {
+                // Legacy behaviour for spawn.ini files that carry untranslated names:
+                // localize them here. MapID is only written for official maps, so the
+                // read value is used as the fallback when the catalogue has no entry.
+                lblMapNameValue.Text = uiMapName.L10N($"INI:Maps:{spawnSGIni.GetStringValue("Settings", "MapID", string.Empty)}:Description");
+                lblGameModeValue.Text = uiGameMode.L10N($"INI:GameModes:{uiGameMode}:UIName");
+            }
 
             uniqueGameId = spawnSGIni.GetIntValue("Settings", "GameID", -1);
 
@@ -427,7 +450,11 @@ namespace DTAClient.DXGUI.Multiplayer
                 string sectionName = "Other" + i;
 
                 SavedGamePlayer sgPlayer = new SavedGamePlayer();
-                sgPlayer.Name = spawnSGIni.GetStringValue(sectionName, "Name", "Unknown player".L10N("Client:Main:UnknownPlayer"));
+                // Prefer the lobby name: it is the identity used to match the saved game's
+                // players against the players currently in the lobby, and the one broadcast to
+                // the game list. Name can hold a custom in-game name instead.
+                sgPlayer.Name = spawnSGIni.GetStringValue(sectionName, "Name.$Original",
+                    spawnSGIni.GetStringValue(sectionName, "Name", "Unknown player".L10N("Client:Main:UnknownPlayer")));
                 sgPlayer.ColorIndex = MPColors.FindIndex(
                     c => c.GameColorIndex == spawnSGIni.GetIntValue(sectionName, "Color", 0));
 
