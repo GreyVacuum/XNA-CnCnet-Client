@@ -270,7 +270,7 @@ namespace ClientCore
 
         private string _ClientGameTypeString => clientDefinitionsIni.GetStringValue(SETTINGS, "ClientGameType", string.Empty);
         private ClientType? _ClientGameType = null;
-        public ClientType ClientGameType => _ClientGameType ??= ClientTypeHelper.FromString(_ClientGameTypeString);
+        public ClientType ClientGameType => _ClientGameType ??= ClientType.FromString(_ClientGameTypeString);
 
         public string DiscordAppId => clientDefinitionsIni.GetStringValue(SETTINGS, "DiscordAppId", string.Empty);
 
@@ -305,6 +305,8 @@ namespace ClientCore
         public string CnCNetLiveStatusIdentifier => clientDefinitionsIni.GetStringValue(SETTINGS, "CnCNetLiveStatusIdentifier", "cncnet5_ts");
 
         public string BattleFSFileName => clientDefinitionsIni.GetStringValue(SETTINGS, "BattleFSFileName", "BattleFS.ini");
+
+        public bool IgnoreBattleIni => clientDefinitionsIni.GetBooleanValue(SETTINGS, "IgnoreBattleIni", false);
 
         public string MapEditorExePath => SafePath.CombineFilePath(clientDefinitionsIni.GetStringValue(SETTINGS, "MapEditorExePath", SafePath.CombineFilePath("FinalSun", "FinalSun.exe")));
 
