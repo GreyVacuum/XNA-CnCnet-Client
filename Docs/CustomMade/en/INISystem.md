@@ -1543,6 +1543,29 @@ CustomIngameResolutions=             ; comma-separated strings, additional in-ga
 CopyResolutionDependentLanguageDLL=true ; boolean, copies the resolution-dependent language DLL.
 SettingsFile=Settings.ini            ; string,  name of the settings INI written by the settings controls.
 MPMapsPath=INI/MPMaps.ini            ; string,  path to the multiplayer maps INI.
+UseMapsTranslationSyncSpawnIni=true  ; boolean, write the localized game mode and map names (the `UIName`
+                                     ;          values of game mode sections and the `Description` values of
+                                     ;          map sections in MPMaps.ini, translated through the
+                                     ;          `INI:GameModes` / `INI:Maps` translation keys) into spawn.ini's
+                                     ;          `UIGameMode` and `UIMapName`. The spawner reads those two values
+                                     ;          and displays them inside the game, where no translation
+                                     ;          catalogue is available, so enabling this localizes the in-game
+                                     ;          map description and the diplomacy dialog game mode as well.
+                                     ;          `No` writes the untranslated names and lets the client
+                                     ;          localize them on display (in-game texts stay untranslated).
+                                     ;          In that case `UIGameMode.$Original` / `UIMapName.$Original`
+                                     ;          are not written at all, since the two settings already hold
+                                     ;          the untranslated names. Defaults to `true`.
+UseCustomNameSyncSpawnIni=true       ; boolean, write the custom player names configured in the game lobby
+                                     ;          into spawn.ini's `Name` and `[OtherN] Name`, so the players
+                                     ;          appear with those names inside the game. `No` writes the lobby
+                                     ;          names instead and ignores custom names entirely, including the
+                                     ;          duplicate name detection, which then validates the lobby names
+                                     ;          (the ones that actually reach spawn.ini) instead of blocking the
+                                     ;          launch over conflicts that would never be used. In that case
+                                     ;          `Name.$Original` / `[OtherN] Name.$Original` are not written
+                                     ;          either, since the Name settings already hold the lobby names.
+                                     ;          Defaults to `true`.
 KeyboardINI=Keyboard.ini             ; string,  game keyboard INI file written by the hotkey configuration.
 KeyboardHotkeySection=               ; string,  section of the keyboard INI used for hotkeys. Defaults to "WinHotKeys"
                                      ;          for RA-type clients, "Hotkey" otherwise.
@@ -2408,19 +2431,61 @@ ControlName=0                     ; per-option values (key = control name). Drop
 
 ```ini
 [Settings]
+Name=                             ; string,  in-game name of the local player (the custom name when
+                                  ;          custom names are enabled).
+Name.$Original=                   ; string,  lobby name of the local player. Written only while
+                                  ;          `UseCustomNameSyncSpawnIni` is `Yes`, i.e. while `Name`
+                                  ;          can hold a custom name. The lobby name is the cross-client
+                                  ;          identity: the client uses it to decide whether a saved game
+                                  ;          belongs to the local player and to match players in the
+                                  ;          lobby; falls back to `Name` for legacy spawnSG.ini files.
 GameID=0                          ; integer, unique game ID.
 MapSHA1=                          ; string,  SHA1 of the map.
 BroadcastedGameOptionValues=      ; string,  serialized broadcasted game option values.
-UIMapName=                        ; string,  map display name.
+UIMapName=                        ; string,  map display name (localized when
+                                  ;          `UseMapsTranslationSyncSpawnIni` is enabled).
+UIMapName.$Original=              ; string,  untranslated map name. Written only while
+                                  ;          `UseMapsTranslationSyncSpawnIni` is `Yes` (with `No` the
+                                  ;          primary key already is the untranslated name). Consumed by
+                                  ;          the game list broadcast, which matches names across
+                                  ;          languages.
 MapID=                            ; string,  map ID used for localization.
-UIGameMode=                       ; string,  game mode display name.
+UIGameMode=                       ; string,  game mode display name (localized when
+                                  ;          `UseMapsTranslationSyncSpawnIni` is enabled).
+UIGameMode.$Original=             ; string,  untranslated game mode name. Written only while
+                                  ;          `UseMapsTranslationSyncSpawnIni` is `Yes`.
 PlayerCount=0                     ; integer, number of players.
 Color=0                           ; integer, local player's game color index.
 
 [OtherN]
-Name=                             ; string,  name of the other player in slot `N` (N = 1, 2, ...).
+Name=                             ; string,  in-game name of the other player in slot `N` (N = 1, 2, ...).
+Name.$Original=                   ; string,  lobby name of that player. Written only while
+                                  ;          `UseCustomNameSyncSpawnIni` is `Yes`. Game loading lobbies use
+                                  ;          it to match the players currently present, to report "not
+                                  ;          present" status and to fill in the IP/port.
 Color=0                           ; integer, that player's game color index.
 ```
+
+> Naming convention: every value that the client rewrites into a display name gets a sibling
+> `.<key>.$Original` key holding the identity value, **written only while the corresponding
+> sync option is `Yes`** — with `No` the primary key already holds the identity value, so the
+> `$Original` key is not written. Consumers always read `.$Original` first and fall back to the
+> primary key, so both settings work correctly.
+
+**Division of labour between `Name` and `Name.$Original`** (`UIMapName` / `UIGameMode` and their `$Original` counterparts work the same way):
+
+| Key | Meaning | Who reads it |
+|---|---|---|
+| `Name` / `[OtherN] Name` | The **in-game display name** (the custom name when custom names are enabled, otherwise the lobby name) | **Only the spawner / game process reads it**: it is copied into the engine's `NodeNameType::Name`, which determines the name players see inside the game. `.$Original` is never read there |
+| `Name.$Original` / `[OtherN] Name.$Original` | The **cross-client identity name** (the lobby name) | Read by the client: `AllowLoadingGame()` of `GameCreationWindow` / `LANGameCreationWindow` uses it to decide whether a saved game belongs to the local player; the game loading lobby uses it to match the players currently present, to report "not present" and to fill in the IP/port; the saved game's chat-channel game list broadcast and Discord presence use it too |
+
+**Read rules and compatibility**:
+
+- Every reader is written as "`.$Original` first, fall back to the primary key", so a **missing key never causes an error** — the fallback branch is taken instead.
+- The primary key that is fallen back to already holds the identity value when the sync option is `No`, so that configuration behaves exactly like before. **Save games created before this feature existed** also take the fallback branch — if their `Name` holds a custom name, the loading lobby shows them as "not present" (a historical state of old data; starting a new game clears it). No exception is thrown and nothing crashes.
+- `.$Original` keys are **purely additive**: both the client and the spawner only read the keys they know about, and unknown keys are ignored by the parser, so older clients and spawners are not affected.
+- With the default `Yes`, mods that do not enable custom names and have no map translation entries produce exactly the same spawn.ini as before; with both options set to `No` the output is byte-for-byte identical to upstream.
+- Note that `.$Original` is used for **matching and identification only**; the name shown inside the game is decided by `Name` alone. The two have different semantics and must not be mixed up.
 
 ### KeyboardCommands.ini
 
