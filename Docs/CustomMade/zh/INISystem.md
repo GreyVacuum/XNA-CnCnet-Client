@@ -1536,6 +1536,8 @@ $CC03=btnCancel:XNAClientButton
 
 `GameOptions.ini` 中的 `[CampaignForcedSpawnIniOptions]` 段定义了对战役任务始终写入 `spawn.ini` 的键，与 UI 选项无关。这与多人游戏的 `[ForcedSpawnIniOptions]` 段是分开的。参见 GameOptions.ini。
 
+这些选项在开始新任务与读取战役存档两种情况下都会应用。在修复之前，`[CampaignForcedSpawnIniOptions]` 中的键只在开始任务时写入，因此从主菜单读取的战役存档（经由 `GameLoadingWindow`）会静默丢失这些选项。
+
 ---
 
 ## 全局配置文件
@@ -1552,7 +1554,9 @@ $CC03=btnCancel:XNAClientButton
 
 ```ini
 [Settings]
-ClientGameType=                      ; string,  用于游戏专属行为的客户端类型（例如 RA/YR/TS/DTA）。
+ClientGameType=                      ; string,  用于游戏专属行为的客户端类型。自 v2.12 起为必填；缺失或
+                                     ;          取值未知时会抛出异常并要求迁移配置。允许的取值：`TD`
+                                     ;          （Tiberian Dawn，自 2.14.0 起支持）、`RA`、`TS`、`YR`、`Ares`。
 LocalGame=                           ; string,  游戏标识（默认 "DTA"）。
 WindowTitle=                         ; string,  游戏窗口标题。支持本地化。
 GameExecutableNames=Game.exe         ; 逗号分隔的字符串，要查找的游戏可执行文件。
@@ -1609,6 +1613,9 @@ KeyboardHotkeySection=               ; string,  热键使用的键盘 INI 段。
                                      ;          其他为 "Hotkey"。
 ExtraCommandLineParams=              ; string,  传给游戏可执行文件的额外命令行参数。
 BattleFSFileName=BattleFS.ini        ; string,  战斗文件系统 INI 的名称。
+IgnoreBattleIni=false                ; boolean, 跳过 `INI/Battle.ini`，始终改为读取 `BattleFSFileName`
+                                     ;          指定的文件。默认 `false`。适用于 `Battle.ini` 被挪作他用
+                                     ;          的情况。
 MapEditorExePath=FinalSun/FinalSun.exe ; string, 地图编辑器可执行文件路径（Windows）。
 UnixMapEditorExePath=                ; string,  地图编辑器可执行文件路径（Unix）。默认为 MapEditorExePath。
 FSIniPath=FinalSun/FinalSun.ini      ; string,  地图编辑器设置 INI 的路径。
@@ -2256,7 +2263,8 @@ Name=0,1,2                             ; 选择器名称 -> 逗号分隔的阵�
 FogOfWar=no                            ; 多人游戏始终写入 spawn.ini [Settings] 的键。
 
 [CampaignForcedSpawnIniOptions]
-AutoSaveInterval=0                     ; 战役任务始终写入 spawn.ini [Settings] 的键。
+AutoSaveInterval=0                     ; 战役任务始终写入 spawn.ini [Settings] 的键
+                                       ; （读取存档时同样应用）。
 ```
 
 #### 玩家 AI 快捷选项
