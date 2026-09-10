@@ -1470,6 +1470,8 @@ The tag name in `ButtonTag_{TagName}` is matched against mission `Tags` values. 
 
 A `[CampaignForcedSpawnIniOptions]` section in `GameOptions.ini` defines keys that are always written to `spawn.ini` for campaign missions, regardless of UI options. This is separate from the multiplayer `[ForcedSpawnIniOptions]` section. See [GameOptions.ini](#gameoptionsini).
 
+These options are applied both when a new mission is launched and when a saved campaign game is loaded. Until this was fixed, keys from `[CampaignForcedSpawnIniOptions]` were written only on mission launch, so a saved game loaded from the main menu (through `GameLoadingWindow`) silently lost them.
+
 ---
 
 ## Global Config Files
@@ -1482,7 +1484,10 @@ The `ClientDefinitions.ini` file defines the client's global settings: game type
 
 ```ini
 [Settings]
-ClientGameType=                      ; string,  client type used for game-specific behavior (e.g. RA/YR/TS/DTA).
+ClientGameType=                      ; string,  client type used for game-specific behaviour. Required since
+                                     ;          v2.12; a missing or unknown value throws an error asking to
+                                     ;          migrate the configuration. Allowed values: `TD` (Tiberian Dawn,
+                                     ;          supported since 2.14.0), `RA`, `TS`, `YR`, `Ares`.
 LocalGame=                           ; string,  game identifier (default "DTA").
 WindowTitle=                         ; string,  game window title. Supports localization.
 GameExecutableNames=Game.exe         ; comma-separated strings, game executables to look for.
@@ -1543,6 +1548,9 @@ KeyboardHotkeySection=               ; string,  section of the keyboard INI used
                                      ;          for RA-type clients, "Hotkey" otherwise.
 ExtraCommandLineParams=              ; string,  extra command line parameters passed to the game executable.
 BattleFSFileName=BattleFS.ini        ; string,  name of the battle file system INI.
+IgnoreBattleIni=false                ; boolean, skip `INI/Battle.ini` and always read the file named by
+                                     ;          `BattleFSFileName` instead. Default `false`. Useful when
+                                     ;          `Battle.ini` is reserved for other purposes.
 MapEditorExePath=FinalSun/FinalSun.exe ; string, path of the map editor executable (Windows).
 UnixMapEditorExePath=                ; string,  path of the map editor executable (Unix). Defaults to MapEditorExePath.
 FSIniPath=FinalSun/FinalSun.ini      ; string,  path of the map editor settings INI.
@@ -2192,7 +2200,8 @@ Name=0,1,2                             ; selector name -> comma-separated side i
 FogOfWar=no                            ; keys always written to spawn.ini [Settings] for multiplayer games.
 
 [CampaignForcedSpawnIniOptions]
-AutoSaveInterval=0                     ; keys always written to spawn.ini [Settings] for campaign missions.
+AutoSaveInterval=0                     ; keys always written to spawn.ini [Settings] for campaign missions
+                                       ; (also applied when loading a saved game).
 ```
 
 #### Player AI Quick Options
