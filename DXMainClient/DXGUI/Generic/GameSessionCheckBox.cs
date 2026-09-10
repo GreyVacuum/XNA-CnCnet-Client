@@ -125,6 +125,10 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting, IGame
 
     private string customIniPath;
 
+    // MapCodeModePath：CustomIniPath / CustomIniPathN 的基础目录前缀。
+    // 配置后实际路径 = MapCodeModePath + "/" + 路径；未配置时原样使用（兼容旧写法）。
+    private string mapCodeModePath;
+
     // 支持按索引配置的 CustomIniPath，如 CustomIniPath0、CustomIniPath1 ...
     // CustomIniPath0 会覆盖无后缀的 CustomIniPath（兼容）
     private readonly Dictionary<int, string> customIniPaths = new();
@@ -266,6 +270,9 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting, IGame
                 return;
             case "CustomIniPath":
                 customIniPath = value;
+                return;
+            case "MapCodeModePath":
+                mapCodeModePath = value;
                 return;
             case "SpawnWriteCustom":
                 spawnWriteCustom = Conversions.BooleanFromString(value, false);
@@ -557,14 +564,25 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting, IGame
 
                 bool writeSpawn = customWriteSpawns.TryGetValue(k, out var v) ? v : customWriteSpawn;
                 if (writeSpawn == writeToSpawn)
-                    MapCodeHelper.ApplyMapCode(targetIni, path, gameMode);
+                    MapCodeHelper.ApplyMapCode(targetIni, ResolveMapCodePath(path), gameMode);
             }
         }
         else if (!string.IsNullOrWhiteSpace(customIniPath))
         {
             if (customWriteSpawn == writeToSpawn)
-                MapCodeHelper.ApplyMapCode(targetIni, customIniPath, gameMode);
+                MapCodeHelper.ApplyMapCode(targetIni, ResolveMapCodePath(customIniPath), gameMode);
         }
+    }
+
+    /// <summary>
+    /// 配置了 MapCodeModePath 时，将 CustomIniPath / CustomIniPathN 解析为相对该基础目录的路径；
+    /// 未配置时原样返回（兼容旧写法）。
+    /// </summary>
+    private string ResolveMapCodePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(mapCodeModePath) || string.IsNullOrWhiteSpace(path))
+            return path;
+        return mapCodeModePath.TrimEnd('/', '\\') + "/" + path;
     }
 
     public override void OnLeftClick(InputEventArgs inputEventArgs)

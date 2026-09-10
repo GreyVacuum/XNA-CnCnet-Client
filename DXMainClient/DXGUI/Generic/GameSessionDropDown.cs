@@ -128,6 +128,10 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting, IGame
 
     private DropDownDataWriteMode dataWriteMode = DropDownDataWriteMode.BOOLEAN;
 
+    // MapCodeModePath：DataWriteMode=MAPCODE 时 Item Tag 的基础目录前缀。
+    // 配置后实际路径 = MapCodeModePath + "/" + Tag；未配置时 Tag 即完整路径（兼容旧写法）。
+    private string mapCodeModePath = string.Empty;
+
     private string spawnIniOption = string.Empty;
 
     private string spawnIniProject = "Settings";
@@ -363,6 +367,9 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting, IGame
                 return;
             case "SpawnIniOption":
                 spawnIniOption = value;
+                return;
+            case "MapCodeModePath":
+                mapCodeModePath = value;
                 return;
             case "SpawnIniProject":
                 spawnIniProject = value;
@@ -806,6 +813,9 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting, IGame
         if (dataWriteMode == DropDownDataWriteMode.MAPCODE && !IsCustomItemIndex(SelectedIndex))
         {
             string customIniPath = Items[SelectedIndex].Tag.ToString();
+            // MapCodeModePath：配置了基础目录时，Tag 为相对该目录的路径（个别项可用 ../ 前缀跳出）
+            if (!string.IsNullOrWhiteSpace(mapCodeModePath))
+                customIniPath = mapCodeModePath.TrimEnd('/', '\\') + "/" + customIniPath;
             MapCodeHelper.ApplyMapCode(mapIni, customIniPath, gameMode);
         }
     }
