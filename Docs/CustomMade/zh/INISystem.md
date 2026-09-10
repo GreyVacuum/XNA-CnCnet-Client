@@ -958,6 +958,10 @@ EnabledSpawnIniValue=True                  ; string,  勾选时写入的 spawn I
 DisabledSpawnIniValue=False                ; string,  未勾选时写入的 spawn INI 值。默认为 `False`。支持带索引的
                                            ;          变体 `DisabledSpawnIniValueN`。
 CustomIniPath=                             ; string,  地图专属设置的自定义 INI 路径（支持带索引的变体）。
+MapCodeModePath=                           ; string,  `CustomIniPath`/`CustomIniPathN` 的基础目录前缀。配置后
+                                           ;          实际路径 = `MapCodeModePath + "/" + CustomIniPath`（个别项
+                                           ;          可用 `../` 前缀跳出基础目录）。默认为空（不拼接，路径即
+                                           ;          完整相对路径，兼容旧写法）。
 SpawnWriteCustom=false                     ; boolean, 将选项写入地图 INI（spawnmap.ini）而不是 spawn.ini。
                                            ;          支持带索引的变体 `SpawnWriteCustomN`。
 CustomWriteSpawn=false                     ; boolean, SpawnWriteCustom 的反义（为兼容保留）。支持带索引的
@@ -1100,6 +1104,10 @@ DataWriteMode=BOOLEAN                      ; enum (INDEX | BOOLEAN | STRING | MA
                                            ;          INDEX - 选中的索引，BOOLEAN - `SelectedIndex > 0`，
                                            ;          STRING - 选中项的 tag，MAPCODE - 将选中项的 tag 作为
                                            ;          地图代码 INI 名交给 MapCodeHelper 应用。默认 `BOOLEAN`。
+MapCodeModePath=                           ; string,  `DataWriteMode=MAPCODE` 时选中项 tag 的基础目录前缀。
+                                           ;          配置后实际路径 = `MapCodeModePath + "/" + tag`（个别项
+                                           ;          可用 `../` 前缀跳出基础目录）。默认为空（不拼接，tag 即
+                                           ;          完整相对路径，兼容旧写法）。
 OptionName=                                ; string,  该选项的显示名称。
 BroadcastToLobby=false                     ; boolean, 将该下拉框包含在发送到 CnCNet 大厅的 GAME 广播中。
 ShowInGameList=false                       ; boolean, 在游戏列表中显示图标/文本。

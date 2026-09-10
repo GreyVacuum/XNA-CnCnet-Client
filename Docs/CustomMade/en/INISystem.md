@@ -856,6 +856,12 @@ EnabledSpawnIniValue=True                  ; string,  spawn INI value when check
 DisabledSpawnIniValue=False                ; string,  spawn INI value when unchecked. Defaults to `False`. Indexed
                                            ;          variants `DisabledSpawnIniValueN` supported.
 CustomIniPath=                             ; string,  custom INI path for map-specific settings (indexed variants supported).
+MapCodeModePath=                           ; string,  base directory prefix for `CustomIniPath`/`CustomIniPathN`.
+                                           ;          When set, the effective path becomes
+                                           ;          `MapCodeModePath + "/" + CustomIniPath` (an individual entry
+                                           ;          may use a `../` prefix to escape the base directory).
+                                           ;          Defaults to empty (no prefix is applied; paths are used as-is
+                                           ;          for backward compatibility).
 SpawnWriteCustom=false                     ; boolean, writes the option to the map INI (spawnmap.ini) instead of spawn.ini.
                                            ;          Indexed variants `SpawnWriteCustomN` supported.
 CustomWriteSpawn=false                     ; boolean, inverse of SpawnWriteCustom (kept for compatibility). Indexed
@@ -1032,6 +1038,12 @@ DataWriteMode=BOOLEAN                      ; enum (INDEX | BOOLEAN | STRING | MA
                                            ;          INDEX - the selected index, BOOLEAN - `SelectedIndex > 0`,
                                            ;          STRING - the selected item's tag, MAPCODE - applies the item's tag
                                            ;          as a map code INI name via MapCodeHelper. Default `BOOLEAN`.
+MapCodeModePath=                           ; string,  base directory prefix for the selected item's tag when
+                                           ;          `DataWriteMode=MAPCODE`. When set, the effective path becomes
+                                           ;          `MapCodeModePath + "/" + tag` (an individual item may use a `../`
+                                           ;          prefix to escape the base directory). Defaults to empty
+                                           ;          (no prefix is applied; the tag is used as-is for backward
+                                           ;          compatibility).
 OptionName=                                ; string,  display name for this option.
 BroadcastToLobby=false                     ; boolean, include this dropdown in the GAME broadcast to the CnCNet lobby.
 ShowInGameList=false                       ; boolean, show icon/text in the game list.
