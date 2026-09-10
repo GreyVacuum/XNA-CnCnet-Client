@@ -375,6 +375,27 @@ namespace ClientCore
 
         public string MPMapsIniPath => SafePath.CombineFilePath(clientDefinitionsIni.GetStringValue(SETTINGS, "MPMapsPath", SafePath.CombineFilePath("INI", "MPMaps.ini")));
 
+        /// <summary>
+        /// When enabled, the localized game mode and map names (as defined by the
+        /// <c>UIName</c> and <c>Description</c> values of MPMaps.ini and translated through
+        /// the <c>INI:GameModes</c> / <c>INI:Maps</c> translation keys) are written into
+        /// spawn.ini's <c>UIGameMode</c> and <c>UIMapName</c> settings instead of the
+        /// untranslated values. This makes the in-game texts that the spawner derives from
+        /// those two values (map description, diplomacy dialog game mode) localized as well.
+        /// Enabled by default.
+        /// </summary>
+        public bool UseMapsTranslationSyncSpawnIni => clientDefinitionsIni.GetBooleanValue(SETTINGS, "UseMapsTranslationSyncSpawnIni", true);
+
+        /// <summary>
+        /// When enabled, the custom player names configured in the game lobby are written into
+        /// spawn.ini's <c>Name</c> and <c>[OtherN] Name</c> settings, so the players appear with
+        /// those names inside the game. When disabled, the lobby names are used instead and the
+        /// custom names are ignored entirely, including the duplicate name detection (which then
+        /// validates the lobby names, i.e. the ones that actually reach spawn.ini).
+        /// Enabled by default.
+        /// </summary>
+        public bool UseCustomNameSyncSpawnIni => clientDefinitionsIni.GetBooleanValue(SETTINGS, "UseCustomNameSyncSpawnIni", true);
+
         public string KeyboardINI => clientDefinitionsIni.GetStringValue(SETTINGS, "KeyboardINI", "Keyboard.ini");
 
         public bool SettingsIniAsKeyboardIni => SettingsIniName == KeyboardINI;

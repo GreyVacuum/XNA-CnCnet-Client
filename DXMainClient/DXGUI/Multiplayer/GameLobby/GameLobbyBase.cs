@@ -2140,11 +2140,39 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (PlayerNameOptionsPanel != null)
                 localPlayerName = PlayerNameOptionsPanel.GetEffectiveLocalName();
             settings.SetStringValue("Name", localPlayerName);
-            settings.SetStringValue("Scenario", ProgramConstants.SPAWNMAP_INI);
-            settings.SetStringValue("UIGameMode", GameMode.UntranslatedUIName);
-            settings.SetStringValue("UIMapName", Map.UntranslatedName);
 
-            // needed for translation in game loading lobbies
+            // The lobby name is the cross-client identity: the "load game" availability check
+            // and the player matching of game loading lobbies compare against it. Only written
+            // when Name can hold a custom in-game name; with the option disabled Name itself is
+            // the lobby name, so the identity copy would be redundant.
+            bool useCustomNames = ClientConfiguration.Instance.UseCustomNameSyncSpawnIni;
+
+            if (useCustomNames)
+                settings.SetStringValue("Name.$Original", ProgramConstants.PLAYERNAME);
+
+            settings.SetStringValue("Scenario", ProgramConstants.SPAWNMAP_INI);
+
+            // The spawner displays UIGameMode and UIMapName inside the game, where no
+            // translation catalogue is available. Write the localized names there when
+            // UseMapsTranslationSyncSpawnIni is enabled, otherwise fall back to the untranslated
+            // values.
+            bool localizeSpawnIniNames = ClientConfiguration.Instance.UseMapsTranslationSyncSpawnIni;
+
+            settings.SetStringValue("UIGameMode", localizeSpawnIniNames ? GameMode.UIName : GameMode.UntranslatedUIName);
+            settings.SetStringValue("UIMapName", localizeSpawnIniNames ? Map.Name : Map.UntranslatedName);
+
+            // Identity copies of the display names above, consumed by the game list broadcast and
+            // by the game loading lobbies (see CnCNetGameLobby.BroadcastGame, which matches names
+            // across languages). Only needed while the primary values above are localized; with
+            // the option disabled they already are the untranslated values.
+            if (localizeSpawnIniNames)
+            {
+                settings.SetStringValue("UIGameMode.$Original", GameMode.UntranslatedUIName);
+                settings.SetStringValue("UIMapName.$Original", Map.UntranslatedName);
+            }
+
+            // Used by game loading lobbies as a fallback for looking up the translated
+            // map name when spawn.ini carries untranslated names.
             if (Map.Official)
                 settings.SetStringValue("MapID", Map.BaseFilePath);
 
@@ -2204,6 +2232,10 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 if (PlayerNameOptionsPanel != null)
                     otherPlayerName = PlayerNameOptionsPanel.GetEffectivePlayerName(pInfo.Name);
                 spawnIni.SetStringValue(sectionName, "Name", otherPlayerName);
+
+                // Identity copy, see the Name.$Original comment above.
+                if (useCustomNames)
+                    spawnIni.SetStringValue(sectionName, "Name.$Original", pInfo.Name);
                 spawnIni.SetIntValue(sectionName, "Side", pHouseInfo.InternalSideIndex);
                 spawnIni.SetBooleanValue(sectionName, "IsSpectator", pHouseInfo.IsSpectator);
                 spawnIni.SetIntValue(sectionName, "Color", pHouseInfo.ColorIndex);
