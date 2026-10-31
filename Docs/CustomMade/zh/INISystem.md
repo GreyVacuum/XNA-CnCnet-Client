@@ -17,6 +17,7 @@
 9. 特殊控件
 10. 窗口
 11. 全局配置文件
+12. 文本格式化代码
 
 ---
 
@@ -2615,6 +2616,75 @@ DisableModifierKeys=true
 ```
 
 配置好的热键会写回游戏键盘 INI（`KeyboardINI`，写入 `KeyboardHotkeySection` 定义的段）。如果 `SettingsFile` 等于 `KeyboardINI`，则改用设置 INI，以便未保存的更改可以被取消。
+
+---
+
+## 文本格式化代码
+
+客户端渲染的任何文本值都可以包含 Minecraft 风格的格式化代码。分节符号（`§`，U+00A7）用于引导代码，其后可以是一个单字符颜色代码，或一个可读的颜色名/格式名。格式化代码本身不占宽度：文本测量、自动换行、居中与截断都会忽略它们。
+
+```ini
+[btnLaunch]
+Text=§red启动§yel游戏
+```
+
+> [!TIP]
+> 在 Windows 中输入 `§`：按住 `Alt`，在小键盘输入 `0167`（或 `Alt` + `41445`）；在 macOS 中按 `Option` + `6`。请将 INI 文件保存为 UTF-8，以免该字符丢失。
+
+### 颜色代码
+
+| 代码 | 可读名称 | 颜色 |
+|---|---|---|
+| `§0` | `black`、`blk` | `#000000` |
+| `§1` | `darkblue`、`dblu`、`navy` | `#0000AA` |
+| `§2` | `darkgreen`、`dgrn` | `#00AA00` |
+| `§3` | `darkaqua`、`darkcyan`、`daqua`、`dcya` | `#00AAAA` |
+| `§4` | `darkred`、`dred` | `#AA0000` |
+| `§5` | `darkpurple`、`darkmagenta`、`dpur`、`dmag` | `#AA00AA` |
+| `§6` | `gold`、`orange`、`org` | `#FFAA00` |
+| `§7` | `gray`、`grey`、`gry` | `#AAAAAA` |
+| `§8` | `darkgray`、`darkgrey`、`dgry` | `#555555` |
+| `§9` | `blue`、`blu` | `#5555FF` |
+| `§a` | `green`、`grn` | `#55FF55` |
+| `§b` | `aqua`、`cyan`、`aqu`、`cya` | `#55FFFF` |
+| `§c` | `red` | `#FF5555` |
+| `§d` | `lightpurple`、`lightmagenta`、`lightpurp`、`magenta`、`purple`、`pink`、`lpurple` | `#FF55FF` |
+| `§e` | `yellow`、`yel`、`ylw` | `#FFFF55` |
+| `§f` | `white`、`wht`、`whi` | `#FFFFFF` |
+| `§x§R§R§G§G§B§B` | - | 任意 RGB 颜色 |
+
+颜色名不区分大小写。匹配时会优先检查可读颜色名，再检查单字符代码，因此 `§red` 表示红色，而不是“重置代码 `§r` + 文本 `ed`”。
+
+### 格式代码
+
+| 代码 | 名称 | 效果 |
+|---|---|---|
+| `§l` | `bold` | 粗体（通过向右偏移一像素重绘字形来近似实现）。 |
+| `§n` | `underline` | 下划线。 |
+| `§m` | `strike` | 删除线。 |
+| `§k` | `obfuscated` | 乱码效果，每帧重新随机。 |
+| `§o` | `italic` | 会被解析并移除，但不会实际渲染（字体后端不支持逐次绘制的斜体效果）。 |
+| `§r` | `reset` | 清除颜色与所有格式。 |
+
+### 顺序与状态
+
+格式是有状态的，会一直作用于后续文本，直到被更改。颜色代码会重置在它之前生效的所有格式。因此，写在颜色代码之后的格式代码只能持续到下一个颜色代码为止：
+
+```ini
+[lblExample1]
+Text=§cX§nY                ; X 为红色，Y 为红色并带下划线
+
+[lblExample2]
+Text=§nX§cY                ; X 为默认颜色并带下划线，Y 为普通红色
+```
+
+同时使用颜色与格式时，请先写颜色，并在每次更换颜色后重新写一遍格式代码：
+
+```ini
+Text=§red§l红色粗体§yellow§l黄色粗体
+```
+
+`§§` 会渲染为字面量 `§`。未知代码会被移除且不产生效果。格式化代码可用于任何被客户端渲染的文本，包括标签、按钮、复选框、下拉框选项、选项卡标题、列表项、工具提示、任务描述、聊天消息以及来自 `Sides.ini` 或翻译文件的国家/阵营名称。请避免在可编辑文本框中写入格式化代码（编辑时代码不可见，但仍会被当作字符计数）。
 
 ---
 

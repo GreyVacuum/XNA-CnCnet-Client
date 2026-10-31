@@ -15,6 +15,7 @@ This document is the authoritative reference for building the client's user inte
 9. [Special Controls](#special-controls)
 10. [Windows](#windows)
 11. [Global Config Files](#global-config-files)
+12. [Text Formatting Codes](#text-formatting-codes)
 
 ---
 
@@ -2583,6 +2584,75 @@ DisableModifierKeys=true
 ```
 
 The configured hotkeys are written back to the game keyboard INI (`KeyboardINI`, in the section defined by `KeyboardHotkeySection`). If `SettingsFile` equals `KeyboardINI`, the settings INI is used instead so that unsaved changes can be cancelled.
+
+---
+
+## Text Formatting Codes
+
+Any text value that the client renders can contain Minecraft-style formatting codes. The section sign (`§`, U+00A7) starts a code and is followed by either a single-character color code or a readable color/format name. Codes have no width in layout: text measurement, wrapping, centering and truncation ignore them.
+
+```ini
+[btnLaunch]
+Text=§red启动§yel游戏
+```
+
+> [!TIP]
+> To type `§` on Windows, hold `Alt` and type `0167` on the numeric keypad (or `Alt` + `41445`); on macOS press `Option` + `6`. Save the INI file as UTF-8 so the character is preserved.
+
+### Colors
+
+| Code | Readable names | Color |
+|---|---|---|
+| `§0` | `black`, `blk` | `#000000` |
+| `§1` | `darkblue`, `dblu`, `navy` | `#0000AA` |
+| `§2` | `darkgreen`, `dgrn` | `#00AA00` |
+| `§3` | `darkaqua`, `darkcyan`, `daqua`, `dcya` | `#00AAAA` |
+| `§4` | `darkred`, `dred` | `#AA0000` |
+| `§5` | `darkpurple`, `darkmagenta`, `dpur`, `dmag` | `#AA00AA` |
+| `§6` | `gold`, `orange`, `org` | `#FFAA00` |
+| `§7` | `gray`, `grey`, `gry` | `#AAAAAA` |
+| `§8` | `darkgray`, `darkgrey`, `dgry` | `#555555` |
+| `§9` | `blue`, `blu` | `#5555FF` |
+| `§a` | `green`, `grn` | `#55FF55` |
+| `§b` | `aqua`, `cyan`, `aqu`, `cya` | `#55FFFF` |
+| `§c` | `red` | `#FF5555` |
+| `§d` | `lightpurple`, `lightmagenta`, `lightpurp`, `magenta`, `purple`, `pink`, `lpurple` | `#FF55FF` |
+| `§e` | `yellow`, `yel`, `ylw` | `#FFFF55` |
+| `§f` | `white`, `wht`, `whi` | `#FFFFFF` |
+| `§x§R§R§G§G§B§B` | - | Arbitrary RGB color |
+
+Color names are matched case-insensitively. Named colors are checked before single-character codes, so `§red` means red rather than the reset code `§r` followed by `ed`.
+
+### Formatting
+
+| Code | Name | Effect |
+|---|---|---|
+| `§l` | `bold` | Bold (rendered by overdrawing glyphs with a one-pixel offset). |
+| `§n` | `underline` | Underline. |
+| `§m` | `strike` | Strikethrough. |
+| `§k` | `obfuscated` | Scrambled characters, re-randomized every frame. |
+| `§o` | `italic` | Parsed and removed, but not rendered (the font backend has no per-draw italic effect). |
+| `§r` | `reset` | Clears both color and formatting. |
+
+### Order and state
+
+Formatting is stateful and applies to all following text until it is changed. A color code resets every formatting flag that was active before it. Therefore a format code that follows a color code only applies until the next color code:
+
+```ini
+[lblExample1]
+Text=§cX§nY                ; X is red, Y is red and underlined
+
+[lblExample2]
+Text=§nX§cY                ; X is underlined and default colored, Y is plain red
+```
+
+When combining colors and formats, set the color first and re-apply the format codes whenever the color changes:
+
+```ini
+Text=§red§lRed bold§yellow§lYellow bold
+```
+
+`§§` renders a literal `§`. Unknown codes are removed without effect. Formatting codes are supported wherever client text is rendered, including labels, buttons, checkboxes, dropdown items, tab titles, list items, tooltips, mission descriptions, chat messages and country/side names from `Sides.ini` or translation files. Avoid using codes in editable text boxes (the codes are invisible while editing and count as characters).
 
 ---
 
