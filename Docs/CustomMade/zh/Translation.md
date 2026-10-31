@@ -174,10 +174,10 @@ GameFile_DLL_HD=Resources/language_1024x720.dll,Resources/language_1024x720.dll
 
 0. 在模组的设置 INI 文件（例如：`SUN.INI`、`RA2MD.INI`）的 `[Options]` 段追加 `GenerateTranslationStub=true`。这将使客户端在 `Client` 文件夹中生成一个 `Translation.ini` 文件，包含所有（几乎；见下方注意事项）可翻译的文本值，按键名按字母顺序排列。没有翻译的值会被注释掉；如果已经加载了某个翻译，则现有值和元数据会保留到 stub ini 中。
    - 你也可以在同一位置指定 `GenerateOnlyNewValuesInTranslationStub=true`，只输出缺失的值而不是 stub 中的所有内容，这可能更符合你的工作流程。
-   - 非文本值（例如尺寸和位置）不会写入 stub INI，但需要时仍可手动编写。
+   - 你也可以在同一位置指定 `TranslationStubNotificationLevel=2`，让生成的 stub 额外包含非文本的可翻译值。支持的级别为 `1`（仅默认值）与 `2`（verbose，额外包含尺寸、位置等值）。
 1. 在 `Resources/Translations` 中创建一个使用所需语言代码命名的文件夹（见上文），把 `Client` 文件夹中的 `Translation.ini` 放进去，然后开始翻译字符串并取消已翻译行的注释。
    - 硬编码字符串在同一客户端二进制之间共享且与模组无关，因此你可以复用你或别人为你要翻译的语言制作的所有带 `Client` 前缀的字符串。或者使用主 `Translation.ini` 中的 `[INISystem]->BasedOn=` 包含一个单独的、包含所有 `Client` 前缀字符串的文件（例如 `ClientTranslation.ini`）。
-   - **注意事项：** 硬编码的控件尺寸/位置值完全不会从翻译文件读取；作为变通，请模组作者为该控件指定你将用 INI 定义调整的尺寸/位置值，以便可以通过翻译系统调整。
+   - **注意事项：** 硬编码的控件尺寸/位置值完全不会从翻译文件读取；请模组作者使用 INI 定义为该控件指定尺寸/位置值，以便可以通过翻译系统调整。
    - 为加快工作流程，建议使用支持多选编辑的编辑器，例如 [Visual Studio Code](https://code.visualstudio.com)，以便批量选择值。选中第一行未翻译行的 `=`，按 `Ctrl+D` 若干次选中其余未翻译行的 `=`，按 `→`，然后 `Shift+End`。这样会选中你标记行的所有未翻译值，复制它们，去 [DeepL](https://www.deepl.com)（推荐）或任何其他翻译器，粘贴文本、修正翻译、复制回来并粘贴到相同位置。VSCode 会自动把行拆回来，所以不需要逐行输入。
      - DeepL 还会添加它自己的"translated with"行，所以你可能需要把文本粘贴到某个中间文件/窗口/标签页，删除该行，再复制一次。
 2. 对每个翻译资源（包括主题专属资源），必须在翻译文件夹中复制原始资源相对于 `Resources` 文件夹的精确路径。资源名称也应与原始资源相同。它们会自动覆盖未翻译的资源。

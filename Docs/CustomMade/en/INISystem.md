@@ -1487,7 +1487,8 @@ The `ClientDefinitions.ini` file defines the client's global settings: game type
 ClientGameType=                      ; string,  client type used for game-specific behaviour. Required since
                                      ;          v2.12; a missing or unknown value throws an error asking to
                                      ;          migrate the configuration. Allowed values: `TD` (Tiberian Dawn,
-                                     ;          supported since 2.14.0), `RA`, `TS`, `YR`, `Ares`.
+                                     ;          supported since 2.14.0), `RA`, `D2K` (Dune 2000, supported since
+                                     ;          2.14.0), `TS`, `YR`, `Ares`.
 LocalGame=                           ; string,  game identifier (default "DTA").
 WindowTitle=                         ; string,  game window title. Supports localization.
 GameExecutableNames=Game.exe         ; comma-separated strings, game executables to look for.
@@ -1531,6 +1532,10 @@ MinimumRenderWidth=1280              ; integer, minimum client render width.
 MinimumRenderHeight=768              ; integer, minimum client render height.
 MaximumRenderWidth=1280              ; integer, maximum client render width.
 MaximumRenderHeight=800              ; integer, maximum client render height.
+MinimumClientWidth=800               ; integer, minimum client resolution width offered in the client
+                                     ;          resolution selection.
+MinimumClientHeight=600              ; integer, minimum client resolution height offered in the client
+                                     ;          resolution selection.
 AllowClientMinimumRenderIndefinitely=false ; boolean, keeps the client at the minimum render size when the
                                      ;          system cannot handle the maximum.
 RecommendedResolutions=              ; comma-separated strings, resolutions shown in the display options. Defaults to
@@ -1589,6 +1594,16 @@ ShowGameIconInGameList=true          ; boolean, shows the game icon in the game 
 SaveSkirmishGameOptions=false        ; boolean, saves previously used skirmish game options across sessions.
 SaveCampaignGameOptions=false        ; boolean, saves previously used campaign game options across sessions.
 CreateSavedGamesDirectory=false      ; boolean, creates the saved games directory.
+ReplaySupport=false                  ; boolean, enables replay recording and playback for packages with a
+                                     ;          compatible spawner. The current implementation targets RA2/YR
+                                     ;          and is off by default.
+ReplaysDirectory=Replays             ; string,  directory, relative to the game directory, that replays are
+                                     ;          recorded into and listed from.
+ReplayFileExtension=yrrp             ; string,  file extension of replay files, without a leading dot.
+ReleasesURL=                         ; string,  page where players can download other versions of the
+                                     ;          game package. The replay panel offers this link for replays
+                                     ;          that are unplayable or were recorded on another version.
+                                     ;          When empty, that download link is never shown.
 DisableMultiplayerGameLoading=false  ; boolean, disables the multiplayer game loading screen.
 DisplayPlayerCountInTopBar=false     ; boolean, shows the player count in the top bar.
 ReturnToMainMenuOnMissionLaunch=true ; boolean, returns to the main menu when launching a mission.
@@ -1789,6 +1804,9 @@ MinimizeWindowsOnGameStart=true    ; boolean, minimize other windows when the ga
 AutoRemoveUnderscoresFromName=true ; boolean, remove underscores from player names. Default `true`.
 GenerateTranslationStub=false      ; boolean, generate a translation stub file. Default `false`.
 GenerateOnlyNewValuesInTranslationStub=false ; boolean, only write new values to the translation stub. Default `false`.
+TranslationStubNotificationLevel=1 ; integer, which missing keys are written to the generated translation stub.
+                                   ;          1 = default localizable values only (default), 2 = verbose, also
+                                   ;          includes additional low-priority values such as size/position.
 WriteInstallationPathToRegistry=   ; boolean, write the installation path to the registry.
 
 [MultiPlayer]
@@ -1828,6 +1846,45 @@ Renderer=                          ; string,  renderer override. Default empty.
 [Phobos]
 CampaignDefaultGameSpeed=4         ; integer, default campaign game speed. Default `4`.
 
+[ClientLogs]
+MaxKeptLogFiles=20                 ; integer, maximum number of timestamped old client log files. Default `20`;
+                                   ;          0 = unlimited.
+MaxLogFolderSizeMB=50              ; integer, maximum combined size of old client log files in MB. Default
+                                   ;          `50`; 0 = unlimited.
+
+[GameLogs]
+MaxGameLogAgeDays=7                ; integer, delete game log entries not written to for this many days. Default
+                                   ;          `7`; 0 = never delete by age.
+MaxGameLogFolderSizeMB=0           ; integer, maximum combined size of the game's own `debug` folder in MB,
+                                   ;          oldest deleted first. Default `0` (unlimited).
+
+[SavedGames]
+MaxKeptSavedGames=0                ; integer, maximum number of single-player saved games. Default `0`
+                                   ;          (unlimited).
+MaxSavedGameFolderSizeMB=0         ; integer, maximum combined size of single-player saved games in MB.
+                                   ;          Default `0` (unlimited).
+
+[Replays]                          ; Only used when `ReplaySupport=true` in ClientDefinitions.ini.
+RecordReplays=true                 ; boolean, record the player's games to replays. Default `true`.
+MaxKeptReplays=50                  ; integer, maximum number of replays. Default `50`; 0 = unlimited.
+MaxReplayFolderSizeMB=2048         ; integer, maximum combined size of replays in MB, oldest deleted first.
+                                   ;          Default `2048`; 0 = unlimited.
+ReplayKeyframeStorageLimitMB=512   ; integer, maximum size of the seek keyframes written during playback in MB.
+                                   ;          Default `512`; 0 = unlimited.
+PlaybackShroudEnabled=false        ; boolean, hide the map outside of what the watched player could see
+                                   ;          (shroud enabled). Default `false`.
+PlaybackFollowCamera=true          ; boolean, keep the camera on the recorded view instead of letting the
+                                   ;          player move it freely. Default `true`.
+PlaybackShowSelections=true        ; boolean, highlight the units the watched player had selected.
+                                   ;          Default `true`.
+PlaybackSpectator=true             ; boolean, watch as a spectator who can see the whole map instead of
+                                   ;          through a player's eyes. Default `true`.
+PlaybackShowChatAndBeacons=true    ; boolean, replay chat messages, beacons and taunts. Default `true`.
+PlaybackGameSpeed=0                ; integer, playback rate in FPS from the speed ladder; 0 = as recorded.
+                                   ;          Default `0`.
+PlaybackKeyframeInterval=750       ; integer, frames between seek checkpoints, used for faster seeking
+                                   ;          (a lower value is better); 0 = no checkpoints. Default `750`.
+
 [GameFilters]
 SortState=0                        ; integer, game list sort state. Default `0`.
 ShowFriendGamesOnly=false          ; boolean, show only friend games. Default `false`.
@@ -1848,6 +1905,8 @@ ChannelName=Yes                    ; boolean, whether the channel / game is foll
 0=MAPSHA1:GAMEMODE                 ; string,  favorite map entry (`mapSHA1:gameMode`). Legacy name-based entries are
                                    ;          migrated to SHA1-based entries when used.
 ```
+
+Game logs are the game's own `debug` folder (Ares, Phobos and spawner logs, and the snapshot folders for crashes and desyncs), pruned at client startup when `ClientGameType` is `Ares`. Each log file or snapshot folder is kept or deleted whole, and the newest is always kept when applying the size limit. Packages can provide initial values in `Resources/UserDefaults.ini`; existing user settings take precedence.
 
 `SettingCheckBox`/`SettingDropDown` controls save under `[CustomSettings]` (see `SettingSection`) with keys
 `CONTROLNAME_Checked` / `CONTROLNAME_Value` / `CONTROLNAME_SelectedIndex` depending on the write mode.

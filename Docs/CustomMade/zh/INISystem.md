@@ -1556,7 +1556,8 @@ $CC03=btnCancel:XNAClientButton
 [Settings]
 ClientGameType=                      ; string,  用于游戏专属行为的客户端类型。自 v2.12 起为必填；缺失或
                                      ;          取值未知时会抛出异常并要求迁移配置。允许的取值：`TD`
-                                     ;          （Tiberian Dawn，自 2.14.0 起支持）、`RA`、`TS`、`YR`、`Ares`。
+                                     ;          （Tiberian Dawn，自 2.14.0 起支持）、`RA`、`D2K`
+                                     ;          （Dune 2000，自 2.14.0 起支持）、`TS`、`YR`、`Ares`。
 LocalGame=                           ; string,  游戏标识（默认 "DTA"）。
 WindowTitle=                         ; string,  游戏窗口标题。支持本地化。
 GameExecutableNames=Game.exe         ; 逗号分隔的字符串，要查找的游戏可执行文件。
@@ -1597,6 +1598,8 @@ MinimumRenderWidth=1280              ; integer, 客户端最小渲染宽度。
 MinimumRenderHeight=768              ; integer, 客户端最小渲染高度。
 MaximumRenderWidth=1280              ; integer, 客户端最大渲染宽度。
 MaximumRenderHeight=800              ; integer, 客户端最大渲染高度。
+MinimumClientWidth=800               ; integer, 客户端分辨率选择中提供的最小客户端分辨率宽度。
+MinimumClientHeight=600              ; integer, 客户端分辨率选择中提供的最小客户端分辨率高度。
 AllowClientMinimumRenderIndefinitely=false ; boolean, 系统无法处理最大尺寸时保持客户端在最小渲染尺寸。
 RecommendedResolutions=              ; 逗号分隔的字符串，显示选项中展示的分辨率。默认为
                                      ;          `{MinimumRenderWidth}x{MinimumRenderHeight},{MaximumRenderWidth}x{MaximumRenderHeight}`。
@@ -1647,6 +1650,12 @@ ShowGameIconInGameList=true          ; boolean, 在游戏列表中显示游戏�
 SaveSkirmishGameOptions=false        ; boolean, 跨会话保存上次使用的遭遇战游戏选项。
 SaveCampaignGameOptions=false        ; boolean, 跨会话保存上次使用的战役游戏选项。
 CreateSavedGamesDirectory=false      ; boolean, 创建存档目录。
+ReplaySupport=false                  ; boolean, 为带兼容 spawner 的游戏包启用录像录制与回放。当前实现面向
+                                     ;          RA2/YR，默认关闭。
+ReplaysDirectory=Replays             ; string,  录像存放与读取的目录，相对于游戏目录。
+ReplayFileExtension=yrrp             ; string,  录像文件的扩展名（不带前导点）。
+ReleasesURL=                         ; string,  玩家下载该游戏包其他版本的页面。对无法播放或在其他版本
+                                     ;          录制的录像，回放面板会提供该链接。为空时不会显示该下载链接。
 DisableMultiplayerGameLoading=false  ; boolean, 禁用多人游戏加载画面。
 DisplayPlayerCountInTopBar=false     ; boolean, 在顶栏显示玩家数量。
 ReturnToMainMenuOnMissionLaunch=true ; boolean, 启动任务时返回主菜单。
@@ -1846,6 +1855,9 @@ MinimizeWindowsOnGameStart=true    ; boolean, 游戏启动时最小化其他窗�
 AutoRemoveUnderscoresFromName=true ; boolean, 从玩家名称中移除下划线。默认 `true`。
 GenerateTranslationStub=false      ; boolean, 生成翻译 stub 文件。默认 `false`。
 GenerateOnlyNewValuesInTranslationStub=false ; boolean, 仅向翻译 stub 写入新值。默认 `false`。
+TranslationStubNotificationLevel=1 ; integer, 生成的翻译 stub 中写入哪些缺失键。
+                                   ;          1 = 仅默认可本地化值（默认），2 = verbose，额外包含尺寸/位置等
+                                   ;          低优先级值。
 WriteInstallationPathToRegistry=   ; boolean, 把安装路径写入注册表。
 
 [MultiPlayer]
@@ -1884,6 +1896,39 @@ Renderer=                          ; string,  渲染器覆盖。默认空。
 [Phobos]
 CampaignDefaultGameSpeed=4         ; integer, 默认战役游戏速度。默认 `4`。
 
+[ClientLogs]
+MaxKeptLogFiles=20                 ; integer, 保留的带时间戳旧客户端日志文件数量上限。默认 `20`；
+                                   ;          0 = 不限。
+MaxLogFolderSizeMB=50              ; integer, 旧客户端日志文件的合计大小上限（MB）。默认 `50`；0 = 不限。
+
+[GameLogs]
+MaxGameLogAgeDays=7                ; integer, 删除超过这么多天未写入的游戏日志条目。默认 `7`；
+                                   ;          0 = 不按时间删除。
+MaxGameLogFolderSizeMB=0           ; integer, 游戏自身 `debug` 文件夹的合计大小上限（MB），
+                                   ;          最旧的优先删除。默认 `0`（不限）。
+
+[SavedGames]
+MaxKeptSavedGames=0                ; integer, 单人存档数量上限。默认 `0`（不限）。
+MaxSavedGameFolderSizeMB=0         ; integer, 单人存档的合计大小上限（MB）。默认 `0`（不限）。
+
+[Replays]                          ; 仅在 ClientDefinitions.ini 中 `ReplaySupport=true` 时使用。
+RecordReplays=true                 ; boolean, 把玩家的对局录制为录像。默认 `true`。
+MaxKeptReplays=50                  ; integer, 录像数量上限。默认 `50`；0 = 不限。
+MaxReplayFolderSizeMB=2048         ; integer, 录像的合计大小上限（MB），最旧的优先删除。
+                                   ;          默认 `2048`；0 = 不限。
+ReplayKeyframeStorageLimitMB=512   ; integer, 回放时写入的跳转关键帧大小上限（MB）。默认 `512`；0 = 不限。
+PlaybackShroudEnabled=false        ; boolean, 隐藏被观看玩家视野之外的区域（启用黑幕）。默认 `false`。
+PlaybackFollowCamera=true          ; boolean, 保持镜头在录像中的视角，而不允许玩家自由移动。
+                                   ;          默认 `true`。
+PlaybackShowSelections=true        ; boolean, 高亮被观看玩家当时选中的单位。默认 `true`。
+PlaybackSpectator=true             ; boolean, 以旁观者身份观看（可见全图），而非透过某位玩家的视角。
+                                   ;          默认 `true`。
+PlaybackShowChatAndBeacons=true    ; boolean, 播放聊天消息、信标与嘲讽。默认 `true`。
+PlaybackGameSpeed=0                ; integer, 播放速率（FPS，取自速度档位表）；0 = 按录制速度。
+                                   ;          默认 `0`。
+PlaybackKeyframeInterval=750       ; integer, 跳转检查点之间的帧数，用于加快拖动定位
+                                   ;          （值越小越好）；0 = 不设检查点。默认 `750`。
+
 [GameFilters]
 SortState=0                        ; integer, 游戏列表排序状态。默认 `0`。
 ShowFriendGamesOnly=false          ; boolean, 只显示好友游戏。默认 `false`。
@@ -1903,6 +1948,8 @@ ChannelName=Yes                    ; boolean, 该频道/游戏是否被关注（
 0=MAPSHA1:GAMEMODE                 ; string,  收藏地图条目（`mapSHA1:gameMode`）。旧式基于名称的条目
                                    ;          在使用时会迁移为基于 SHA1 的条目。
 ```
+
+游戏日志指游戏自身的 `debug` 文件夹（Ares、Phobos、spawner 的日志，以及崩溃和不同步的快照文件夹），当 `ClientGameType` 为 `Ares` 时在客户端启动时清理。每个日志文件或快照文件夹都整体保留或整体删除，应用大小上限时始终保留最新的。游戏包可以在 `Resources/UserDefaults.ini` 中提供初始值；已有的用户设置优先。
 
 `SettingCheckBox`/`SettingDropDown` 控件按 `SettingSection`（见 `[CustomSettings]`）保存，键名为
 `CONTROLNAME_Checked` / `CONTROLNAME_Value` / `CONTROLNAME_SelectedIndex`，取决于写入模式。
