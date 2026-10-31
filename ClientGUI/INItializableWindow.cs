@@ -245,8 +245,8 @@ namespace ClientGUI
             ProcessControlInclude(control, section);
 
             // shorthand for localization function
-            static string Localize(XNAControl control, string attributeName, string defaultValue, bool notify = true)
-                => Translation.Instance.LookUp(control, attributeName, defaultValue, notify);
+            static string Localize(XNAControl control, string attributeName, string defaultValue, TranslationNotificationLevel notificationLevel = TranslationNotificationLevel.Default)
+                => Translation.Instance.LookUp(control, attributeName, defaultValue, notificationLevel);
 
             foreach (var kvp in section.Keys)
             {
@@ -275,22 +275,22 @@ namespace ClientGUI
                 else if (kvp.Key == "$X")
                 {
                     control.X = Parser.Instance.GetExprValue(
-                        Localize(control, kvp.Key, kvp.Value, notify: false), control);
+                        Localize(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                 }
                 else if (kvp.Key == "$Y")
                 {
                     control.Y = Parser.Instance.GetExprValue(
-                        Localize(control, kvp.Key, kvp.Value, notify: false), control);
+                        Localize(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                 }
                 else if (kvp.Key == "$Width")
                 {
                     control.Width = Parser.Instance.GetExprValue(
-                        Localize(control, kvp.Key, kvp.Value, notify: false), control);
+                        Localize(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                 }
                 else if (kvp.Key == "$Height")
                 {
                     control.Height = Parser.Instance.GetExprValue(
-                        Localize(control, kvp.Key, kvp.Value, notify: false), control);
+                        Localize(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                 }
                 else if (kvp.Key == "$TextAnchor" && control is XNALabel)
                 {
@@ -303,6 +303,28 @@ namespace ClientGUI
                     if (parts.Length != 2)
                         throw new FormatException("Invalid format for AnchorPoint: " + kvp.Value);
                     ((XNALabel)control).AnchorPoint = new Vector2(Parser.Instance.GetExprValue(parts[0], control), Parser.Instance.GetExprValue(parts[1], control));
+                }
+                else if (kvp.Key == "$OverscrollMargin" && control is XNAScrollPanel scrollPanel)
+                {
+                    string[] parts = kvp.Value.Split(',');
+                    (int X, int Y) values = parts
+                        .Select(s => Parser.Instance.GetExprValue(s, control))
+                        .ToArray().AsTuple2();
+                    scrollPanel.OverscrollMargin = new(values.X, values.Y);
+                }
+                else if (kvp.Key == "$OverscrollMarginX" && control is XNAScrollPanel scrollPanel1)
+                {
+                    scrollPanel1.OverscrollMargin = scrollPanel1.OverscrollMargin with
+                    {
+                        X = Parser.Instance.GetExprValue(kvp.Value, control)
+                    };
+                }
+                else if (kvp.Key == "$OverscrollMarginY" && control is XNAScrollPanel scrollPanel2)
+                {
+                    scrollPanel2.OverscrollMargin = scrollPanel2.OverscrollMargin with
+                    {
+                        Y = Parser.Instance.GetExprValue(kvp.Value, control)
+                    };
                 }
                 else if (kvp.Key == "$LeftClickAction")
                 {

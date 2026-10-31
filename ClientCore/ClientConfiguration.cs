@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-using ClientCore.Enums;
+using ClientCore.Display;
 using ClientCore.Extensions;
 using ClientCore.I18N;
 
@@ -285,14 +285,18 @@ namespace ClientCore
         public bool SidebarHack => clientDefinitionsIni.GetBooleanValue(SETTINGS, "SidebarHack", false);
 
         public int MinimumRenderWidth => clientDefinitionsIni.GetIntValue(SETTINGS, "MinimumRenderWidth", 1280);
-
         public int MinimumRenderHeight => clientDefinitionsIni.GetIntValue(SETTINGS, "MinimumRenderHeight", 768);
+        public ScreenResolution MinimumRenderResolution => (MinimumRenderWidth, MinimumRenderHeight);
 
         public bool AllowClientMinimumRenderIndefinitely => clientDefinitionsIni.GetBooleanValue(SETTINGS, "AllowClientMinimumRenderIndefinitely", false);
 
         public int MaximumRenderWidth => clientDefinitionsIni.GetIntValue(SETTINGS, "MaximumRenderWidth", 1280);
-
         public int MaximumRenderHeight => clientDefinitionsIni.GetIntValue(SETTINGS, "MaximumRenderHeight", 800);
+        public ScreenResolution MaximumRenderResolution => (MaximumRenderWidth, MaximumRenderHeight);
+
+        public int MinimumClientWidth => clientDefinitionsIni.GetIntValue(SETTINGS, "MinimumClientWidth", 800);
+        public int MinimumClientHeight => clientDefinitionsIni.GetIntValue(SETTINGS, "MinimumClientHeight", 600);
+        public ScreenResolution MinimumClientResolution => (MinimumClientWidth, MinimumClientHeight);
 
         public string[] RecommendedResolutions => clientDefinitionsIni.GetStringListValue(SETTINGS, "RecommendedResolutions",
             $"{MinimumRenderWidth}x{MinimumRenderHeight},{MaximumRenderWidth}x{MaximumRenderHeight}");
@@ -375,6 +379,30 @@ namespace ClientCore
             }
 
             return null;
+        }
+
+        private string[] GetCoopDifficultyINIPaths()
+        {
+            List<string> paths = new List<string>();
+            var pathString = clientDefinitionsIni.GetStringValue(SETTINGS, nameof(CoopDifficultyINIPaths), string.Empty);
+
+            if (string.IsNullOrEmpty(pathString))
+            {
+                paths.Add(SafePath.CombineFilePath("INI", "Map Code", "Coop Difficulty Easy.ini"));
+                paths.Add(SafePath.CombineFilePath("INI", "Map Code", "Coop Difficulty Medium.ini"));
+                paths.Add(SafePath.CombineFilePath("INI", "Map Code", "Coop Difficulty Hard.ini"));
+            }
+            else
+            {
+                var pathStrings = pathString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (var path in pathStrings)
+                {
+                    paths.Add(SafePath.CombineFilePath(path));
+                }
+            }
+            
+            return paths.ToArray();
         }
 
         public string SettingsIniName => clientDefinitionsIni.GetStringValue(SETTINGS, "SettingsFile", "Settings.ini");
@@ -461,6 +489,8 @@ namespace ClientCore
         /// </summary>
         public bool UseCustomNameSyncSpawnIni => clientDefinitionsIni.GetBooleanValue(SETTINGS, "UseCustomNameSyncSpawnIni", true);
 
+        public string[] CoopDifficultyINIPaths => GetCoopDifficultyINIPaths();
+
         public string KeyboardINI => clientDefinitionsIni.GetStringValue(SETTINGS, "KeyboardINI", "Keyboard.ini");
 
         public bool SettingsIniAsKeyboardIni => SettingsIniName == KeyboardINI;
@@ -471,12 +501,12 @@ namespace ClientCore
             ClientGameType == ClientType.RA ? "WinHotKeys" : "Hotkey");
 
         public int MinimumIngameWidth => clientDefinitionsIni.GetIntValue(SETTINGS, "MinimumIngameWidth", 640);
-
         public int MinimumIngameHeight => clientDefinitionsIni.GetIntValue(SETTINGS, "MinimumIngameHeight", 480);
+        public ScreenResolution MinimumIngameResolution => (MinimumIngameWidth, MinimumIngameHeight);
 
         public int MaximumIngameWidth => clientDefinitionsIni.GetIntValue(SETTINGS, "MaximumIngameWidth", int.MaxValue);
-
         public int MaximumIngameHeight => clientDefinitionsIni.GetIntValue(SETTINGS, "MaximumIngameHeight", int.MaxValue);
+        public ScreenResolution MaximumIngameResolution => (MaximumIngameWidth, MaximumIngameHeight);
 
         public string[] CustomIngameResolutions => clientDefinitionsIni.GetStringListValue(SETTINGS, "CustomIngameResolutions", string.Empty);
 
@@ -546,6 +576,18 @@ namespace ClientCore
         public string LauncherExe => clientDefinitionsIni.GetStringValue(SETTINGS, "LauncherExe", string.Empty);
 
         public bool UseClientRandomStartLocations => clientDefinitionsIni.GetBooleanValue(SETTINGS, "UseClientRandomStartLocations", false);
+
+        /// <summary>Enables replay recording and playback for compatible game packages.</summary>
+        public bool ReplaySupport => clientDefinitionsIni.GetBooleanValue(SETTINGS, "ReplaySupport", false);
+
+        /// <summary>Replay directory relative to the game directory.</summary>
+        public string ReplaysDirectory => clientDefinitionsIni.GetStringValue(SETTINGS, "ReplaysDirectory", "Replays");
+
+        /// <summary>Replay file extension without a leading dot.</summary>
+        public string ReplayFileExtension => clientDefinitionsIni.GetStringValue(SETTINGS, "ReplayFileExtension", "yrrp");
+
+        /// <summary>Page listing downloadable versions of the game package.</summary>
+        public string ReleasesURL => clientDefinitionsIni.GetStringValue(SETTINGS, "ReleasesURL", string.Empty);
 
         /// <summary>
         /// Returns the name of the game executable file that is used on
@@ -778,16 +820,6 @@ namespace ClientCore
         public uint V3CyclesPerTunnelListRefresh => (uint)networkDefinitionsIni.GetIntValue(V3_TUNNEL_NEGOTIATION, "CyclesPerTunnelListRefresh", 3);
 
         /// <summary>
-        /// Ping (ms) above which a tunnel server is considered to be responding badly.
-        /// </summary>
-        public int V3TunnelFailedPingAmountMs => networkDefinitionsIni.GetIntValue(V3_TUNNEL_NEGOTIATION, "TunnelFailedPingAmountMs", 2000);
-
-        /// <summary>
-        /// Number of consecutive bad pings before a tunnel server is reported as failed.
-        /// </summary>
-        public int V3TunnelFailedConsecutivePings => networkDefinitionsIni.GetIntValue(V3_TUNNEL_NEGOTIATION, "TunnelFailedConsecutivePings", 2);
-
-        /// <summary>
         /// How many unanswered ICMP probes in a row a tunnel's last good ping is kept for before
         /// it reads as unknown. 0 discards the measurement on the first miss.
         /// </summary>
@@ -796,7 +828,7 @@ namespace ClientCore
         /// datagram would otherwise leave a healthy tunnel unmeasured for a whole refresh
         /// interval — long enough for matchmaking to drop it from the shortlist and never try it.
         /// Kept small: a tunnel that has actually gone away should stop advertising a stale
-        /// latency quickly, and tunnel-failure detection reads the raw probe result regardless.
+        /// latency quickly.
         /// </remarks>
         public int V3RetainedPingFailures => networkDefinitionsIni.GetIntValue(V3_TUNNEL_NEGOTIATION, "RetainedPingFailures", 2);
 

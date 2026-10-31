@@ -233,8 +233,8 @@ public class GameSessionCheckBox : XNAClientCheckBox, IGameSessionSetting, IGame
 
     protected override void ParseControlINIAttribute(IniFile iniFile, string key, string value)
     {
-        static string Localize(XNAControl control, string attributeName, string defaultValue, bool notify = true)
-            => Translation.Instance.LookUp(control, attributeName, defaultValue, notify);
+        static string Localize(XNAControl control, string attributeName, string defaultValue, TranslationNotificationLevel notificationLevel = TranslationNotificationLevel.Default)
+            => Translation.Instance.LookUp(control, attributeName, defaultValue, notificationLevel);
 
         // helper to parse numeric suffix, returns -1 if no suffix matched
         static int ParseSuffix(string key, string prefix)

@@ -66,6 +66,11 @@ public class Translation : ICloneable
     /// <summary>Contains all keys within <see cref="Values"/> with missing translations.</summary>
     private readonly ConcurrentDictionary<string, byte> MissingKeys = new();
 
+    /// <summary>
+    /// Controls which missing values should be collected into the generated translation stub.
+    /// </summary>
+    public TranslationNotificationLevel MissingKeyNotificationLevel { get; set; } = TranslationNotificationLevel.Default;
+
     /// <summary>Used to write missing translation table entries to a file.</summary>
     public const string MISSING_KEY_PREFIX = "; ";  // a hack but hey it works
 
@@ -221,9 +226,13 @@ public class Translation : ICloneable
             string iniPath = SafePath.CombineFilePath(localeFolder, iniNames[i]);
             if (SafePath.GetFile(iniPath).Exists)
             {
+                // This parses only the metadata section content so that we don't parse
+                // the bazillion of localized values just to read the translation name.
+                // The only issue is that inheritance would break.
+                // FIXME AllowNewSections is ignored with inheritance
                 IniFile ini = new();
                 ini.AddSection(METADATA_SECTION);
-                ini.FileName = iniPath;
+                ini.FilePath = iniPath;
                 ini.AllowNewSections = false;
 
                 ini.Parse();
@@ -445,19 +454,23 @@ public class Translation : ICloneable
         return false;
     }
 
+    private bool ShouldNotify(TranslationNotificationLevel notificationLevel)
+        => notificationLevel <= MissingKeyNotificationLevel;
+
     /// <summary>
     /// Looks up the translated value that corresponds to the given key.
     /// </summary>
     /// <param name="key">The translation key (identifier).</param>
     /// <param name="defaultValue">The value to fall back to in case there's no translated value.</param>
-    /// <param name="notify">Whether to add this key and value to the list of missing key-values.</param>
+    /// <param name="notificationLevel">The notification level of this key-value pair.</param>
     /// <returns>The translated value or a default value.</returns>
-    public string LookUp(string key, string defaultValue, bool notify = true)
+    public string LookUp(string key, string defaultValue,
+        TranslationNotificationLevel notificationLevel = TranslationNotificationLevel.Default)
     {
         if (Values.TryGetValue(key, out string? value))
             return value;
 
-        if (notify)
+        if (ShouldNotify(notificationLevel))
             _ = HandleMissing(key, defaultValue);
 
         return defaultValue;
@@ -469,9 +482,10 @@ public class Translation : ICloneable
     /// <param name="key">The translation key (identifier).</param>
     /// <param name="fallbackKey">The fallback translation key (identifier).</param>
     /// <param name="defaultValue">The value to fall back to in case there's no translated value.</param>
-    /// <param name="notify">Whether to add this key and value to the list of missing key-values. Doesn't include the fallback key.</param>
+    /// <param name="notificationLevel">The notification level of this key-value pair. Doesn't include the fallback key.</param>
     /// <returns>The translated value or a default value.</returns>
-    public string LookUp(string key, string fallbackKey, string defaultValue, bool notify = true)
+    public string LookUp(string key, string fallbackKey, string defaultValue,
+        TranslationNotificationLevel notificationLevel = TranslationNotificationLevel.Default)
     {
         if (Values.TryGetValue(key, out string? value))
             return value;
@@ -479,7 +493,7 @@ public class Translation : ICloneable
         if (key != fallbackKey && Values.TryGetValue(fallbackKey, out string? fallbackValue))
             return fallbackValue;
 
-        if (notify)
+        if (ShouldNotify(notificationLevel))
             _ = HandleMissing(key, defaultValue);
 
         return defaultValue;

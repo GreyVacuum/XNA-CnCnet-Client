@@ -1,4 +1,4 @@
-﻿using ClientCore;
+using ClientCore;
 using ClientGUI;
 using DTAClient.Domain.Multiplayer;
 using DTAClient.Domain.Multiplayer.CnCNet;
@@ -19,8 +19,9 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
-using ClientCore.Enums;
+using ClientCore.Sorting;
 using ClientCore.Extensions;
+using ClientCore.I18N;
 using SixLabors.ImageSharp;
 using Color = Microsoft.Xna.Framework.Color;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
@@ -457,7 +458,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
 
             string translatedGameMode = string.IsNullOrEmpty(hg.GameMode)
                 ? "Unknown".L10N("Client:Main:Unknown")
-                : hg.GameMode.L10N($"INI:GameModes:{hg.GameMode}:UIName", notify: false);
+                : hg.GameMode.L10N($"INI:GameModes:{hg.GameMode}:UIName", TranslationNotificationLevel.Verbose);
 
             string translatedMapName = string.IsNullOrEmpty(hg.Map)
                 ? "Unknown".L10N("Client:Main:Unknown") : mapLoader.TranslatedMapNames.ContainsKey(hg.Map)
@@ -1243,10 +1244,14 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             cncnetChannel?.Join();
 
             string localGameChatChannelName = gameCollection.GetGameChatChannelNameFromIdentifier(localGameID);
-            connectionManager.FindChannel(localGameChatChannelName).Join();
+            var localGameChatChannel = connectionManager.FindChannel(localGameChatChannelName)
+                ?? throw new Exception("Could not find local game chat channel: " + localGameChatChannelName);
+            localGameChatChannel.Join();
 
-            string localGameBroadcastChannel = gameCollection.GetGameBroadcastingChannelNameFromIdentifier(localGameID);
-            connectionManager.FindChannel(localGameBroadcastChannel).Join();
+            string localGameBroadcastChannelName = gameCollection.GetGameBroadcastingChannelNameFromIdentifier(localGameID);
+            var localGameBroadcastChannel = connectionManager.FindChannel(localGameBroadcastChannelName)
+                ?? throw new Exception("Could not find local game broadcast channel: " + localGameBroadcastChannelName);
+            localGameBroadcastChannel.Join();
 
             foreach (CnCNetGame game in gameCollection.GameList)
             {
@@ -1402,6 +1407,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 currentChatChannel.UserQuitIRC -= RefreshPlayerList;
                 currentChatChannel.UserKicked -= RefreshPlayerList;
                 currentChatChannel.UserListReceived -= RefreshPlayerList;
+                currentChatChannel.ChannelModesChanged -= RefreshPlayerList;
                 currentChatChannel.MessageAdded -= CurrentChatChannel_MessageAdded;
                 currentChatChannel.UserGameIndexUpdated -= CurrentChatChannel_UserGameIndexUpdated;
 
@@ -1427,6 +1433,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             currentChatChannel.UserQuitIRC += RefreshPlayerList;
             currentChatChannel.UserKicked += RefreshPlayerList;
             currentChatChannel.UserListReceived += RefreshPlayerList;
+            currentChatChannel.ChannelModesChanged += RefreshPlayerList;
             currentChatChannel.MessageAdded += CurrentChatChannel_MessageAdded;
             currentChatChannel.UserGameIndexUpdated += CurrentChatChannel_UserGameIndexUpdated;
             connectionManager.SetMainChannel(currentChatChannel);
@@ -1569,7 +1576,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
             string msg = e.Message.Substring(5); // Cut out GAME part
             string[] splitMessage = msg.Split(new char[] { ';' });
 
-            if (splitMessage.Length != 14)
+            if (splitMessage.Length != 15)
             {
                 Logger.Log("Ignoring CTCP game message because of an invalid amount of parameters.");
 
@@ -1727,6 +1734,8 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                     }
                 }
 
+                int difficulty = int.Parse(splitMessage[14]);
+
                 CnCNetGame cncnetGame = gameCollection.GameList.Find(g => g.GameBroadcastChannel == channel.ChannelName);
 
                 if (cncnetGame == null)
@@ -1746,6 +1755,7 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
                 game.SkillLevel = skillLevel;
                 game.BroadcastedGameOptionValues = gameOptionValues;
                 game.BroadcastedDropdownCustomTexts = dropdownCustomTexts;
+                game.Difficulty = difficulty;
 
                 if (isClosed)
                 {
@@ -1827,6 +1837,9 @@ namespace DTAClient.DXGUI.Multiplayer.CnCNet
         public void SwitchOff() => Disable();
 
         public string GetSwitchName() => "CnCNet Lobby".L10N("Client:Main:CnCNetLobby");
+
+        /// <summary>Whether the game creation, login or password window is open over the lobby.</summary>
+        public bool HasDialogOpen => ((XNAControl)gameCreationPanel.Tag).Enabled || loginWindow.Enabled || passwordRequestWindow.Enabled;
 
         private bool CanReceiveInvitationMessagesFrom(string username)
         {

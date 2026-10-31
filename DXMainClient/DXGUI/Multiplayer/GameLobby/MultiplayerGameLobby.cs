@@ -719,6 +719,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             btnPickRandomMap.Disable();
             btnMapSortAlphabetically.Disable();
 
+            if (ddDifficulty != null)
+                ddDifficulty.Disable();
+            if (lblDifficulty != null)
+                lblDifficulty.Disable();
+
             SetMapLabels();
         }
 
@@ -748,6 +753,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ReadINIForControl(lblGameMode);
             ReadINIForControl(lblMapSize);
             ReadINIForControl(btnMapSortAlphabetically);
+
+            if (ddDifficulty != null)
+                ddDifficulty.Enable();
+            if (lblDifficulty != null)
+                lblDifficulty.Enable();
 
             SetMapLabels();
         }
@@ -1090,6 +1100,14 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
         }
 
+        protected override void UpdateDifficultyDropdown()
+        {
+            base.UpdateDifficultyDropdown();
+
+            if (!IsHost && ddDifficulty != null)
+                ddDifficulty.AllowDropDown = false;
+        }
+
         protected virtual void ClearPingIndicators()
         {
             foreach (XNAClientDropDown dd in ddPlayerNames)
@@ -1157,7 +1175,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ddPlayerName.ToolTip.Text = string.Empty;
         }
 
-        private Texture2D GetTextureForPing(PingValue ping) => PingQualityVisuals.GetTexture(PingTextures, ping);
+        protected virtual Texture2D GetTextureForPing(PingValue ping) => PingQualityVisuals.GetTexture(PingTextures, ping);
 
         protected override void BroadcastPlayerOptions() { }
 

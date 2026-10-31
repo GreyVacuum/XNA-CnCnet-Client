@@ -1,24 +1,30 @@
-using ClientCore;
-using ClientGUI;
-using DTAClient.Domain.Multiplayer;
-using DTAClient.Domain;
-using DTAClient.DXGUI.Generic;
-using DTAClient.DXGUI.Multiplayer.CnCNet;
-using DTAClient.DXGUI.Multiplayer.GameLobby.CommandHandlers;
-using DTAClient.Online;
-using DTAClient.Online.EventArguments;
-using Microsoft.Xna.Framework;
-using Rampastring.Tools;
-using Rampastring.XNAUI;
-using Rampastring.XNAUI.XNAControls;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using DTAClient.Domain.Multiplayer.CnCNet;
+
+using ClientCore;
 using ClientCore.Extensions;
+
+using ClientGUI;
+
+using DTAClient.Domain;
+using DTAClient.Domain.Multiplayer;
+using DTAClient.Domain.Multiplayer.CnCNet;
+using DTAClient.DXGUI.Generic;
+using DTAClient.DXGUI.Multiplayer.CnCNet;
+using DTAClient.DXGUI.Multiplayer.GameLobby.CommandHandlers;
+using DTAClient.Online;
+using DTAClient.Online.EventArguments;
+
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+using Rampastring.Tools;
+using Rampastring.XNAUI;
+using Rampastring.XNAUI.XNAControls;
 using System.Net;
 
 namespace DTAClient.DXGUI.Multiplayer.GameLobby
@@ -103,8 +109,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 new NoParamCommandHandler(CHEAT_DETECTED_MESSAGE, HandleCheatDetectedMessage),
                 new StringCommandHandler(TunnelNegotiationCommands.ChangeTunnelServer, HandleTunnelServerChangeMessage),
                 new StringCommandHandler(TunnelNegotiationCommands.NegotiationReport, HandleNegotiationReportMessage),
-                new StringCommandHandler(TunnelNegotiationCommands.TunnelRenegotiate, HandleTunnelRenegotiateMessage),
-                new StringCommandHandler(TunnelNegotiationCommands.TunnelFailed, HandleTunnelFailedMessage),
                 new StringCommandHandler(TunnelNegotiationCommands.RenegotiateAll, HandleRenegotiateAll),
                 new StringCommandHandler("GSETTINGS", ApplyGameLobbySettings)
             };
@@ -342,7 +346,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (_tunnelMode != TunnelMode.V3Dynamic)
                 tunnelHandler.CurrentTunnel = tunnel;
 
-            tunnelHandler.TunnelFailed += TunnelHandler_TunnelFailed;
             tunnelHandler.CurrentTunnelPinged += TunnelHandler_CurrentTunnelPinged;
             connectionManager.ConnectionLost += ConnectionManager_ConnectionLost;
             connectionManager.Disconnected += ConnectionManager_Disconnected;
@@ -362,28 +365,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         }
 
         private void TunnelHandler_CurrentTunnelPinged(object sender, EventArgs e) => UpdatePing();
-
-        private void TunnelHandler_TunnelFailed(object sender, TunnelFailedEventArgs e)
-        {
-            CnCNetTunnel failedTunnel = e.Tunnel;
-            if (tunnelHandler.GameTunnelBridge != null && tunnelHandler.GameTunnelBridge.IsRunning)
-                return;
-
-            if (_negotiator.TryHandleTunnelFailure(failedTunnel))
-                return;
-
-            if (IsHost)
-            {
-                AddNotice(string.Format("Tunnel {0} failed. Selecting a new tunnel...".L10N("Client:Main:TunnelFailedSelectingNew"), failedTunnel.Name), Color.Orange);
-                AutoSelectBestTunnel();
-            }
-            else
-            {
-                AddNotice(string.Format("Tunnel {0} failed. Waiting for host to select a new tunnel...".L10N("Client:Main:TunnelFailedWaitingForHost"), failedTunnel.Name), Color.Orange);
-                channel.SendCTCPMessage($"{TunnelNegotiationCommands.TunnelFailed} {failedTunnel.Name}",
-                    QueuedMessageType.SYSTEM_MESSAGE, 10);
-            }
-        }
 
         private void UpdateNegotiationUI()
         {
@@ -541,6 +522,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             base.UpdatePlayerPingIndicator(pInfo, negotiationStatus, tooltipText);
         }
 
+        protected override Texture2D GetTextureForPing(PingValue ping)
+            => _tunnelMode == TunnelMode.V3Dynamic
+                ? PingTextures[PingQualityVisuals.GetTextureIndex(PingQualityRules.GetV3Tier(ping))]
+                : base.GetTextureForPing(ping);
+
         /// <summary>
         /// Builds a tooltip for V3 dynamic tunnel ping indicator
         /// </summary>
@@ -694,6 +680,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             string oldGameRoomName = gameRoomName;
             bool oldIsCustomPassword = isCustomPassword;
+            int oldPlayerLimit = playerLimit;
             gameRoomName = newGameRoomName;
             channel.UIName = newGameRoomName;
             playerLimit = newMaxPlayers;
@@ -716,6 +703,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 channel.ChangePassword(actualNewPassword, 10);
             }
 
+            if (maxPlayersChanged)
+                channel.ChangeUserLimit(playerLimit, 10);
+
             BroadcastGameLobbySettings();
 
             if (gameNameChanged)
@@ -729,6 +719,16 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 CopyPlayerDataToUI();
                 AddNotice(string.Format("Maximum players changed to {0}."
                     .L10N("Client:Main:MaxPlayersChanged"), newMaxPlayers));
+
+                if (!Locked && Players.Count >= playerLimit)
+                {
+                    AddNotice("Player limit reached. The game room has been locked.".L10N("Client:Main:GameRoomNumberLimitReached"));
+                    LockGame();
+                }
+                else if (Locked && Players.Count >= oldPlayerLimit && Players.Count < playerLimit && !ProgramConstants.IsInGame)
+                {
+                    UnlockGame(true);
+                }
             }
 
             if (skillLevelChanged)
@@ -855,6 +855,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             }
 
             Disable();
+            tunnelSelectionWindow.Disable();
+            gameLobbySettingsWindow.Disable();
             PlayerExtraOptionsPanel?.Disable();
             PlayerNameOptionsPanel?.Disable();
             PlayerNameOptionsPanel?.Reset();
@@ -869,7 +871,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             tbChatInput.Text = string.Empty;
 
             tunnelHandler.CurrentTunnel = null;
-            tunnelHandler.TunnelFailed -= TunnelHandler_TunnelFailed;
             tunnelHandler.CurrentTunnelPinged -= TunnelHandler_CurrentTunnelPinged;
 
             if (MapLoader != null)
@@ -928,8 +929,12 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (player == null || Map == null || GameMode == null)
                 return;
             string side = "";
-            if (ddPlayerSides.Length > Players.IndexOf(player))
-                side = (string)ddPlayerSides[Players.IndexOf(player)].SelectedItem.Tag;
+            int playerIndex = Players.IndexOf(player);
+            if (playerIndex > -1 && playerIndex < ddPlayerSides.Length &&
+                ddPlayerSides[playerIndex].SelectedItem != null)
+            {
+                side = (string)ddPlayerSides[playerIndex].SelectedItem.Tag;
+            }
             string currentState = ProgramConstants.IsInGame ? "In Game" : "In Lobby"; // not UI strings
 
             discordHandler.UpdatePresence(
@@ -1030,10 +1035,19 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             if (Players.Find(p => p.Name == e.User.IRCUser.Name) != null)
                 return;
 
+            // Keep excess users out of the game lobby
+            if (Players.Count >= MAX_PLAYER_COUNT || (IsHost && Players.Count >= playerLimit))
+            {
+                if (IsHost)
+                    channel.SendKickMessage(e.User.IRCUser.Name, 8);
+
+                return;
+            }
+
             PlayerInfo pInfo = new PlayerInfo(e.User.IRCUser.Name);
             Players.Add(pInfo);
 
-            if (Players.Count + AIPlayers.Count > MAX_PLAYER_COUNT && AIPlayers.Count > 0)
+            while (Players.Count + AIPlayers.Count > MAX_PLAYER_COUNT && AIPlayers.Count > 0)
                 AIPlayers.RemoveAt(AIPlayers.Count - 1);
 
             sndJoinSound.Play();
@@ -1082,16 +1096,16 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         {
             PlayerInfo pInfo = Players.Find(p => p.Name == playerName);
 
-            if (pInfo != null)
-            {
-                _negotiator.RemovePlayer(playerName);
+            if (pInfo == null)
+                return;
 
-                Players.Remove(pInfo);
-                CopyPlayerDataToUI();
+            _negotiator.RemovePlayer(playerName);
 
-                if (IsHost)
-                    BroadcastPlayerOptions();
-            }
+            Players.Remove(pInfo);
+            CopyPlayerDataToUI();
+
+            if (IsHost)
+                BroadcastPlayerOptions();
 
             sndLeaveSound.Play();
 
@@ -1304,9 +1318,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
         void IV3NegotiationHost.SendNegotiationReport(string message)
             => channel.SendCTCPMessage(message, QueuedMessageType.GAME_NEGOTIATION_MESSAGE, 10);
-
-        void IV3NegotiationHost.SendChannelCTCP(string message, int priority)
-            => channel.SendCTCPMessage(message, QueuedMessageType.SYSTEM_MESSAGE, priority);
 
         void IV3NegotiationHost.AddNotice(string message, Color color) => AddNotice(message, color);
 
@@ -1938,6 +1949,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             sb.Append(Convert.ToInt32(RemoveStartingLocations));
             sb.Append(Map?.UntranslatedName ?? string.Empty);
             sb.Append((int)_tunnelMode);
+            sb.Append(ddDifficulty?.SelectedIndex ?? -1);
 
             channel.SendCTCPMessage(sb.ToString(), QueuedMessageType.GAME_SETTINGS_MESSAGE, 11);
 
@@ -2040,7 +2052,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             int partIndex = checkBoxIntegerCount + DropDowns.Count;
 
-            if (parts.Length < partIndex + 10)
+            if (parts.Length < partIndex + 11)
             {
                 AddNotice(("The game host has sent an invalid game options message! " +
                     "The game host's game version might be different from yours.").L10N("Client:Main:HostGameOptionInvalid"), Color.Red);
@@ -2207,6 +2219,15 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             {
                 int tunnelMode = Conversions.IntFromString(parts[partIndex + 9], (int)TunnelMode.V3Static);
                 HandleTunnelModeChange((TunnelMode)tunnelMode, false);
+            }
+
+            if (parts.Length > partIndex + 10 && GameMode != null && GameMode.UseDifficultyDropDown == true && ddDifficulty != null)
+            {
+                int newIndex = Conversions.IntFromString(parts[partIndex + 10], ddDifficulty.SelectedIndex);
+                ddDifficulty.SelectedIndex = newIndex;
+
+                if (ddDifficulty.SelectedIndex >= 0)
+                    AddNotice(string.Format("The game host has set {0} to {1}".L10N("Client:Main:HostSetOption"), "Difficulty".L10N("Client:Main:DifficultyOptionName"), ddDifficulty.SelectedItem.Text));
             }
         }
 
@@ -2824,10 +2845,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             UpdateLaunchGameButtonStatus();
         }
 
-        private void HandleTunnelRenegotiateMessage(string sender, string tunnelAddressAndPort) => _negotiator.HandleRemoteTunnelRenegotiate(sender, tunnelAddressAndPort);
-
-        private void HandleTunnelFailedMessage(string sender, string tunnelName) => _negotiator.HandleRemoteTunnelFailed(sender, tunnelName);
-
         private void AutoSelectBestTunnel()
         {
             int targetVersion = _tunnelMode == TunnelMode.V2Legacy ? 2 : 3;
@@ -3303,9 +3320,12 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             sb.Append(";");
             sb.Append(gameOptionValues);
+            sb.Append(";");
+            sb.Append(ddDifficulty?.SelectedIndex ?? -1);
 
             broadcastChannel.SendCTCPMessage(sb.ToString(), QueuedMessageType.SYSTEM_MESSAGE, 20);
         }
+
 
         #endregion
 

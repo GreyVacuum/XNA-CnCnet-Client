@@ -308,8 +308,8 @@ public class GameSessionDropDown : XNAClientDropDown, IGameSessionSetting, IGame
         }
 
         // shorthand for localization function
-        static string Localize(XNAControl control, string attributeName, string defaultValue, bool notify = true)
-            => Translation.Instance.LookUp(control, attributeName, defaultValue, notify);
+        static string Localize(XNAControl control, string attributeName, string defaultValue, TranslationNotificationLevel notificationLevel = TranslationNotificationLevel.Default)
+            => Translation.Instance.LookUp(control, attributeName, defaultValue, notificationLevel);
 
         // helper to parse numeric suffix, returns -1 if no suffix matched
         static int ParseSuffix(string key, string prefix)

@@ -149,29 +149,29 @@ namespace ClientGUI
                     {
                         case "$X":
                             control.X = Parser.Instance.GetExprValue(
-                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                             break;
                         case "$Y":
                             control.Y = Parser.Instance.GetExprValue(
-                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                             break;
                         case "$Width":
                             control.Width = Parser.Instance.GetExprValue(
-                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                             break;
                         case "$Height":
                             control.Height = Parser.Instance.GetExprValue(
-                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false), control);
+                                Translation.Instance.LookUp(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose), control);
                             break;
                         case "$TextAnchor":
                             if (control is XNALabel label)
                                 label.TextAnchor = (LabelTextAnchorInfo)Enum.Parse(typeof(LabelTextAnchorInfo),
-                                    Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false));
+                                    Translation.Instance.LookUp(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose));
                             break;
                         case "$AnchorPoint":
                             if (control is XNALabel anchorLabel)
                             {
-                                string[] parts = Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false).Split(',');
+                                string[] parts = Translation.Instance.LookUp(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose).Split(',');
                                 if (parts.Length != 2)
                                     throw new FormatException("Invalid format for AnchorPoint: " + kvp.Value);
                                 anchorLabel.AnchorPoint = new Vector2(
@@ -180,7 +180,7 @@ namespace ClientGUI
                             }
                             break;
                         case "$LeftClickAction":
-                            string actionValue = Translation.Instance.LookUp(control, kvp.Key, kvp.Value, false);
+                            string actionValue = Translation.Instance.LookUp(control, kvp.Key, kvp.Value, TranslationNotificationLevel.Verbose);
                             if (actionValue == "Disable")
                                 control.LeftClick += (s, e) => control.Disable();
                             break;
