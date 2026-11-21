@@ -90,14 +90,11 @@ namespace DTAClient.DXGUI
             AssetLoader.Initialize(GraphicsDevice, content);
             AssetLoader.AssetSearchPaths.Add(UserINISettings.Instance.TranslationThemeFolderPath);
             AssetLoader.AssetSearchPaths.Add(ProgramConstants.GetResourcePath());
-            // 将 Themes/ 根目录作为公共资源搜索路径，用于存放所有主题共享的资源
-            // 将 Global/ 根目录作为全局资源搜索路径，用于存放不区分主题和语言的通用资源
-            // 优先级：主题专属 > Themes/公共 > 翻译 > Global/全局 > Resources/根 > 游戏根目录
+            // 共享资源搜索路径：主题专属 > Themes/公共 > 翻译 > ClientGlobals（兼容 Client Global/Client Globals/ClientGlobal）> Resources/根 > 游戏根目录
             AssetLoader.AssetSearchPaths.Add(
-                SafePath.CombineDirectoryPath(ProgramConstants.GetBaseResourcePath(), "Themes"));
+                SafePath.CombineDirectoryPath(ProgramConstants.GetBaseResourcePath(), ProgramConstants.THEMES_DIRECTORY));
             AssetLoader.AssetSearchPaths.Add(UserINISettings.Instance.TranslationFolderPath);
-            AssetLoader.AssetSearchPaths.Add(
-                SafePath.CombineDirectoryPath(ProgramConstants.GetBaseResourcePath(), "Global"));
+            AssetLoader.AssetSearchPaths.AddRange(ProgramConstants.GetClientGlobalSearchPaths());
             AssetLoader.AssetSearchPaths.Add(ProgramConstants.GetBaseResourcePath());
             AssetLoader.AssetSearchPaths.Add(ProgramConstants.GamePath);
 

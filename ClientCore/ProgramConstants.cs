@@ -83,6 +83,22 @@ namespace ClientCore
         public static string BASE_RESOURCE_PATH = "Resources";
         public static string RESOURCES_DIR = BASE_RESOURCE_PATH;
 
+        /// <summary>
+        /// Directory under the base resource path that contains resources shared by all themes.
+        /// </summary>
+        public const string THEMES_DIRECTORY = "Themes";
+
+        /// <summary>
+        /// Directory under the base resource path that contains resources shared by the whole client,
+        /// regardless of theme or language.
+        /// </summary>
+        public const string CLIENT_GLOBALS_DIRECTORY = "ClientGlobals";
+
+        /// <summary>
+        /// Legacy client-global directory names, kept for compatibility with existing packages.
+        /// </summary>
+        private static readonly string[] LegacyClientGlobalDirectories = { "ClientGlobal", "Client Globals", "Client Global" };
+
         public static int LOG_LEVEL = 1;
 
         public static bool IsInGame { get; set; }
@@ -95,6 +111,59 @@ namespace ClientCore
         public static string GetBaseResourcePath()
         {
             return SafePath.CombineDirectoryPath(GamePath, BASE_RESOURCE_PATH);
+        }
+
+        /// <summary>
+        /// Returns the ordered client-global resource directories.
+        /// </summary>
+        public static List<string> GetClientGlobalSearchPaths()
+        {
+            string baseResourcePath = GetBaseResourcePath();
+
+            List<string> searchPaths = new()
+            {
+                SafePath.CombineDirectoryPath(baseResourcePath, CLIENT_GLOBALS_DIRECTORY)
+            };
+
+            foreach (string directoryName in LegacyClientGlobalDirectories)
+                searchPaths.Add(SafePath.CombineDirectoryPath(baseResourcePath, directoryName));
+
+            return searchPaths;
+        }
+
+        /// <summary>
+        /// Returns the ordered directories used for finding client resources and window INI files.
+        /// <para>Priority: active theme &gt; shared themes &gt; client-global &gt; base resources.</para>
+        /// </summary>
+        public static List<string> GetResourceSearchPaths()
+        {
+            List<string> searchPaths = new()
+            {
+                GetResourcePath(),
+                SafePath.CombineDirectoryPath(GetBaseResourcePath(), THEMES_DIRECTORY)
+            };
+
+            searchPaths.AddRange(GetClientGlobalSearchPaths());
+            searchPaths.Add(GetBaseResourcePath());
+
+            return searchPaths;
+        }
+
+        /// <summary>
+        /// Finds an INI file from the directories returned by <see cref="GetResourceSearchPaths"/>.
+        /// </summary>
+        /// <param name="iniFileName">File name of the INI file, including the extension.</param>
+        /// <returns>Full path of the INI file, or null if it was not found.</returns>
+        public static string GetResourceIniPath(string iniFileName)
+        {
+            foreach (string searchPath in GetResourceSearchPaths())
+            {
+                FileInfo iniFile = SafePath.GetFile(searchPath, iniFileName);
+                if (iniFile.Exists)
+                    return iniFile.FullName;
+            }
+
+            return null;
         }
 
         public const string GAME_INVITE_CTCP_COMMAND = "INVITE";

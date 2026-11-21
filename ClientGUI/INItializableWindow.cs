@@ -92,29 +92,14 @@ namespace ClientGUI
         {
             string iniFileName = string.IsNullOrWhiteSpace(IniNameOverride) ? Name : IniNameOverride;
 
-            // get theme specific path
-            FileInfo configIniPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), FormattableString.Invariant($"{iniFileName}.ini"));
-            if (configIniPath.Exists)
-                return configIniPath.FullName;
-
-            // get base path
-            configIniPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), FormattableString.Invariant($"{iniFileName}.ini"));
-            if (configIniPath.Exists)
-                return configIniPath.FullName;
+            string configIniPath = ProgramConstants.GetResourceIniPath(FormattableString.Invariant($"{iniFileName}.ini"));
+            if (configIniPath != null)
+                return configIniPath;
 
             if (iniFileName == Name)
                 return null; // IniNameOverride must be null, no need to continue
 
-            iniFileName = Name;
-
-            // get theme specific path
-            configIniPath = SafePath.GetFile(ProgramConstants.GetResourcePath(), FormattableString.Invariant($"{iniFileName}.ini"));
-            if (configIniPath.Exists)
-                return configIniPath.FullName;
-
-            // get base path
-            configIniPath = SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), FormattableString.Invariant($"{iniFileName}.ini"));
-            return configIniPath.Exists ? configIniPath.FullName : null;
+            return ProgramConstants.GetResourceIniPath(FormattableString.Invariant($"{Name}.ini"));
         }
 
         public override void Initialize()
