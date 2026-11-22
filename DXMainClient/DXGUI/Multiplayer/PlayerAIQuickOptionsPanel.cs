@@ -180,6 +180,7 @@ namespace DTAClient.DXGUI.Multiplayer
             tabControl.ClientRectangle = new Rectangle(tabX, rowY, 0, 23);
             tabControl.AddTab("Quick".L10N("Client:Main:AIQuickActionsTab"), tabButtonWidth);
             tabControl.AddTab("Format".L10N("Client:Main:AIFormatPainterTab"), tabButtonWidth);
+            tabControl.SelectedTabIndex = 0;
             tabControl.SelectedIndexChanged += TabControl_SelectedIndexChanged;
             AddChild(tabControl);
 
@@ -367,8 +368,8 @@ namespace DTAClient.DXGUI.Multiplayer
 
         private void TabControl_SelectedIndexChanged(object sender, EventArgs e)
         {
-            pnlQuickActions.Visible = tabControl.SelectedTab == 0;
-            pnlFormatPainter.Visible = tabControl.SelectedTab == 1;
+            pnlQuickActions.Visible = tabControl.SelectedTabIndex == 0;
+            pnlFormatPainter.Visible = tabControl.SelectedTabIndex == 1;
         }
 
         private XNAClientButton CreatePanelButton(XNAPanel parent, string name, string text, int x, int y, int width, string btnTexBase = "92pxbtn")

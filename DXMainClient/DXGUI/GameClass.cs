@@ -185,7 +185,7 @@ namespace DTAClient.DXGUI
 
             // Apply the user's TrueType font opt-out (Settings.ini [Fonts] UseTTFFonts,
             // default Yes) before fonts are loaded by the WindowManager.
-            FontManager.UseLegacySpriteFonts = !UserINISettings.Instance.UseTTFFonts.Value;
+            FontManager.UseSpriteFonts = !UserINISettings.Instance.UseTTFFonts.Value;
 
             WindowManager wm = new(this, graphics);
             windowManager = wm;

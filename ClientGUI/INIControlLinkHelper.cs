@@ -267,13 +267,13 @@ namespace ClientGUI
                             }
                         }
 
-                        // initialize state based on current SelectedTab
-                        ApplyTabToggles(tabControl.SelectedTab);
+                        // initialize state based on current SelectedTabIndex
+                        ApplyTabToggles(tabControl.SelectedTabIndex);
 
                         // subscribe to tab changes
                         tabControl.SelectedIndexChanged += (s, e) =>
                         {
-                            ApplyTabToggles(tabControl.SelectedTab);
+                            ApplyTabToggles(tabControl.SelectedTabIndex);
                         };
                     }
 
@@ -376,8 +376,8 @@ namespace ClientGUI
                             }
                         }
 
-                        ApplyTabOpenExit(tabControl.SelectedTab);
-                        tabControl.SelectedIndexChanged += (s, e) => ApplyTabOpenExit(tabControl.SelectedTab);
+                        ApplyTabOpenExit(tabControl.SelectedTabIndex);
+                        tabControl.SelectedIndexChanged += (s, e) => ApplyTabOpenExit(tabControl.SelectedTabIndex);
                     }
                 }
 
