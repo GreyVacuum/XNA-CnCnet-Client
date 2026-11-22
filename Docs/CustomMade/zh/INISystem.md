@@ -530,6 +530,8 @@ TextColor=255,255,255         ; color,   标签文本颜色。
 TextColorDisabled=169,169,169 ; color,   禁用标签的文本颜色。
 DisabledTabIndexN=false       ; boolean, 禁用索引为 `N` 的标签（`N` 必须是数字）。如果当前选中的标签
                               ;          被禁用，选择会移动到下一个可选的标签。
+RemoveTabIndexN=false         ; boolean, 移除索引为 `N` 的标签（`N` 必须是有效的标签索引）。值为 `false`
+                              ;          时不执行移除。
 SetTabCount=3                 ; integer, 创建/移除占位标签，使控件恰好有 `N` 个标签。
 TabDirection=Horizontal       ; enum (Horizontal | Vertical), 标签布局方向。默认 `Horizontal`。
 ClickSoundEffect=             ; string,  标签的默认点击音效（单个标签的音效会覆盖它）。
@@ -539,6 +541,7 @@ PressedTexture=               ; string,  ClickTexture 的别名。
 FontIndex=0                   ; integer, 默认标签字体索引。
 TabText=                      ; text,    没有单独文本的标签使用的默认文本。
 ; DisabledTabIndex0=true
+; RemoveTabIndex0=true
 ```
 
 每个标签的属性使用点分隔形式 `Tab{N}.{Property}`（如果索引不存在，标签会被按需创建）：
@@ -555,6 +558,8 @@ Tab1.Text=Second Tab
 ```
 
 支持的逐标签属性：`ClickSoundEffect`、`IdleTexture`、`ClickTexture`/`PressedTexture`、`FontIndex`、`Text`/`TabText`、`Selectable`（boolean，默认 `true`）。
+
+标签文本可以通过翻译系统本地化（仅 `XNAClientTabControl` 支持）：默认文本使用 `INI:Controls:<父控件名>:<控件名>:TabText`，单个标签使用 `INI:Controls:<父控件名>:<控件名>:Tab{N}.Text`（也接受 `Tab{N}.TabText`）。详见[翻译](Translation.md)。
 
 ### [XNATextBox](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNATextBox.cs)
 
@@ -669,6 +674,8 @@ TextVerticalPadding=1    ; integer, 选项内部的垂直文本内边距。
 ### XNAClientTabControl
 
 _（继承自 [XNATabControl](#xnatabcontrol)）_ — `XNAClientTabControl`（ClientGUI）增加了标签文本的本地化；它没有额外的 INI 键。
+
+其 `AddTab(text, width)` 辅助方法按请求宽度解析标签贴图：先查找 `{width}pxtab.png`/`{width}pxtab_c.png`，再回退到 `{width}pxbtn.png`/`{width}pxbtn_c.png`。使用其他宽度时，主题（或 `Resources`）中必须提供对应贴图，否则缺失的贴图会被替换为粉色占位方块。随附的默认主题包含 `78` 与 `133` 像素的标签贴图，以及 `75`、`92`、`121`、`133`、`160` 像素的按钮贴图。
 
 ### XNAPasswordBox / XNATimerControl
 
@@ -940,6 +947,16 @@ _（继承自 [XNAPanel](#xnapanel)）_ — 游戏大厅的联合作战任务简
 ; GameLobbyBase.ini
 [MapPreviewBox_CoopBriefingBox]
 FontIndex=0 ; integer, 字体列表中加载的字体索引。
+```
+
+### MapPreviewBox
+
+游戏大厅的地图预览框。其段定义在 `GameLobbyBase.ini` 中。
+
+```ini
+[MapPreviewBox]
+CornerButtonLayout=Row ; enum (Row | Column), 右上角收藏与额外图标切换按钮的排列方式。
+                       ; 默认 `Row`。
 ```
 
 ### GameLobbyBase 控件

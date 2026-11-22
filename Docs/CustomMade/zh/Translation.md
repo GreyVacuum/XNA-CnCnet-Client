@@ -89,6 +89,7 @@ INI:Controls:UpdaterOptionsPanel:btnForceUpdate:Size=220,23
           - 每个控件：`Text`、`Size`、`Width`、`Height`、`Location`、`X`、`Y`、`DistanceFromRightBorder`、`DistanceFromBottomBorder`；
           - 带提示的控件：`ToolTip`；
           - 建议文本框：`Suggestion`；
+          - 选项卡控件（`XNAClientTabControl`）：`TabText`、`TabN.Text`（或 `TabN.TabText`）；
           - 链接按钮：`URL`、`UnixURL`；
           - 设置/游戏选项下拉框：`ItemX`（X 为索引）；
           - 游戏选项下拉框：`OptionName`；
