@@ -31,15 +31,44 @@
 
 | 模型 | 类 | INI 查找方式 | 额外控件支持 |
 |---|---|---|---|
-| 窗口模型 | [`XNAWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindow.cs)（继承自 [`XNAWindowBase`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindowBase.cs)） | 活动主题资源目录下的 `{Name}.ini`，其次是基础资源目录，最后回退到 `GenericWindow.ini` 的 `[GenericWindow]` 段 | `[Name]ExtraControls`（通过 `EnabledExtraControls` 启用） |
-| INItializable 模型 | [`INItializableWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/INItializableWindow.cs)（继承自 `XNAPanel`） | `{Name}.ini`，按相同的"主题优先、基础次之"顺序解析；无通用回退 | `$CC` 子控件与 `[$ExtraControls]` 段 |
+| 窗口模型 | [`XNAWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindow.cs)（继承自 [`XNAWindowBase`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindowBase.cs)） | 活动主题资源目录下的 `{Name}.ini`，其次是 `Resources/Themes`、客户端全局目录、基础资源目录，最后回退到 `GenericWindow.ini` 的 `[GenericWindow]` 段 | `[Name]ExtraControls`（通过 `EnabledExtraControls` 启用） |
+| INItializable 模型 | [`INItializableWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/INItializableWindow.cs)（继承自 `XNAPanel`） | `{Name}.ini`，按相同的"主题优先、共享次之、基础最后"顺序解析；无通用回退 | `$CC` 子控件与 `[$ExtraControls]` 段 |
 
 关键实现说明：
 
-- **资源路径优先级** — 客户端先在 *主题专用* 资源路径（`ProgramConstants.GetResourcePath()`）中查找 INI，然后在 *基础* 资源路径（`GetBaseResourcePath()`）中查找。
+- **资源路径优先级** — 客户端先在 *主题专用* 资源路径（`ProgramConstants.GetResourcePath()`）中查找 INI，然后依次是 `Resources/Themes`、客户端全局目录，最后是 *基础* 资源路径（`GetBaseResourcePath()`）。详见 [共享资源目录](#共享资源目录)。
 - **`IniNameOverride`**（仅代码可设置，protected）— 设置后窗口改为读取 `{IniNameOverride}.ini`，当该文件不存在时回退到 `{Name}.ini`。
 - **`ExternalIniFile`**（仅代码可设置）— 当 `INItializableWindow` 被注册为另一窗口的额外控件时，它直接从宿主窗口的 INI 文件初始化，从而可以在同一个文件中声明它的 `[Name]` 段与 `$CC` 子控件。
 - **大小写敏感** — INI 键由解析器不区分大小写地匹配；但在控件树中查找时，段名与控件名是大小写敏感的，请保持一致。
+
+### 共享资源目录
+
+窗口 INI 可以放在多个主题共用的目录里：
+
+| 目录 | 用途 |
+|---|---|
+| `Resources/Themes` | 所有主题共享的资源。 |
+| `Resources/ClientGlobals` | 整个客户端共享的资源，不区分主题和语言。 |
+
+为兼容已有客户端包，`Resources/ClientGlobal`、`Resources/Client Globals` 和 `Resources/Client Global` 也会作为 `ClientGlobals` 的别名被搜索。
+
+`INItializableWindow` 与 `XNAWindow` 实际使用的 INI 查找顺序（通过 `ProgramConstants.GetResourceIniPath`）：
+
+1. 活动主题目录（`Resources/<主题>`）
+2. `Resources/Themes`
+3. `Resources/ClientGlobals`
+4. `Resources/ClientGlobal`
+5. `Resources/Client Globals`
+6. `Resources/Client Global`
+7. `Resources`（基础资源目录）
+
+先找到的文件优先。如果活动主题目录中存在同名 INI，共享目录里的副本会被忽略。
+
+该机制适用于各窗口自身的 INI，例如 `MainMenu.ini`、`OptionsWindow.ini`、`CnCNetGameLobby.ini`、`GenericWindow.ini`。核心配置文件（`ClientDefinitions.ini`、`GameOptions.ini`、`DTACnCNetClient.ini`、`NetworkDefinitions.ini`、`UserDefaults.ini`、`KeyboardCommands.ini`、`Renderers.ini`、`FHCConfig.ini`、`GameCollectionConfig.ini`）、翻译文件以及游戏侧 INI 仍从固定位置读取。
+
+`$Include` 与 `[INISystem] BasedOn` 的路径仍按所在 INI 文件目录解析（或通过 `$THEME_DIR$`），不会回退到共享目录。
+
+贴图、声音等通过 `AssetLoader` 加载的资源也使用同一组共享目录，翻译目录插在 `Resources/Themes` 之后。
 
 ---
 

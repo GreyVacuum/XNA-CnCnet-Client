@@ -27,15 +27,44 @@ There are two distinct initialization models:
 
 | Model | Class | INI lookup | Extra control support |
 |---|---|---|---|
-| Window model | [`XNAWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindow.cs) (inherits [`XNAWindowBase`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindowBase.cs)) | `{Name}.ini` in the active theme's resource folder, then the base resource folder, then `GenericWindow.ini`'s `[GenericWindow]` section as fallback | `[Name]ExtraControls` (opt-in via `EnabledExtraControls`) |
-| INItializable model | [`INItializableWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/INItializableWindow.cs) (inherits `XNAPanel`) | `{Name}.ini` resolved with the same theme-then-base priority; no generic fallback | `$CC` child controls and `[$ExtraControls]` section |
+| Window model | [`XNAWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindow.cs) (inherits [`XNAWindowBase`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindowBase.cs)) | `{Name}.ini` in the active theme's resource folder, then `Resources/Themes`, then the client-global directories, then the base resource folder, then `GenericWindow.ini`'s `[GenericWindow]` section as fallback | `[Name]ExtraControls` (opt-in via `EnabledExtraControls`) |
+| INItializable model | [`INItializableWindow`](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/INItializableWindow.cs) (inherits `XNAPanel`) | `{Name}.ini` resolved with the same theme → shared → base priority; no generic fallback | `$CC` child controls and `[$ExtraControls]` section |
 
 Key implementation notes:
 
-- **Resource path priority** — the client first looks for the INI in the *theme-specific* resource path (`ProgramConstants.GetResourcePath()`), then in the *base* resource path (`GetBaseResourcePath()`).
+- **Resource path priority** — the client looks for the INI in the *theme-specific* resource path (`ProgramConstants.GetResourcePath()`), then in `Resources/Themes`, then in the client-global directories, and finally in the *base* resource path (`GetBaseResourcePath()`). See [Shared resource directories](#shared-resource-directories).
 - **`IniNameOverride`** (code-only, protected) — if set, the window reads `{IniNameOverride}.ini` instead of `{Name}.ini`, falling back to `{Name}.ini` when the override file does not exist.
 - **`ExternalIniFile`** (code-only) — when an `INItializableWindow` is registered as an extra control of another window, it is initialized from the hosting window's INI file so its `[Name]` section and `$CC` children can be declared in the same file.
 - **Case sensitivity** — INI keys are matched case-insensitively by the parser; section names and control names are case-sensitive for lookups inside the control tree, so keep them consistent.
+
+### Shared resource directories
+
+Window INIs can be placed in directories shared by multiple themes:
+
+| Directory | Purpose |
+|---|---|
+| `Resources/Themes` | Resources shared by all themes. |
+| `Resources/ClientGlobals` | Resources shared by the whole client, regardless of theme or language. |
+
+For compatibility with existing packages, `Resources/ClientGlobal`, `Resources/Client Globals` and `Resources/Client Global` are also searched as aliases of `ClientGlobals`.
+
+INI lookup order used by `INItializableWindow` and `XNAWindow` (through `ProgramConstants.GetResourceIniPath`):
+
+1. Active theme directory (`Resources/<theme>`)
+2. `Resources/Themes`
+3. `Resources/ClientGlobals`
+4. `Resources/ClientGlobal`
+5. `Resources/Client Globals`
+6. `Resources/Client Global`
+7. `Resources` (base resource directory)
+
+A file found earlier wins. If the same INI exists in the active theme directory, the shared copies are ignored.
+
+This applies to per-window INI files such as `MainMenu.ini`, `OptionsWindow.ini`, `CnCNetGameLobby.ini` and `GenericWindow.ini`. Core configuration files (`ClientDefinitions.ini`, `GameOptions.ini`, `DTACnCNetClient.ini`, `NetworkDefinitions.ini`, `UserDefaults.ini`, `KeyboardCommands.ini`, `Renderers.ini`, `FHCConfig.ini`, `GameCollectionConfig.ini`), translation files and game-side INIs are still read from their fixed locations.
+
+`$Include` and `[INISystem] BasedOn` paths are resolved relative to the including INI file (or through `$THEME_DIR$`); they do not fall back to the shared directories.
+
+Textures, sounds and other assets loaded through `AssetLoader` use the same shared directories, with the translation directory inserted after `Resources/Themes`.
 
 ---
 
