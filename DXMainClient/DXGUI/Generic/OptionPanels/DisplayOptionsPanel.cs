@@ -329,8 +329,8 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             chkEnableBackgroundVideoSound = new XNAClientCheckBox(WindowManager);
             chkEnableBackgroundVideoSound.Name = nameof(chkEnableBackgroundVideoSound);
             chkEnableBackgroundVideoSound.ClientRectangle = new Rectangle(
-                chkEnableBackgroundVideo.X + 36,
-                chkEnableBackgroundVideo.Bottom + 24, 0, 0);
+                chkEnableBackgroundVideo.X + 20,
+                chkEnableBackgroundVideo.Bottom + 4, 0, 0);
             chkEnableBackgroundVideoSound.Text = "Video Sound".L10N("Client:DTAConfig:EnableBackgroundVideoSound");
             chkEnableBackgroundVideoSound.ToolTipText =
                 """
