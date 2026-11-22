@@ -482,6 +482,8 @@ TextColor=255,255,255         ; color,   tab text color.
 TextColorDisabled=169,169,169 ; color,   text color of disabled tabs.
 DisabledTabIndexN=false       ; boolean, disables the tab at index `N` (`N` must be a number). If the currently selected tab
                               ;          becomes disabled, the selection moves to the next selectable tab.
+RemoveTabIndexN=false         ; boolean, removes the tab at index `N` (`N` must be a valid tab index). Nothing is removed
+                              ;          when the value is `false`.
 SetTabCount=3                 ; integer, creates/removes placeholder tabs so the control has exactly `N` tabs.
 TabDirection=Horizontal       ; enum (Horizontal | Vertical), tab layout direction. Default `Horizontal`.
 ClickSoundEffect=             ; string,  default click sound for tabs (per-tab sounds override it).
@@ -491,6 +493,7 @@ PressedTexture=               ; string,  alias of ClickTexture.
 FontIndex=0                   ; integer, default tab font index.
 TabText=                      ; text,    default text for tabs that have no per-tab text.
 ; DisabledTabIndex0=true
+; RemoveTabIndex0=true
 ```
 
 Per-tab properties use the dot-separated form `Tab{N}.{Property}` (a tab is created on demand if the index does not exist yet):
@@ -507,6 +510,8 @@ Tab1.Text=Second Tab
 ```
 
 Supported per-tab properties: `ClickSoundEffect`, `IdleTexture`, `ClickTexture`/`PressedTexture`, `FontIndex`, `Text`/`TabText`, `Selectable` (boolean, default `true`).
+
+Tab texts can be localized through the translation system (only `XNAClientTabControl` implements this): use `INI:Controls:<parent>:<control>:TabText` for the default text and `INI:Controls:<parent>:<control>:Tab{N}.Text` (or `Tab{N}.TabText`) for an individual tab. See [Translation](Translation.md).
 
 ### [XNATextBox](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNATextBox.cs)
 
@@ -607,6 +612,8 @@ TextVerticalPadding=1    ; integer, vertical text padding inside items.
 ### XNAClientTabControl
 
 _(inherits XNATabControl)_ — `XNAClientTabControl` (ClientGUI) adds localization of tab text; it defines no additional INI keys.
+
+Its `AddTab(text, width)` helper resolves tab textures by the requested width: it first looks for `{width}pxtab.png`/`{width}pxtab_c.png`, then falls back to `{width}pxbtn.png`/`{width}pxbtn_c.png`. Any other width requires matching textures in the theme (or `Resources`), otherwise the missing texture is replaced by a pink dummy square. The bundled default theme contains tab art for `78` and `133` pixels and button art for `75`, `92`, `121`, `133` and `160` pixels.
 
 ### XNAPasswordBox / XNATimerControl
 
@@ -843,6 +850,16 @@ _(inherits XNAPanel)_ — the co-op mission briefing panel of the game lobby.
 ; GameLobbyBase.ini
 [MapPreviewBox_CoopBriefingBox]
 FontIndex=0 ; integer, index of the font loaded from the font list.
+```
+
+### MapPreviewBox
+
+The map preview box of the game lobby. Its section is defined in `GameLobbyBase.ini`.
+
+```ini
+[MapPreviewBox]
+CornerButtonLayout=Row ; enum (Row | Column), how the favorite and extra icon toggle buttons in the
+                       ; top-right corner are arranged. Default `Row`.
 ```
 
 ### GameLobbyBase Controls
