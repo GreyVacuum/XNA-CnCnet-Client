@@ -559,6 +559,8 @@ Tab1.Text=Second Tab
 
 支持的逐标签属性：`ClickSoundEffect`、`IdleTexture`、`ClickTexture`/`PressedTexture`、`FontIndex`、`Text`/`TabText`、`Selectable`（boolean，默认 `true`）。
 
+INI 定义的标签控件在没有显式选中项时，默认选中第一个可选标签（把靠前的标签设为 `TabN.Selectable=false` 可跳过它）。
+
 标签文本可以通过翻译系统本地化（仅 `XNAClientTabControl` 支持）：默认文本使用 `INI:Controls:<父控件名>:<控件名>:TabText`，单个标签使用 `INI:Controls:<父控件名>:<控件名>:Tab{N}.Text`（也接受 `Tab{N}.TabText`）。详见[翻译](Translation.md)。
 
 ### [XNATextBox](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNATextBox.cs)

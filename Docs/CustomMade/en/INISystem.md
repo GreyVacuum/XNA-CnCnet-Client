@@ -511,6 +511,8 @@ Tab1.Text=Second Tab
 
 Supported per-tab properties: `ClickSoundEffect`, `IdleTexture`, `ClickTexture`/`PressedTexture`, `FontIndex`, `Text`/`TabText`, `Selectable` (boolean, default `true`).
 
+Ini-defined tab controls default to the first selectable tab when no tab is selected explicitly (set `TabN.Selectable=false` on the leading tabs to skip them).
+
 Tab texts can be localized through the translation system (only `XNAClientTabControl` implements this): use `INI:Controls:<parent>:<control>:TabText` for the default text and `INI:Controls:<parent>:<control>:Tab{N}.Text` (or `Tab{N}.TabText`) for an individual tab. See [Translation](Translation.md).
 
 ### [XNATextBox](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNATextBox.cs)
