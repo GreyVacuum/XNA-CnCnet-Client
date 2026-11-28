@@ -189,6 +189,17 @@ namespace ClientGUI
                 // New: support XNATabControl controlling visibility/enabled state of controls per-tab
                 if (child is XNATabControl tabControl)
                 {
+                    // INI-defined tab controls default to the first selectable tab.
+                    // XNAUI 2.0 changed the default from index 0 to -1 (no selection),
+                    // which left INI tab controls without a highlighted tab and made
+                    // $ToggleN / $OpenN / $ExitN initialize against "no tab".
+                    if (tabControl.SelectedTabIndex < 0 && tabControl.Tabs.Count > 0)
+                    {
+                        int firstSelectableIndex = tabControl.Tabs.FindIndex(tab => tab.Selectable);
+                        if (firstSelectableIndex >= 0)
+                            tabControl.SelectedTabIndex = firstSelectableIndex;
+                    }
+
                     // Map: tab index -> list of control names (comma-separated)
                     var tabToggleMap = new Dictionary<int, List<XNAControl>>();
 
