@@ -304,7 +304,7 @@ chkModOption=SettingCheckBox
 
 可通过 INI 创建的控件按其 `Type.Name` 注册（参见 `DXMainClient/DXGUI/GameClass.cs`）。已注册的名称如下：
 
-`XNAControl`、`XNAButton`、`XNAInteractionButton`、`XNAClientButton`、`XNAClientCheckBox`、`XNAClientDropDown`、`XNALinkButton`、`XNAExtraPanel`、`XNACheckBox`、`XNADropDown`、`XNAClientTabControl`、`XNATabControl`、`XNALabel`、`XNALinkLabel`、`XNAClientLinkLabel`、`XNAListBox`、`XNAMultiColumnListBox`、`XNAPanel`、`XNAScrollPanel`、`XNAProgressBar`、`XNASuggestionTextBox`、`XNATextBox`、`XNATextBlock`、`XNATrackbar`、`XNAChatTextBox`、`ChatListBox`、`INItializableWindow`、`GameLobbyCheckBox`、`GameLobbyDropDown`、`CampaignCheckBox`、`CampaignDropDown`、`SettingCheckBox`、`SettingDropDown`、`FileSettingCheckBox`、`FileSettingDropDown`，以及单例窗口（`LoadingScreen`、`MainMenu`、`TopBar`、`OptionsWindow`、`CnCNetLobby`、`CnCNetGameLobby`、`SkirmishLobby`、`MapPreviewBox`、`CampaignTagSelector` 等）。
+`XNAControl`、`XNAButton`、`XNAInteractionButton`、`XNAClientButton`、`XNAClientCheckBox`、`XNAClientDropDown`、`XNALinkButton`、`XNAExtraPanel`、`XNACheckBox`、`XNADropDown`、`XNAClientTabControl`、`XNATabControl`、`XNALabel`、`XNALinkLabel`、`XNAClientLinkLabel`、`XNAListBox`、`XNAMultiColumnListBox`、`XNAPanel`、`XNAScrollPanel`、`XNAClientScrollPanel`、`XNAProgressBar`、`XNASuggestionTextBox`、`XNATextBox`、`XNATextBlock`、`XNATrackbar`、`XNAChatTextBox`、`ChatListBox`、`INItializableWindow`、`GameLobbyCheckBox`、`GameLobbyDropDown`、`CampaignCheckBox`、`CampaignDropDown`、`SettingCheckBox`、`SettingDropDown`、`FileSettingCheckBox`、`FileSettingDropDown`，以及单例窗口（`LoadingScreen`、`TopBar`、`OptionsWindow`、`PrivateMessagingWindow`、`PrivateMessagingPanel`、`LANLobby`、`CnCNetLobby`、`CnCNetGameLobby`、`CnCNetGameLoadingLobby`、`SkirmishLobby`、`MainMenu`、`MapPreviewBox`、`GameLaunchButton`、`PlayerExtraOptionsPanel`、`PlayerAIQuickOptionsPanel`、`PlayerNameOptionsPanel`、`CampaignTagSelector`、`GameLoadingWindow`、`GameInProgressWindow`、`StatisticsWindow`、`UpdateQueryWindow`、`ManualUpdateQueryWindow`、`UpdateWindow`、`ExtrasWindow`）。
 
 ---
 
@@ -481,7 +481,14 @@ AlphaRate=0.1              ; float,   每 100 毫秒的透明度变化率。
 AllowChecking=true         ; boolean, 允许用户勾选/取消勾选复选框。
 Checked=true               ; boolean, 默认勾选状态。
 TextPadding=5              ; integer, 复选框与其文本之间的水平距离。默认 `5`。
+CheckedTexture=            ; string,  勾选状态的复选框纹理。默认加载 `checkBoxChecked.png`。
+ClearTexture=              ; string,  未勾选状态的复选框纹理。默认加载 `checkBoxClear.png`。
+DisabledCheckedTexture=    ; string,  禁用且勾选状态的复选框纹理。默认加载 `checkBoxCheckedD.png`。
+DisabledClearTexture=      ; string,  禁用且未勾选状态的复选框纹理。默认加载 `checkBoxClearD.png`。
 ```
+
+> [!NOTE]
+> 未显式设置 `Height` 时，复选框高度默认为默认勾选纹理（`checkBoxChecked.png`）的高度，以便布局初始化。
 
 ### [XNADropDown](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNADropDown.cs)
 
@@ -657,6 +664,8 @@ DrawBorders=true        ; boolean, 启用/禁用边框绘制。
 ; 该控件会故意忽略 Padding。
 ```
 
+在 `INItializableWindow`（`$CC` 子控件或额外控件）中请使用复合控件 `XNAClientScrollPanel`：它把内容面板与滚动条作为子控件注册，避免它们被初始化两次；其余 INI 键与 `XNAScrollPanel` 相同。
+
 ### [XNAContextMenu](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNAContextMenu.cs)
 
 
@@ -805,7 +814,8 @@ _（继承自 [XNAClientButton](#xnaclientbutton)）_
 [SOMEINTERACTIONBUTTON]               ; XNAInteractionButton
 OpenFiles=                            ; 逗号/分号分隔的字符串，点击时用操作系统 Shell 打开的文件列表。
 ExitProcess=                          ; 逗号/分号分隔的字符串，点击时终止的进程名列表。
-TargetSuffixes=                       ; 逗号/分号分隔的字符串，OpenFiles 允许的文件扩展名；
+TargetSuffixes=                       ; 逗号/分号分隔的字符串，OpenFiles 允许的文件扩展名
+                                      ;          （也可写作 TargetSuffixs，两种拼写等价）；
                                       ;         缺少的前导点会自动补上。
                                       ;         默认为 `.exe,.bat,.txt,.ini,.log`。
 OpenDisableButtonTime=0               ; integer, 打开文件后按钮保持禁用的秒数。默认 `0`。
@@ -845,6 +855,9 @@ $TextAnchor=LEFT ; enum (NONE | LEFT | RIGHT | HORIZONTAL_CENTER | TOP | BOTTOM 
                  ;         XNALabel 绘制框的文本锚点。
 $AnchorPoint=0,0 ; 2 expressions, XNALabel 的文本起始绘制点。每个分量都按表达式解析。
 $LeftClickAction=Disable ; 左键点击时执行的动作。唯一支持的动作是 `Disable`，它会禁用并隐藏控件。
+$OverscrollMargin=0,0   ; 2 expressions, 滚动面板内容在 X/Y 方向允许超出边界的距离（仅 INItializableWindow）。
+$OverscrollMarginX=0    ; expression, 水平越界边距（仅 INItializableWindow）。
+$OverscrollMarginY=0    ; expression, 垂直越界边距（仅 INItializableWindow）。
 ```
 
 带常量的示例：
@@ -861,6 +874,8 @@ $Height=MY_HEIGHT_CONSTANT
 > `$` 属性与普通对应属性的交互方式取决于窗口模型：
 > - **XNAWindowBase 模型**（例如 `XNAWindow`、`XNAOptionsPanel`）：表达式处理在基础属性处理**之后再次运行**，因此 `$X`/`$Y`/`$Width`/`$Height` 总是胜过 `X=`/`Y=`/`Width=`/`Height=`。
 > - **INItializableWindow 模型**：键按它们在 INI 文件中出现的顺序应用，因此同一属性的最后一次出现生效。
+>
+> `$OverscrollMargin` / `$OverscrollMarginX` / `$OverscrollMarginY` 只由 INItializableWindow 模型解析，值按表达式计算。普通（非 `$`）的 `OverscrollMargin*` 键在两种模型中都能直接使用，但只接受整数。
 
 ---
 
@@ -986,6 +1001,18 @@ TeamWidth=46                   ; integer, 队伍选择器的宽度。
 PlayerStatusIndicatorX=3       ; integer, 玩家状态指示器的 X 偏移（`[MultiplayerGameLobby]`）。
 PlayerStatusIndicatorY=0       ; integer, 玩家状态指示器的 Y 偏移（`[MultiplayerGameLobby]`）。
 ```
+
+#### 难度下拉框（可选）
+
+```ini
+; GameLobbyBase.ini
+[ddDifficulty] ; XNAClientDropDown
+; 项目由客户端自动填充为本地化的 Easy/Medium/Hard，请不要在 INI 中添加项目。
+[lblDifficulty] ; XNALabel
+; 可选的文本标签，仅在启用难度下拉框时使用正常文本颜色。
+```
+
+仅当当前游戏模式在 `MPMaps.ini` 中设置 `UseDifficultyDropDown=true` 且 `ddDifficulty` 存在时才可用；完整行为与 `CoopDifficultyINIPaths` 见 [MPMaps.ini](#mpmapsini) 的“联合作战难度下拉框”。
 
 #### [GameSessionCheckBox](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Generic/GameSessionCheckBox.cs)
 
@@ -1660,6 +1687,13 @@ CustomIngameResolutions=             ; 逗号分隔的字符串，额外的游�
 CopyResolutionDependentLanguageDLL=true ; boolean, 复制与分辨率相关的语言 DLL。
 SettingsFile=Settings.ini            ; string,  设置控件写入的设置 INI 文件名。
 MPMapsPath=INI/MPMaps.ini            ; string,  多人游戏地图 INI 的路径。
+CoopDifficultyINIPaths=              ; 逗号分隔的字符串，联合作战难度下拉框各选项对应的地图代码 INI
+                                     ;          路径（按选项顺序）。留空时默认为
+                                     ;          `INI/Map Code/Coop Difficulty Easy.ini`、
+                                     ;          `INI/Map Code/Coop Difficulty Medium.ini`、
+                                     ;          `INI/Map Code/Coop Difficulty Hard.ini`。路径相对于
+                                     ;          游戏目录；仅在游戏模式设置 `UseDifficultyDropDown=true`
+                                     ;          时使用。
 UseMapsTranslationSyncSpawnIni=true  ; boolean, 把本地化的游戏模式名与地图名写入 spawn.ini 的 `UIGameMode`
                                      ;          与 `UIMapName`。取值来源为 MPMaps.ini 中游戏模式段的 `UIName`
                                      ;          与地图段的 `Description`，经 `INI:GameModes` / `INI:Maps`
@@ -1746,6 +1780,33 @@ DefaultProtocolVersion=2             ; integer, 写入 spawn.ini 的默认 Proto
 DefaultMaxAhead=0                    ; integer, 写入 spawn.ini 的默认 MaxAhead。
 CnCNetLiveStatusIdentifier=cncnet5_ts ; string, 用于 CnCNet 在线状态的身份标识。
 ```
+
+#### `[AutoMapOverlays]`
+
+`[AutoMapOverlays]` 定义地图预览上的自动建筑图标：客户端读取地图文件中的建筑数据，为匹配的建筑在预览图上绘制图标（例如油井、科技建筑）。该段可选，缺失时不会生成任何自动图标。
+
+```ini
+[AutoMapOverlays]
+0=CAOILD,oilderrick.png,Neutral,0,0,true
+1=TECH*,techbuilding.png,,0,0
+```
+
+每个条目的键名任意（通常使用 `0`、`1`、`2`…），值的格式为：
+
+`BuildingID,ImageFile,OwnerFilter,CellOffsetX,CellOffsetY[,Toggleable]`
+
+- `BuildingID` — 地图 `[Structures]` 段中的建筑类型 ID（如 `CAOILD`），不区分大小写；以 `*` 结尾时按前缀匹配（`TECH*` 匹配所有以 `TECH` 开头的建筑 ID）。
+- `ImageFile` — 绘制到预览图上的图标文件名，按客户端资源搜索路径加载（通常放在 `Resources` 或主题目录）。
+- `OwnerFilter` — 仅匹配该拥有者的建筑（不区分大小写，如 `Neutral`）；留空表示匹配任意拥有者。
+- `CellOffsetX`、`CellOffsetY` — 放置前加到建筑单元格坐标上的偏移，用于让图标与建筑更好对齐。
+- `Toggleable` — 可选，默认 `false`。为 `true` 时图标受用户设置 `Settings.ini` `[Video]` `DisplayToggleableExtraTextures` 与地图预览右上角的图标切换按钮控制。
+
+实现细节：
+
+- 目前仅支持 Tiberian Sun / Red Alert 2 地图格式：地形高度从 `[IsoMapPack5]` 读取，建筑从 `[Structures]` 读取；图标按建筑所在单元格的地形高度绘制，因此高台上的建筑位置正确。
+- 地图文件大小或修改时间变化时会重新读取；解析结果带缓存，无法读取的地图只记录日志，不影响地图列表加载。
+- 自动图标与 `MPMaps.ini` 中手动定义的 `ExtraTextureN` 图标会合并绘制，两者的 `Toggleable` 图标共享同一个显示开关。
+- 等距预览的格子尺寸由 `[Settings]` 的 `UseIsometricCells`、`MapCellSizeX`/`MapCellSizeY` 控制。
 
 #### `[Translations]`
 
@@ -2205,7 +2266,8 @@ MultiplayerOnly=                      ; boolean,  该模式的地图是否不能
 HumanPlayersOnly=                     ; boolean,  是否禁止 AI 玩家。
 ForceRandomStartLocations=            ; boolean,  强制随机起始位置。
 ForceNoTeams=                         ; boolean,  强制不分队。
-CoopDifficultyLevel=                  ; integer,  联合作战难度覆盖。
+CoopDifficultyLevel=                  ; integer,  联合作战难度覆盖（地图值优先于游戏模式值；
+                                      ;          仅在未启用难度下拉框时用于 AI 难度）。0 = 困难、1 = 中等、2 = 简单。
 
 ; 游戏模式段键：
 [GAME_MODE]
@@ -2219,12 +2281,41 @@ MultiplayerOnly=                      ; boolean,  该模式的地图是否不能
 HumanPlayersOnly=                     ; boolean,  是否禁止 AI 玩家。
 ForceRandomStartLocations=            ; boolean,  强制随机起始位置。
 ForceNoTeams=                         ; boolean,  强制不分队。
-CoopDifficultyLevel=                  ; integer,  联合作战难度覆盖。
-```
+CoopDifficultyLevel=                  ; integer,  联合作战难度覆盖（未启用难度下拉框时用于 AI 难度）。
+UseDifficultyDropDown=                ; boolean,  在大厅显示联合作战难度下拉框（Easy/Medium/Hard），
+                                      ;          并用所选难度对应的地图代码 INI 与 AI 难度。
 
 玩家数量的优先级解析：
 - `MaxPlayers`：`GameMode.MaxPlayersOverride` > `Map.ClientMaxPlayer` > `Map.MaxPlayer`
 - `MinPlayers`：`GameMode.MinPlayersOverride` > `Map.ClientMinPlayer` > `Map.MinPlayer`
+
+#### 联合作战难度下拉框
+
+联合作战模式可以启用大厅难度下拉框，让房主在 Easy / Medium / Hard 三档之间选择，并为每档应用不同的地图代码 INI：
+
+```ini
+; MPMaps.ini（游戏模式段）
+[COOP_MODE]
+IsCoopMission=Yes
+UseDifficultyDropDown=true
+
+; ClientDefinitions.ini
+[Settings]
+CoopDifficultyINIPaths=INI/Map Code/Coop Difficulty Easy.ini,INI/Map Code/Coop Difficulty Medium.ini,INI/Map Code/Coop Difficulty Hard.ini
+
+; GameLobbyBase.ini
+[ddDifficulty] ; XNAClientDropDown
+[lblDifficulty] ; XNALabel（可选）
+```
+
+行为：
+
+- 大厅窗口的控件树中需要存在名为 `ddDifficulty` 的 `XNAClientDropDown`（可在任意嵌套层级，通常定义在 `GameLobbyBase.ini` 或其派生窗口的 INI 中）；`lblDifficulty`（`XNALabel`）可选。下拉项由客户端固定填充为本地化的 Easy/Medium/Hard，INI 中定义的项会被清空，因此不要自定义项目。
+- 选中的索引按顺序对应 `CoopDifficultyINIPaths`：第 0 项 → 第一个路径，第 1 项 → 第二个，依此类推。开局时该 INI 以地图代码方式合并进 spawnmap.ini（在 `MapCodeIniName`、`GlobalCode.ini`、`MultiplayerGlobalCode.ini` 之后，大厅复选框/下拉框的地图代码之前）。
+- `CoopDifficultyINIPaths` 留空时使用默认的三个文件；条目数必须至少与下拉项数量一致，越界时记录日志并跳过难度 INI。
+- AI 难度：下拉项 1/2/3（Easy/Medium/Hard）分别对应写入 spawn.ini `[HouseHandicaps]` 的 2/1/0（0 = 最强）。未启用 `UseDifficultyDropDown` 时使用 `CoopDifficultyLevel`（地图值 > 游戏模式值，默认 0）。
+- 已选难度会写入 `spawnSG.ini` 的 `[Settings] CoopDifficultyLevel`，用于游戏加载大厅在地图名后显示难度。
+- 遭遇战会通过 `SkirmishSettings.ini` 的 `[Settings] Difficulty` 记住上次选择；多人游戏中该选择只保留在当前大厅会话内。
 
 #### 地图属性
 
@@ -2268,6 +2359,16 @@ MissionSpawnMapIniOptions=SourceSection:TargetSection[,More:More] ; 逗号分隔
 ExtraIniName=MyExtraCode.ini           ; string,  游戏启动时合并进地图 INI 的文件名（位于 `INI/Map Code/`）。
                                        ;          别名：ExtraININame。
 ```
+
+**`ExtraTextureN` 地图预览图标**
+
+格式为 `ImageFile,X,Y[,Level][,Toggleable]`：
+
+- `X`、`Y` — 图标所在的单元格坐标（等距地图同样使用单元格坐标，而不是像素）。
+- `Level` — 可选，默认 `0`。等距地图中当图标位于高台/有高度的地形上时设置该值，预览位置才会正确。
+- `Toggleable` — 可选，默认 `false`。为 `true` 时图标受 `Settings.ini` `[Video]` `DisplayToggleableExtraTextures` 与地图预览右上角的图标切换按钮控制。
+- 键从 `ExtraTexture0` 开始按顺序读取，遇到缺失或空白的编号即停止，因此编号必须连续；格式无效（不是 3 到 5 个字段）的条目会记录日志并跳过。
+- 图标按客户端资源搜索路径加载；与 `ClientDefinitions.ini` `[AutoMapOverlays]` 自动生成的建筑图标会合并绘制。
 
 #### 合作任务地图属性
 

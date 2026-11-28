@@ -280,7 +280,7 @@ chkModOption=SettingCheckBox
 
 Controls that can be created from INI are registered by their `Type.Name` (see `DXMainClient/DXGUI/GameClass.cs`). The registered names are:
 
-`XNAControl`, `XNAButton`, `XNAInteractionButton`, `XNAClientButton`, `XNAClientCheckBox`, `XNAClientDropDown`, `XNALinkButton`, `XNAExtraPanel`, `XNACheckBox`, `XNADropDown`, `XNAClientTabControl`, `XNATabControl`, `XNALabel`, `XNALinkLabel`, `XNAClientLinkLabel`, `XNAListBox`, `XNAMultiColumnListBox`, `XNAPanel`, `XNAScrollPanel`, `XNAProgressBar`, `XNASuggestionTextBox`, `XNATextBox`, `XNATextBlock`, `XNATrackbar`, `XNAChatTextBox`, `ChatListBox`, `INItializableWindow`, `GameLobbyCheckBox`, `GameLobbyDropDown`, `CampaignCheckBox`, `CampaignDropDown`, `SettingCheckBox`, `SettingDropDown`, `FileSettingCheckBox`, `FileSettingDropDown`, plus the singleton windows (`LoadingScreen`, `MainMenu`, `TopBar`, `OptionsWindow`, `CnCNetLobby`, `CnCNetGameLobby`, `SkirmishLobby`, `MapPreviewBox`, `CampaignTagSelector`, ...).
+`XNAControl`, `XNAButton`, `XNAInteractionButton`, `XNAClientButton`, `XNAClientCheckBox`, `XNAClientDropDown`, `XNALinkButton`, `XNAExtraPanel`, `XNACheckBox`, `XNADropDown`, `XNAClientTabControl`, `XNATabControl`, `XNALabel`, `XNALinkLabel`, `XNAClientLinkLabel`, `XNAListBox`, `XNAMultiColumnListBox`, `XNAPanel`, `XNAScrollPanel`, `XNAClientScrollPanel`, `XNAProgressBar`, `XNASuggestionTextBox`, `XNATextBox`, `XNATextBlock`, `XNATrackbar`, `XNAChatTextBox`, `ChatListBox`, `INItializableWindow`, `GameLobbyCheckBox`, `GameLobbyDropDown`, `CampaignCheckBox`, `CampaignDropDown`, `SettingCheckBox`, `SettingDropDown`, `FileSettingCheckBox`, `FileSettingDropDown`, plus the singleton windows (`LoadingScreen`, `TopBar`, `OptionsWindow`, `PrivateMessagingWindow`, `PrivateMessagingPanel`, `LANLobby`, `CnCNetLobby`, `CnCNetGameLobby`, `CnCNetGameLoadingLobby`, `SkirmishLobby`, `MainMenu`, `MapPreviewBox`, `GameLaunchButton`, `PlayerExtraOptionsPanel`, `PlayerAIQuickOptionsPanel`, `PlayerNameOptionsPanel`, `CampaignTagSelector`, `GameLoadingWindow`, `GameInProgressWindow`, `StatisticsWindow`, `UpdateQueryWindow`, `ManualUpdateQueryWindow`, `UpdateWindow`, `ExtrasWindow`).
 
 ---
 
@@ -437,7 +437,14 @@ AlphaRate=0.1              ; float,   transparency change rate per 100 ms.
 AllowChecking=true         ; boolean, allows the user to check/uncheck the checkbox.
 Checked=true               ; boolean, default checked state.
 TextPadding=5              ; integer, horizontal distance between the checkbox and its text. Default `5`.
+CheckedTexture=            ; string,  texture of the checkbox in the checked state. Defaults to `checkBoxChecked.png`.
+ClearTexture=              ; string,  texture of the checkbox in the unchecked state. Defaults to `checkBoxClear.png`.
+DisabledCheckedTexture=    ; string,  texture of the disabled checked checkbox. Defaults to `checkBoxCheckedD.png`.
+DisabledClearTexture=      ; string,  texture of the disabled unchecked checkbox. Defaults to `checkBoxClearD.png`.
 ```
+
+> [!NOTE]
+> When `Height` is not set explicitly, the checkbox height defaults to the height of the default checked texture (`checkBoxChecked.png`) to help layout initialization.
 
 ### [XNADropDown](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNADropDown.cs)
 
@@ -597,6 +604,8 @@ DrawBorders=true        ; boolean, enables/disables border drawing.
 ; Padding is intentionally ignored by this control.
 ```
 
+In `INItializableWindow` (`$CC` children or extra controls), use the composite `XNAClientScrollPanel` instead: it registers the content panel and scrollbars as its sub-controls, preventing them from being initialized twice. All other INI keys are the same as for `XNAScrollPanel`.
+
 ### [XNAContextMenu](https://github.com/Rampastring/Rampastring.XNAUI/blob/master/XNAControls/XNAContextMenu.cs)
 
 _(inherits [XNAPanel](#xnapanel))_
@@ -723,7 +732,8 @@ A button that interacts with files and processes on the local system.
 [SOMEINTERACTIONBUTTON]               ; XNAInteractionButton
 OpenFiles=                            ; comma/semicolon-separated strings, files to open with the OS shell when clicked.
 ExitProcess=                          ; comma/semicolon-separated strings, process names to terminate when clicked.
-TargetSuffixes=                       ; comma/semicolon-separated strings, allowed file extensions for OpenFiles;
+TargetSuffixes=                       ; comma/semicolon-separated strings, allowed file extensions for OpenFiles
+                                      ;          (TargetSuffixs is also accepted and equivalent);
                                       ;          a missing leading dot is added automatically.
                                       ;          Defaults to `.exe,.bat,.txt,.ini,.log`.
 OpenDisableButtonTime=0               ; integer, seconds the button stays disabled after opening files. Default `0`.
@@ -762,6 +772,10 @@ $TextAnchor=LEFT ; enum (NONE | LEFT | RIGHT | HORIZONTAL_CENTER | TOP | BOTTOM 
 $AnchorPoint=0,0 ; 2 expressions, text start drawing point of an XNALabel. Each component is parsed as an expression.
 $LeftClickAction=Disable ; action executed on left click. The only supported action is `Disable`, which disables
                  ;          and hides the control.
+$OverscrollMargin=0,0   ; 2 expressions, how far scroll panel content may exceed the bounds on X/Y
+                        ;          (INItializableWindow only).
+$OverscrollMarginX=0    ; expression, horizontal overscroll margin (INItializableWindow only).
+$OverscrollMarginY=0    ; expression, vertical overscroll margin (INItializableWindow only).
 ```
 
 Example with constants:
@@ -778,6 +792,8 @@ $Height=MY_HEIGHT_CONSTANT
 > How `$` properties interact with their plain counterparts depends on the window model:
 > - **XNAWindowBase model** (e.g. `XNAWindow`, `XNAOptionsPanel`): the expression pass runs **again after** the base attribute pass, so `$X`/`$Y`/`$Width`/`$Height` always win over `X=`/`Y=`/`Width=`/`Height=`.
 > - **INItializableWindow model**: keys are applied in the order they appear in the INI file, so the last occurrence of a property wins.
+>
+> `$OverscrollMargin` / `$OverscrollMarginX` / `$OverscrollMarginY` are parsed by the INItializableWindow model only, and their values are expressions. The plain (non-`$`) `OverscrollMargin*` keys work in both models but accept integers only.
 
 ---
 
@@ -885,6 +901,18 @@ TeamWidth=46                   ; integer, width of the team selector.
 PlayerStatusIndicatorX=3       ; integer, X offset of the player status indicator (`[MultiplayerGameLobby]`).
 PlayerStatusIndicatorY=0       ; integer, Y offset of the player status indicator (`[MultiplayerGameLobby]`).
 ```
+
+#### Difficulty Dropdown (optional)
+
+```ini
+; GameLobbyBase.ini
+[ddDifficulty] ; XNAClientDropDown
+; Items are filled automatically with localized Easy/Medium/Hard; do not define items in the INI.
+[lblDifficulty] ; XNALabel
+; Optional label; it uses the normal text color only when the difficulty dropdown is enabled.
+```
+
+Only usable when the current game mode sets `UseDifficultyDropDown=true` in `MPMaps.ini` and `ddDifficulty` exists. See "Co-op Difficulty Dropdown" under [MPMaps.ini](#mpmapsini) for the full behavior and `CoopDifficultyINIPaths`.
 
 #### [GameSessionCheckBox](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Generic/GameSessionCheckBox.cs)
 
@@ -1597,6 +1625,13 @@ CustomIngameResolutions=             ; comma-separated strings, additional in-ga
 CopyResolutionDependentLanguageDLL=true ; boolean, copies the resolution-dependent language DLL.
 SettingsFile=Settings.ini            ; string,  name of the settings INI written by the settings controls.
 MPMapsPath=INI/MPMaps.ini            ; string,  path to the multiplayer maps INI.
+CoopDifficultyINIPaths=              ; comma-separated strings, map code INI paths for the co-op difficulty
+                                     ;          dropdown options, in option order. Empty uses
+                                     ;          `INI/Map Code/Coop Difficulty Easy.ini`,
+                                     ;          `INI/Map Code/Coop Difficulty Medium.ini` and
+                                     ;          `INI/Map Code/Coop Difficulty Hard.ini`. Paths are relative to
+                                     ;          the game directory; only used when a game mode sets
+                                     ;          `UseDifficultyDropDown=true`.
 UseMapsTranslationSyncSpawnIni=true  ; boolean, write the localized game mode and map names (the `UIName`
                                      ;          values of game mode sections and the `Description` values of
                                      ;          map sections in MPMaps.ini, translated through the
@@ -1694,6 +1729,33 @@ DefaultProtocolVersion=2             ; integer, default Protocol written to spaw
 DefaultMaxAhead=0                    ; integer, default MaxAhead written to spawn.ini.
 CnCNetLiveStatusIdentifier=cncnet5_ts ; string, identifier used for CnCNet live status.
 ```
+
+#### `[AutoMapOverlays]`
+
+`[AutoMapOverlays]` defines automatic building icons on map previews: the client reads the building data from the map file and draws an icon on the preview for each matching building (for example oil derricks or tech buildings). The section is optional; when absent, no automatic icons are generated.
+
+```ini
+[AutoMapOverlays]
+0=CAOILD,oilderrick.png,Neutral,0,0,true
+1=TECH*,techbuilding.png,,0,0
+```
+
+Keys are arbitrary (normally `0`, `1`, `2`, ...); each value has the format:
+
+`BuildingID,ImageFile,OwnerFilter,CellOffsetX,CellOffsetY[,Toggleable]`
+
+- `BuildingID` - building type ID from the map's `[Structures]` section (for example `CAOILD`), case-insensitive. A trailing `*` matches any building ID with that prefix (`TECH*` matches every ID starting with `TECH`).
+- `ImageFile` - icon file name drawn on the preview, loaded through the client's resource search paths (normally from `Resources` or a theme directory).
+- `OwnerFilter` - only match buildings of this owner (case-insensitive, for example `Neutral`); leave empty to match any owner.
+- `CellOffsetX`, `CellOffsetY` - offsets added to the building's cell coordinates before placement, useful for better centering of the icon.
+- `Toggleable` - optional, defaults to `false`. When `true`, the icon respects the user's `Settings.ini` `[Video]` `DisplayToggleableExtraTextures` setting and the icon toggle button in the top-right corner of the map preview.
+
+Implementation notes:
+
+- Only the Tiberian Sun / Red Alert 2 map format is supported: terrain heights come from `[IsoMapPack5]` and buildings from `[Structures]`. Icons are drawn at the terrain height of the building's cell, so buildings on raised terrain are placed correctly.
+- Maps are re-read when the file size or last write time changes; results are cached, and unreadable maps are only logged without affecting map list loading.
+- Automatic icons are drawn together with the manual `ExtraTextureN` icons from `MPMaps.ini`, and the `Toggleable` icons of both share the same display toggle.
+- Isometric preview cell sizes are controlled by `UseIsometricCells` and `MapCellSizeX`/`MapCellSizeY` under `[Settings]`.
 
 #### `[Translations]`
 
@@ -2159,7 +2221,9 @@ MultiplayerOnly=                      ; boolean,  whether maps in this mode cann
 HumanPlayersOnly=                     ; boolean,  whether AI players are forbidden.
 ForceRandomStartLocations=            ; boolean,  force random starting positions.
 ForceNoTeams=                         ; boolean,  force no team assignments.
-CoopDifficultyLevel=                  ; integer,  co-op difficulty override.
+CoopDifficultyLevel=                  ; integer,  co-op difficulty override (map value takes priority over the
+                                      ;          game mode value; only used for AI difficulty when the
+                                      ;          difficulty dropdown is disabled). 0 = Hard, 1 = Medium, 2 = Easy.
 
 ; Game mode section keys:
 [GAME_MODE]
@@ -2173,12 +2237,43 @@ MultiplayerOnly=                      ; boolean,  whether maps in this mode cann
 HumanPlayersOnly=                     ; boolean,  whether AI players are forbidden.
 ForceRandomStartLocations=            ; boolean,  force random starting positions.
 ForceNoTeams=                         ; boolean,  force no team assignments.
-CoopDifficultyLevel=                  ; integer,  co-op difficulty override.
-```
+CoopDifficultyLevel=                  ; integer,  co-op difficulty override (used for AI difficulty when the
+                                      ;          difficulty dropdown is disabled).
+UseDifficultyDropDown=                ; boolean,  show the co-op difficulty dropdown in the lobby
+                                      ;          (Easy/Medium/Hard) and use the matching map code INI and
+                                      ;          AI difficulty.
 
 Priority resolution for player counts:
 - `MaxPlayers`: `GameMode.MaxPlayersOverride` > `Map.ClientMaxPlayer` > `Map.MaxPlayer`
 - `MinPlayers`: `GameMode.MinPlayersOverride` > `Map.ClientMinPlayer` > `Map.MinPlayer`
+
+#### Co-op Difficulty Dropdown
+
+Co-op modes can enable a difficulty dropdown in the lobby, letting the host pick Easy / Medium / Hard and applying a different map code INI for each:
+
+```ini
+; MPMaps.ini (game mode section)
+[COOP_MODE]
+IsCoopMission=Yes
+UseDifficultyDropDown=true
+
+; ClientDefinitions.ini
+[Settings]
+CoopDifficultyINIPaths=INI/Map Code/Coop Difficulty Easy.ini,INI/Map Code/Coop Difficulty Medium.ini,INI/Map Code/Coop Difficulty Hard.ini
+
+; GameLobbyBase.ini
+[ddDifficulty] ; XNAClientDropDown
+[lblDifficulty] ; XNALabel (optional)
+```
+
+Behavior:
+
+- The lobby window's control tree must contain a `XNAClientDropDown` named `ddDifficulty` (at any nesting level, normally defined in `GameLobbyBase.ini` or the INI of a window derived from it); `lblDifficulty` (`XNALabel`) is optional. The client always fills the dropdown with the localized Easy/Medium/Hard items and clears any items defined in the INI, so do not define custom items.
+- The selected index maps to `CoopDifficultyINIPaths` in order: item 0 -> first path, item 1 -> second, and so on. At game launch this INI is merged into spawnmap.ini as a map code (after `MapCodeIniName`, `GlobalCode.ini` and `MultiplayerGlobalCode.ini`, and before the map codes of lobby checkboxes/dropdowns).
+- When `CoopDifficultyINIPaths` is empty, the three default files are used. The list must contain at least as many entries as the dropdown has items; out-of-range indices are logged and the difficulty INI is skipped.
+- AI difficulty: dropdown items 1/2/3 (Easy/Medium/Hard) correspond to `HouseHandicaps` values 2/1/0 written to spawn.ini (0 = strongest). When `UseDifficultyDropDown` is not enabled, `CoopDifficultyLevel` is used instead (map value > game mode value, default 0).
+- The selected difficulty is written to `spawnSG.ini` `[Settings] CoopDifficultyLevel` so the game loading lobby can show the difficulty next to the map name.
+- Skirmish remembers the last choice through `SkirmishSettings.ini` `[Settings] Difficulty`; in multiplayer the choice is kept only for the current lobby session.
 
 #### Map Properties
 
@@ -2223,6 +2318,16 @@ MissionSpawnMapIniOptions=SourceSection:TargetSection[,More:More] ; comma-separa
 ExtraIniName=MyExtraCode.ini           ; string,  filename in `INI/Map Code/` to consolidate into the map INI at game
                                        ;          launch. Alias: ExtraININame.
 ```
+
+**`ExtraTextureN` map preview icons**
+
+The format is `ImageFile,X,Y[,Level][,Toggleable]`:
+
+- `X`, `Y` - cell coordinates of the icon (isometric maps also use cell coordinates, not pixels).
+- `Level` - optional, defaults to `0`. On isometric maps, set this when the icon belongs on raised terrain so the preview position remains correct.
+- `Toggleable` - optional, defaults to `false`. When `true`, the icon respects `Settings.ini` `[Video]` `DisplayToggleableExtraTextures` and the icon toggle button in the top-right corner of the map preview.
+- Keys are read sequentially starting from `ExtraTexture0`, and reading stops at the first missing or blank index, so indices must be consecutive. Entries with an invalid format (not 3 to 5 fields) are logged and skipped.
+- Icons are loaded through the client's resource search paths and are drawn together with the automatic building icons from `ClientDefinitions.ini` `[AutoMapOverlays]`.
 
 #### Co-op Map Properties
 
