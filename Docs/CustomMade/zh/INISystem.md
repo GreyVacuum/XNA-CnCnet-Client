@@ -306,6 +306,8 @@ chkModOption=SettingCheckBox
 
 `XNAControl`、`XNAButton`、`XNAInteractionButton`、`XNAClientButton`、`XNAClientCheckBox`、`XNAClientDropDown`、`XNALinkButton`、`XNAExtraPanel`、`XNACheckBox`、`XNADropDown`、`XNAClientTabControl`、`XNATabControl`、`XNALabel`、`XNALinkLabel`、`XNAClientLinkLabel`、`XNAListBox`、`XNAMultiColumnListBox`、`XNAPanel`、`XNAScrollPanel`、`XNAClientScrollPanel`、`XNAProgressBar`、`XNASuggestionTextBox`、`XNATextBox`、`XNATextBlock`、`XNATrackbar`、`XNAChatTextBox`、`ChatListBox`、`INItializableWindow`、`GameLobbyCheckBox`、`GameLobbyDropDown`、`CampaignCheckBox`、`CampaignDropDown`、`SettingCheckBox`、`SettingDropDown`、`FileSettingCheckBox`、`FileSettingDropDown`，以及单例窗口（`LoadingScreen`、`TopBar`、`OptionsWindow`、`PrivateMessagingWindow`、`PrivateMessagingPanel`、`LANLobby`、`CnCNetLobby`、`CnCNetGameLobby`、`CnCNetGameLoadingLobby`、`SkirmishLobby`、`MainMenu`、`MapPreviewBox`、`GameLaunchButton`、`PlayerExtraOptionsPanel`、`PlayerAIQuickOptionsPanel`、`PlayerNameOptionsPanel`、`CampaignTagSelector`、`GameLoadingWindow`、`GameInProgressWindow`、`StatisticsWindow`、`UpdateQueryWindow`、`ManualUpdateQueryWindow`、`UpdateWindow`、`ExtrasWindow`）。
 
+完整清单（注册名、基类、源码位置、单例/瞬时、对应文档章节）见 [RegisteredControls.md](RegisteredControls.md)。
+
 ---
 
 ## 基础控件属性
@@ -1407,6 +1409,8 @@ Item1File0=d3d9.dll,d3d9.dll,AlwaysOverwrite_LinkAsReadOnly
 
 
 定义了自己 INI 段的 [XNAWindow](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindow.cs) 子类。
+
+各窗口 INI 中的控件清单（段名、控件类型、创建方式、继承关系）见 [WindowControls.md](WindowControls.md)。
 
 ### [LoadingScreen](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Generic/LoadingScreen.cs)
 

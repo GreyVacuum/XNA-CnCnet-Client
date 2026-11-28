@@ -282,6 +282,8 @@ Controls that can be created from INI are registered by their `Type.Name` (see `
 
 `XNAControl`, `XNAButton`, `XNAInteractionButton`, `XNAClientButton`, `XNAClientCheckBox`, `XNAClientDropDown`, `XNALinkButton`, `XNAExtraPanel`, `XNACheckBox`, `XNADropDown`, `XNAClientTabControl`, `XNATabControl`, `XNALabel`, `XNALinkLabel`, `XNAClientLinkLabel`, `XNAListBox`, `XNAMultiColumnListBox`, `XNAPanel`, `XNAScrollPanel`, `XNAClientScrollPanel`, `XNAProgressBar`, `XNASuggestionTextBox`, `XNATextBox`, `XNATextBlock`, `XNATrackbar`, `XNAChatTextBox`, `ChatListBox`, `INItializableWindow`, `GameLobbyCheckBox`, `GameLobbyDropDown`, `CampaignCheckBox`, `CampaignDropDown`, `SettingCheckBox`, `SettingDropDown`, `FileSettingCheckBox`, `FileSettingDropDown`, plus the singleton windows (`LoadingScreen`, `TopBar`, `OptionsWindow`, `PrivateMessagingWindow`, `PrivateMessagingPanel`, `LANLobby`, `CnCNetLobby`, `CnCNetGameLobby`, `CnCNetGameLoadingLobby`, `SkirmishLobby`, `MainMenu`, `MapPreviewBox`, `GameLaunchButton`, `PlayerExtraOptionsPanel`, `PlayerAIQuickOptionsPanel`, `PlayerNameOptionsPanel`, `CampaignTagSelector`, `GameLoadingWindow`, `GameInProgressWindow`, `StatisticsWindow`, `UpdateQueryWindow`, `ManualUpdateQueryWindow`, `UpdateWindow`, `ExtrasWindow`).
 
+For the complete list (registered name, base class, source location, singleton/transient, related doc section), see [RegisteredControls.md](RegisteredControls.md).
+
 ---
 
 ## Basic Control Properties
@@ -1343,6 +1345,8 @@ This resolves the source of `Item0File0` to `Resources/ReShade Files/dxgi.dll` a
 ## Windows
 
 Children of [XNAWindow](https://github.com/CnCNet/xna-cncnet-client/blob/develop/ClientGUI/XNAWindow.cs) that define their own INI sections.
+
+For the control inventory of each window INI (section name, control type, creation method, inheritance), see [WindowControls.md](WindowControls.md).
 
 ### [LoadingScreen](https://github.com/CnCNet/xna-cncnet-client/blob/develop/DXMainClient/DXGUI/Generic/LoadingScreen.cs)
 
