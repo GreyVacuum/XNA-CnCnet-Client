@@ -16,6 +16,18 @@ Breaking changes are not covered here; see [Migration.md](Migration.md) instead.
 
 - Windows builds that use WinForms support an optional `Resources/ingameicon.ico`. When present, the client uses it as its window icon while a launched game is running, then restores `Resources/clienticon.ico` when the game exits. If the optional icon is missing or cannot be loaded, the client keeps its current icon.
 
+- Map preview extra icons now support terrain height (the 4th `ExtraTextureN` parameter, `Level`) and toggleable display (the 5th parameter, `Toggleable`). `ClientDefinitions.ini` also gained `[AutoMapOverlays]`, which automatically generates preview icons for buildings by building type (for example oil derricks and tech buildings). See [INISystem.md](INISystem.md).
+
+- Co-op game modes can enable a lobby difficulty dropdown: set `UseDifficultyDropDown=true` and use `CoopDifficultyINIPaths` in `ClientDefinitions.ini` to specify the map code INI for each difficulty. See [INISystem.md](INISystem.md).
+
+- `INItializableWindow` gained the composite control `XNAClientScrollPanel` (use it instead of `XNAScrollPanel` in `$CC` children or extra controls to avoid initializing its internal controls twice) and the `$OverscrollMargin` / `$OverscrollMarginX` / `$OverscrollMarginY` expression attributes. See [INISystem.md](INISystem.md).
+
+- Replay files can be dropped directly onto the client window; the client opens the file on the Replays tab of the Load Game window. This is only available when replay support is enabled (`ReplaySupport=true`), and the dropped file must use the configured `ReplayFileExtension`.
+
+- When the client's graphics device is lost (for example after a display driver reset), the client stops rendering but keeps running. If a V3 game is running at that time, the client stays alive to relay the tunnel traffic and prompts for a restart only after the game ends.
+
+- The saved-game list now supports OpenTS-format saved games: the client detects them by file signature and reads their description and custom mission information.
+
 ## 2.13.4
 
 - The `KeyboardCommands.ini` file now supports `DisableModifierKeys`. It is recommended to set this key for RA2/YR's `PlanningMode` (Waypoint Mode) command. See [INISystem.md](INISystem.md).

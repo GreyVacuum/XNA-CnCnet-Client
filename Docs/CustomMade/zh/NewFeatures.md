@@ -16,6 +16,18 @@
 
 - 使用 WinForms 的 Windows 构建支持可选的 `Resources/ingameicon.ico`。存在该文件时，客户端在启动的游戏运行期间将其作为窗口图标，并在游戏退出后恢复 `Resources/clienticon.ico`。如果可选图标缺失或无法加载，客户端会保留当前图标。
 
+- 地图预览的额外图标现支持地形高度（`ExtraTextureN` 的第 4 个参数 `Level`）与可切换显示（第 5 个参数 `Toggleable`）；`ClientDefinitions.ini` 新增 `[AutoMapOverlays]`，可按建筑类型自动为地图预览生成图标（如油井、科技建筑）。详见 [INISystem.md](INISystem.md)。
+
+- 联合作战游戏模式可在大厅启用难度下拉框：设置 `UseDifficultyDropDown=true`，并用 `ClientDefinitions.ini` 的 `CoopDifficultyINIPaths` 指定各难度对应的地图代码 INI。详见 [INISystem.md](INISystem.md)。
+
+- `INItializableWindow` 新增复合控件 `XNAClientScrollPanel`（在 `$CC`/额外控件中替代 `XNAScrollPanel`，避免内部控件重复初始化），并支持 `$OverscrollMargin` / `$OverscrollMarginX` / `$OverscrollMarginY` 表达式属性。详见 [INISystem.md](INISystem.md)。
+
+- 支持将回放文件直接拖放到客户端窗口：客户端会在“读取游戏”窗口的回放标签页中打开它。仅在启用回放支持（`ReplaySupport=true`）时可用，拖动文件的扩展名必须与 `ReplayFileExtension` 一致。
+
+- 当客户端图形设备丢失（例如显卡驱动重置）时，客户端会停止渲染但继续运行；如果此时 V3 游戏正在运行，客户端会保持运行以中继隧道流量，等游戏结束后再提示重启。
+
+- 读取游戏列表现支持 OpenTS 格式的存档：客户端会按文件签名自动识别，并读取存档描述与自定义任务信息。
+
 ## 2.13.4
 
 - `KeyboardCommands.ini` 现支持 `DisableModifierKeys`。建议为 RA2/YR 的 `PlanningMode`（路径点模式）命令设置该键。见 [INISystem.md](INISystem.md)。
